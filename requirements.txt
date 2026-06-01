@@ -1,0 +1,20 @@
+# SIARI — RF Interference Analysis API
+# Sistema Inteligente de Análisis de Interferencias RF Aeronáuticas
+
+# ─── Core Framework ───────────────────────────────────────────────────────────
+fastapi==0.109.0          # Modern web framework for building APIs
+uvicorn==0.27.0           # ASGI server to run FastAPI in development/production
+pydantic==2.6.1           # Data validation and settings management
+# ─── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.23        # SQL toolkit and ORM
+alembic==1.13.1           # Database migration tool
+
+# ─── Data Processing ──────────────────────────────────────────────────────────
+pandas==2.1.3             # Data manipulation and analysis
+numpy==1.26.2             # Numerical computing
+# ─── Testing ───────────────────────────────────────────────────────────────────
+pytest==7.4.4             # Testing framework
+pytest-asyncio==0.23.2    # Pytest plugin for asyncio support
+
+# ─── Development (optional, comment out for production) ──────────────────────
+python-dotenv==1.0.0      # Load environment variables from .env file

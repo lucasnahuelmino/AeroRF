@@ -1,0 +1,13 @@
+/.venv/
+node_modules/
+dist/
+build/
+*.log
+*.sqlite3
+*.pyc
+__pycache__/
+.env
+.env.*
+.DS_Store
+/.vscode/
+cmdtest.txt
