@@ -137,7 +137,7 @@ def build_opensky_route(state: list, airport_code: Optional[str] = None):
         'arrival_time': dt.isoformat() + 'Z',
         'path': path,
     }
-}
+
 
 
 def sample_flights():

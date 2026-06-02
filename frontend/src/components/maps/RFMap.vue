@@ -70,6 +70,18 @@ const hotspotLayer = ref(null)
 const radiusLayer = ref(null)
 const flightsStore = useFlightsStore()
 
+const normalizeFlightPath = (path) => {
+  if (!Array.isArray(path)) return []
+  return path
+    .map((coord) => {
+      if (!Array.isArray(coord) || coord.length < 2) return null
+      const lat = Number(coord[0])
+      const lng = Number(coord[1])
+      return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null
+    })
+    .filter((coord) => coord !== null)
+}
+
 const markerMode = ref(false)
 
 const layers = ref({
@@ -191,8 +203,9 @@ const renderRoutes = () => {
   // If in compact mode and flights are available in the store, render them
   if (props.compact && flightsStore.routes && flightsStore.routes.length > 0) {
     flightsStore.routes.forEach((flight) => {
-      if (!flight.path || flight.path.length === 0) return
-      L.polyline(flight.path, {
+      const normalizedPath = normalizeFlightPath(flight.path)
+      if (normalizedPath.length === 0) return
+      L.polyline(normalizedPath, {
         color: '#a855f7',
         weight: 3,
         opacity: 0.95,
@@ -200,7 +213,7 @@ const renderRoutes = () => {
     })
 
     // fit bounds to routes for compact preview
-    const allPoints = flightsStore.routes.flatMap((f) => f.path || [])
+    const allPoints = flightsStore.routes.flatMap((f) => normalizeFlightPath(f.path))
     if (allPoints.length > 0 && map.value) {
       map.value.fitBounds(allPoints, { padding: [20, 20] })
     }

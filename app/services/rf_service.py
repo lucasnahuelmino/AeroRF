@@ -68,18 +68,29 @@ class RFService:
         # Store in database
         stored_events = []
         for match in result.matches:
+            # Normalizar y mapear campos de RFMatch → EventoRF
+            freqs = getattr(match, "frequencies_involved", []) or []
+            f1 = freqs[0] if len(freqs) > 0 else None
+            f2 = freqs[1] if len(freqs) > 1 else None
+            # score_breakdown may contain a 'proximity' entry
+            proximity = None
+            try:
+                proximity = match.score_breakdown.get("proximity") if isinstance(match.score_breakdown, dict) else None
+            except Exception:
+                proximity = None
+
             event = EventoRF(
                 expediente_id=expediente_id,
-                frecuencia_resultado_mhz=match.resultado,
-                tipo_producto=match.tipo,
-                formula=match.formula,
-                error_khz=match.error_khz,
-                score_probabilidad=match.score,
-                proximidad=match.proximity,
-                freq_1_mhz=match.freq_a_mhz,
-                freq_2_mhz=match.freq_b_mhz if match.order > 1 else None,
-                senal_type=match.signal_type,
-                potencia_estimada_dbm=match.power_dbm,
+                frecuencia_resultado_mhz=getattr(match, 'result_mhz', None),
+                tipo_producto=str(getattr(match, 'tipo', None)),
+                formula=getattr(match, 'formula', None),
+                error_khz=getattr(match, 'error_khz', None),
+                score_probabilidad=getattr(match, 'score', None),
+                proximidad=proximity,
+                freq_1_mhz=f1,
+                freq_2_mhz=f2,
+                senal_type=None,
+                potencia_estimada_dbm=None,
             )
             db.add(event)
             db.flush()

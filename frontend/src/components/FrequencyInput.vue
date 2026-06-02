@@ -1,24 +1,24 @@
 <template>
-  <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
-    <h3 class="text-lg font-semibold mb-4">{{ title }}</h3>
-    <form @submit.prevent="$emit('submit', formData)" class="space-y-4">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+    <h3 class="text-lg font-semibold mb-4 text-slate-100">{{ title }}</h3>
+    <form @submit.prevent="handleSubmit" class="space-y-4">
       <div>
-        <label class="block text-sm text-gray-400 mb-1">Frecuencia (MHz)</label>
+        <label class="block text-sm text-slate-400 mb-2">Frecuencia (MHz)</label>
         <input
           v-model.number="formData.freq_mhz"
           type="number"
           step="0.001"
           placeholder="Ej: 119.0"
           required
-          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary"
+          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
         />
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-1">Tipo de Señal</label>
+        <label class="block text-sm text-slate-400 mb-2">Tipo de Señal</label>
         <select
           v-model="formData.signal_type"
-          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-primary"
+          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
           <option value="UNKNOWN">Desconocido</option>
           <option value="FM">FM</option>
@@ -32,30 +32,30 @@
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-1">Potencia (dBm, opcional)</label>
+        <label class="block text-sm text-slate-400 mb-2">Potencia (dBm, opcional)</label>
         <input
           v-model.number="formData.power_dbm"
           type="number"
           step="0.1"
           placeholder="Ej: 30"
-          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary"
+          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
         />
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-1">Descripción (opcional)</label>
+        <label class="block text-sm text-slate-400 mb-2">Descripción (opcional)</label>
         <input
           v-model="formData.label"
           type="text"
           placeholder="Ej: FM Radio Local"
-          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary"
+          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
       <div class="flex gap-2">
         <button
           type="submit"
-          class="flex-1 px-4 py-2 bg-primary hover:bg-blue-600 rounded-lg font-semibold transition-colors"
+          class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors text-white"
         >
           Agregar
         </button>
@@ -63,7 +63,7 @@
           v-if="showClear"
           @click="resetForm"
           type="button"
-          class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-200"
         >
           Limpiar
         </button>
@@ -83,7 +83,7 @@ defineProps({
   },
 })
 
-defineEmits(['submit'])
+const emit = defineEmits(['submit'])
 
 const formData = ref({
   freq_mhz: '',
@@ -91,6 +91,11 @@ const formData = ref({
   power_dbm: '',
   label: '',
 })
+
+const handleSubmit = () => {
+  emit('submit', formData.value)
+  resetForm()
+}
 
 const resetForm = () => {
   formData.value = {

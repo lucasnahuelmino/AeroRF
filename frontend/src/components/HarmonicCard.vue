@@ -14,9 +14,7 @@
             <div class="text-sm text-gray-400">{{ harmonic.label }}</div>
           </div>
           <div class="text-right">
-            <div class="font-semibold text-lg">{{ harmonic.resultado.toFixed(3) }} MHz</div>
-            <div v-if="harmonic.match" class="text-xs text-success">✓ Coincide</div>
-            <div v-else class="text-xs text-gray-400">Error: {{ harmonic.error.toFixed(2) }} kHz</div>
+            <div class="font-semibold text-lg">{{ (harmonic.freq_mhz ?? harmonic.resultado)?.toFixed(3) }} MHz</div>
           </div>
         </div>
       </div>

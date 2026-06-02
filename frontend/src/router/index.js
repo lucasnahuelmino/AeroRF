@@ -3,7 +3,7 @@ import DashboardView from '../views/DashboardView.vue'
 import ExpedientesView from '../views/ExpedientesView.vue'
 import ExpedienteDetalleView from '../views/ExpedienteDetalleView.vue'
 import CalculadoraRFView from '../views/CalculadoraRFView.vue'
-import MapasView from '../views/MapasView.vue'
+import MapView from '../views/MapView.vue'
 import EspectroView from '../views/EspectroView.vue'
 
 const routes = [
@@ -15,7 +15,7 @@ const routes = [
   {
     path: '/map',
     name: 'Map',
-    component: MapasView,
+    component: MapView,
     alias: '/mapas',
   },
   {

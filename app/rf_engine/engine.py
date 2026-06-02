@@ -161,10 +161,12 @@ class RFEngine:
         """Flatten a product + breakdown into a plain dict for ranking."""
         return {
             "result_mhz":          round(product.result_mhz, 6),
+            "resultado":           round(product.result_mhz, 6),
             "formula":             product.formula,
             "tipo":                product.tipo,
             "order":               product.order,
             "error_khz":           product.tolerance.error_khz,
+            "proximity":           product.tolerance.proximity,
             "score":               breakdown.final,
             "score_breakdown":     breakdown.as_dict(),
             "frequencies_involved": freqs_involved,

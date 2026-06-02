@@ -1,548 +1,766 @@
 <template>
-  <div class="space-y-6">
-    <h1 class="text-3xl font-bold">🗺️ Mapas e Interferencias</h1>
+  <div class="space-y-4 h-full min-h-[calc(100vh-72px)]">
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 h-full min-h-[60vh]">
+      <!-- Mapa central -->
+      <section class="relative flex min-h-[60vh] flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 shadow-inner">
+        <div class="absolute left-4 top-4 z-20 w-[22rem] max-h-[calc(100vh-18rem)] overflow-y-auto rounded-3xl border border-slate-800 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl">
+          <div class="mb-4 text-sm font-semibold uppercase tracking-widest text-slate-400">Herramientas GIS</div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <div class="lg:col-span-3 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden h-96">
-        <div id="map" class="w-full h-full"></div>
-      </div>
-
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-6">
-        <div>
-          <h2 class="text-lg font-semibold mb-4">Capas</h2>
-          <div class="space-y-3">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="layers.airports" class="rounded" />
-              <span class="text-sm">Aeropuertos</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="layers.antennas" class="rounded" />
-              <span class="text-sm">Antenas</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="layers.measurements" class="rounded" />
-              <span class="text-sm">Mediciones</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="layers.flights" class="rounded" />
-              <span class="text-sm">Vuelos</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="layers.hotspots" class="rounded" />
-              <span class="text-sm">Zonas calientes</span>
-            </label>
+          <div class="grid grid-cols-2 gap-2">
+            <button @click="setTool('select')" :class="buttonClass(toolMode === 'select')">Seleccionar</button>
+            <button @click="setTool('point')" :class="buttonClass(toolMode === 'point')">Punto</button>
+            <button @click="setTool('line')" :class="buttonClass(toolMode === 'line')">Línea</button>
+            <button @click="setTool('polygon')" :class="buttonClass(toolMode === 'polygon')">Polígono</button>
+            <button @click="setTool('circle')" :class="buttonClass(toolMode === 'circle')">Círculo</button>
+            <button @click="setTool('radius')" :class="buttonClass(toolMode === 'radius')">Radio</button>
+            <button @click="setTool('measure')" :class="buttonClass(toolMode === 'measure')">Medir</button>
+            <button @click="setTool('event')" :class="buttonClass(toolMode === 'event')">Evento RF</button>
           </div>
 
-          <div class="mt-6 bg-gray-900 border border-gray-700 rounded-lg p-4">
-            <h3 class="text-sm font-semibold mb-3">Buscador de vuelos</h3>
-            <div class="space-y-3">
-              <input
-                v-model="flightSearch.origin"
-                placeholder="Origen (ICAO, e.g. EZE)"
-                class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 focus:outline-none focus:border-primary text-sm"
-              />
-              <input
-                v-model="flightSearch.destination"
-                placeholder="Destino (ICAO, e.g. COR)"
-                class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 focus:outline-none focus:border-primary text-sm"
-              />
-              <input
-                v-model="flightSearch.callsign"
-                placeholder="Callsign (opcional)"
-                class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 focus:outline-none focus:border-primary text-sm"
-              />
-              <select
-                v-model="flightSearch.source"
-                class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 focus:outline-none focus:border-primary text-sm"
-              >
-                <option v-for="option in sourceOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <div class="grid grid-cols-2 gap-2">
-                <button
-                  @click="searchFlights"
-                  class="w-full px-3 py-2 bg-primary hover:bg-blue-600 rounded text-sm font-semibold transition-colors"
-                >
-                  🔎 Buscar vuelos
-                </button>
-                <button
-                  @click="searchAllFlights"
-                  class="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-semibold transition-colors"
-                >
-                  📍 Mostrar todas
-                </button>
-              </div>
-            </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-3 mt-4">
+            <div class="text-xs uppercase tracking-wide text-slate-400">Modo activo</div>
+            <div class="mt-2 text-sm font-semibold text-white">{{ toolLabel }}</div>
+            <div class="mt-2 text-xs text-slate-400">{{ toolInstructions }}</div>
           </div>
 
-          <div class="mt-6 bg-gray-900 border border-gray-700 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-3">
-              <div>
-                <h3 class="text-sm font-semibold">Filtros avanzados</h3>
-                <p class="text-xs text-gray-400">Refina los casos y rutas que se muestran en el mapa.</p>
-              </div>
-            </div>
-            <div class="space-y-3">
-              <select v-model="mapFilters.airport" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm text-gray-100 focus:outline-none focus:border-primary">
-                <option value="">Todos los aeropuertos</option>
-                <option v-for="airport in airportOptions" :key="airport" :value="airport">{{ airport }}</option>
-              </select>
-              <div class="grid grid-cols-2 gap-2">
-                <select v-model="mapFilters.severity" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm text-gray-100 focus:outline-none focus:border-primary">
-                  <option value="">Todas las severidades</option>
-                  <option v-for="severity in severityOptions" :key="severity" :value="severity">{{ severity }}</option>
-                </select>
-                <select v-model="mapFilters.status" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm text-gray-100 focus:outline-none focus:border-primary">
-                  <option value="">Todos los estados</option>
-                  <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
-                </select>
-              </div>
-              <select v-model="mapFilters.flightStatus" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm text-gray-100 focus:outline-none focus:border-primary">
-                <option value="">Todos los estados de vuelo</option>
-                <option v-for="status in flightStatusOptions" :key="status" :value="status">{{ status }}</option>
+          <div v-if="toolMode === 'line' || toolMode === 'polygon'" class="rounded-2xl border border-slate-800 bg-slate-900 p-3 space-y-2 mt-4">
+            <div class="text-xs text-slate-400">Puntos en edición: {{ activePoints.value.length }}</div>
+            <button @click="commitShape" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700">Guardar {{ toolMode === 'line' ? 'línea' : 'polígono' }}</button>
+          </div>
+
+          <div v-if="toolMode === 'circle' || toolMode === 'radius'" class="rounded-2xl border border-slate-800 bg-slate-900 p-3 space-y-3 mt-4">
+            <div class="text-xs text-slate-400">Centro de círculo definido al hacer clic en el mapa.</div>
+            <div class="grid grid-cols-2 gap-2">
+              <input v-model.number="activeCircleRadius" type="number" min="1" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+              <select v-model="activeRadiusUnit" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                <option value="km">km</option>
+                <option value="nm">NM</option>
               </select>
             </div>
+            <button @click="commitCircle" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700">Guardar círculo</button>
           </div>
-        </div>
 
-        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h3 class="text-sm font-semibold">Estado de búsqueda</h3>
-              <p class="text-xs text-gray-400">Actualiza las rutas cargadas en el mapa.</p>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 mt-4">
+            <div class="flex items-center justify-between mb-3 text-sm font-semibold uppercase tracking-widest text-slate-400">Capas</div>
+            <div class="space-y-3 text-sm">
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.airports" class="rounded bg-slate-700" /> Aeropuertos</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.fmStations" class="rounded bg-slate-700" /> FM</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.rfEvents" class="rounded bg-slate-700" /> Eventos RF</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.hotspots" class="rounded bg-slate-700" /> Hotspots</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.expedientes" class="rounded bg-slate-700" /> Expedientes</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.antennas" class="rounded bg-slate-700" /> Antenas</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.flights" class="rounded bg-slate-700" /> Vuelos</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.heatmap" class="rounded bg-slate-700" /> Heatmap RF</label>
+              <label class="flex items-center gap-2"><input type="checkbox" v-model="layers.userMarkers" class="rounded bg-slate-700" /> Marcadores</label>
             </div>
-            <span class="text-xs text-gray-400">
-              {{ flightsStore.loading ? 'Buscando...' : flightsStore.routes.length + ' rutas' }}
-            </span>
           </div>
-          <div class="flex gap-2 mb-3">
-            <button @click="exportGeoJSON" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">Exportar GeoJSON</button>
-            <button @click="exportGPX" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">Exportar GPX</button>
-          </div>
-          <div class="text-xs text-gray-400">
-            <div v-if="flightsStore.error" class="text-red-400">Error: {{ flightsStore.error }}</div>
-            <div v-else-if="!flightsStore.loading && flightsStore.routes.length === 0">Sin rutas cargadas. Usa el buscador para cargar las rutas.</div>
-            <div v-else-if="!flightsStore.loading">Se muestran las rutas actuales en el mapa.</div>
-          </div>
-        </div>
 
-        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h3 class="text-sm font-semibold">Leyenda</h3>
-              <p class="text-xs text-gray-400">Colores y capas del mapa.</p>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3 mt-4">
+            <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Acciones</div>
+            <button @click="resetMapView" class="w-full rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-slate-900">Centrar mapa</button>
+            <button @click="refreshOpenSky" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">Actualizar OpenSky</button>
+            <button @click="clearUserData" class="w-full rounded-xl bg-rose-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-600">Limpiar datos de usuario</button>
+          </div>
+
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3 mt-4">
+            <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Buscar vuelos</div>
+            <input v-model="flightSearch.origin" placeholder="Origen ICAO" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model="flightSearch.destination" placeholder="Destino ICAO" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model="flightSearch.callsign" placeholder="Callsign" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <select v-model="flightSearch.source" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+              <option value="sample">Demo de ruta</option>
+              <option value="opensky">OpenSky en vivo</option>
+            </select>
+            <div class="grid grid-cols-2 gap-2">
+              <button @click="searchFlights" class="rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700">Buscar</button>
+              <button @click="refreshOpenSky" class="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-blue-700">Buscar en OpenSky</button>
             </div>
-            <button @click="resetView" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded transition-colors">Ajustar vista</button>
           </div>
-          <div class="space-y-2 text-xs text-gray-400">
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-sky-400"></span>Aeropuertos</div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-400"></span>Antenas</div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-orange-500"></span>Mediciones</div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-lime-500"></span>Expedientes</div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-violet-500"></span>Rutas de vuelo</div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500"></span>Zonas calientes</div>
-          </div>
-        </div>
 
-        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h3 class="text-sm font-semibold">Casos visibles</h3>
-              <p class="text-xs text-gray-400">Expedientes con ubicación</p>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3 mt-4">
+            <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Agregar aeropuerto</div>
+            <input v-model="airportForm.icao" placeholder="ICAO" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model="airportForm.iata" placeholder="IATA" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model="airportForm.name" placeholder="Nombre" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input v-model.number="airportForm.lat" placeholder="Latitud" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+              <input v-model.number="airportForm.lon" placeholder="Longitud" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
             </div>
-            <span class="text-sm font-bold text-primary">{{ mappedCount }}/{{ totalCount }}</span>
+            <input v-model.number="airportForm.elev" placeholder="Elevación (ft)" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <button @click="saveAirport" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700">Guardar aeropuerto</button>
           </div>
-          <div class="text-sm text-gray-400 space-y-1">
-            <div>Mostrar {{ expedienteMarkers.length }} casos en el mapa</div>
-            <div>{{ unmappedCount }} sin coordenadas</div>
+
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3 mt-4">
+            <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Agregar emisora FM</div>
+            <input v-model="fmForm.name" placeholder="Nombre" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model.number="fmForm.frequency_mhz" placeholder="Frecuencia MHz" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model.number="fmForm.lat" placeholder="Latitud" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model.number="fmForm.lon" placeholder="Longitud" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <button @click="saveFMStation" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700">Guardar FM</button>
+          </div>
+
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3 mt-4">
+            <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Registrar evento RF</div>
+            <input v-model.number="eventForm.frecuencia_mhz" placeholder="Frecuencia MHz" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model.number="eventForm.nivel_dbm" placeholder="Nivel dBm" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <input v-model="eventForm.expediente" placeholder="Expediente" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100" />
+            <textarea v-model="eventForm.descripcion" placeholder="Descripción" rows="2" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100"></textarea>
+            <button @click="createRfEvent" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700">Registrar evento</button>
           </div>
         </div>
 
-        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3">
-          <h3 class="text-sm font-semibold mb-3">Expedientes geolocalizados</h3>
-          <div v-if="expedienteMarkers.length === 0" class="text-gray-500 text-sm">No hay casos con coordenadas definidas.</div>
-          <div v-for="exp in expedienteMarkers" :key="exp.id" class="p-3 bg-gray-800 rounded border border-gray-700">
-            <div class="text-sm font-semibold">{{ exp.numero_expediente }}</div>
-            <div class="text-xs text-gray-400">{{ exp.aeropuerto }} · {{ exp.freq_mhz?.toFixed(3) }} MHz</div>
-            <div class="text-xs text-gray-400">{{ exp.lat?.toFixed(5) }}, {{ exp.lon?.toFixed(5) }}</div>
+        <div id="map" class="flex-1 w-full min-h-[60vh]"></div>
+        <div class="pointer-events-none absolute inset-x-0 top-4 mx-4 rounded-3xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 shadow-lg backdrop-blur md:mx-6">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div class="space-y-1">
+              <div class="font-semibold">Mapa operacional</div>
+              <div class="text-xs text-slate-400">Use herramientas, capas y seleccione objetos para ver detalles.</div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+              <span class="rounded-full bg-slate-900/90 px-2 py-1">{{ flightsStore.routes.length }} vuelos</span>
+              <span class="rounded-full bg-slate-900/90 px-2 py-1">{{ airports.value.length }} aeropuertos</span>
+              <span class="rounded-full bg-slate-900/90 px-2 py-1">{{ fmStations.value.length }} emisoras FM</span>
+            </div>
           </div>
         </div>
-
-        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3">
-          <h3 class="text-sm font-semibold mb-3">Vuelos encontrados</h3>
-          <div v-if="flightsStore.routes.length === 0" class="text-gray-500 text-sm">Realiza una búsqueda para ver rutas.</div>
-          <div v-for="flight in flightsStore.routes" :key="flight.callsign" class="p-3 bg-gray-800 rounded border border-gray-700">
-            <div class="text-sm font-semibold">{{ flight.callsign }}</div>
-            <div class="text-xs text-gray-400">{{ flight.origin }} → {{ flight.destination }}</div>
-            <div class="text-xs text-gray-400">Estado: {{ flight.status }}</div>
-          </div>
+        <div class="pointer-events-none absolute bottom-4 left-4 rounded-3xl border border-slate-800 bg-slate-950/90 px-4 py-3 text-xs text-slate-300 shadow-lg">
+          <div class="font-semibold text-slate-100">Estado de dibujo</div>
+          <div>{{ drawStatus }}</div>
         </div>
+      </section>
 
-        <div class="mt-4 bg-gray-900 border border-gray-700 rounded-lg p-4">
-          <h3 class="text-sm font-semibold mb-3">Puntos personalizados</h3>
-          <div class="space-y-2">
-            <div v-for="p in pointsList" :key="p.id" class="p-2 bg-gray-800 rounded flex items-center justify-between">
-              <div>
-                <div class="text-sm font-semibold">{{ p.label }}</div>
-                <div class="text-xs text-gray-400">{{ p.type }} · {{ p.lat?.toFixed(5) }}, {{ p.lon?.toFixed(5) }}</div>
+      <!-- Panel contextual derecho -->
+      <aside class="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200 overflow-y-auto">
+        <div class="mb-4 text-sm font-semibold uppercase tracking-widest text-slate-400">Contexto</div>
+        <div v-if="selectedFeature" class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+          <div class="text-sm font-semibold text-white">{{ selectedFeature.title }}</div>
+          <div class="text-xs text-slate-400">Tipo: {{ selectedType }}</div>
+          <div class="grid gap-2 text-sm">
+            <template v-for="(value, key) in selectedFeature.details" :key="key">
+              <div class="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                <span class="text-slate-500">{{ key }}</span>
+                <span class="break-all">{{ value }}</span>
               </div>
-              <div class="flex gap-2">
-                <button @click="onRemovePoint(p.id)" class="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-xs">Eliminar</button>
-              </div>
-            </div>
-            <div v-if="pointsList.length === 0" class="text-gray-400 text-sm">No hay puntos personalizados.</div>
+            </template>
           </div>
         </div>
-
-        <div class="mt-2 pt-2 border-t border-gray-700">
-          <button @click="startMarkerPlacement" class="w-full px-3 py-2 bg-primary hover:bg-blue-600 rounded text-sm transition-colors">
-            📍 Click en mapa
-          </button>
+        <div v-else class="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
+          Seleccione un aeropuerto, vuelo, evento RF o marcador en el mapa para ver su ficha completa.
         </div>
-      </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4 space-y-3">
+          <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Resumen</div>
+          <div class="grid gap-2 text-sm">
+            <div class="flex items-center justify-between rounded-xl bg-slate-950 px-3 py-2"><span>Eventos RF</span><span>{{ rfEvents.value.length }}</span></div>
+            <div class="flex items-center justify-between rounded-xl bg-slate-950 px-3 py-2"><span>Hotspots</span><span>{{ userCircles.value.length }}</span></div>
+            <div class="flex items-center justify-between rounded-xl bg-slate-950 px-3 py-2"><span>Marcas</span><span>{{ userMarkers.value.length }}</span></div>
+            <div class="flex items-center justify-between rounded-xl bg-slate-950 px-3 py-2"><span>Líneas/Polígonos</span><span>{{ shapeCount }}</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1.3fr_minmax(0,320px)] gap-4">
+      <section class="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-semibold uppercase tracking-widest text-slate-400">Consola de eventos</div>
+          <span class="text-xs text-slate-400">Registros recientes</span>
+        </div>
+        <div class="h-48 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-3 text-xs leading-5 text-slate-300">
+          <div v-if="logs.length === 0" class="text-slate-500">No hay entradas recientes.</div>
+          <div v-for="entry in logs" :key="entry.id" class="mb-3 border-b border-slate-800 pb-2 last:border-none">
+            <div class="text-slate-100 font-medium">{{ entry.title }}</div>
+            <div class="text-slate-500">{{ entry.subtitle }}</div>
+            <div class="mt-1 text-slate-400">{{ entry.detail }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+        <div class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-3">Mediciones</div>
+        <div class="grid gap-3 text-sm">
+          <div class="rounded-2xl bg-slate-900 p-3">
+            <div class="text-slate-400">Puntos</div>
+            <div class="mt-2 text-white">{{ measurementPoints.value.length }} / 2</div>
+          </div>
+          <div v-if="measurementResult.value" class="rounded-2xl bg-slate-900 p-3">
+            <div class="text-slate-400">Distancia</div>
+            <div class="mt-2 text-white">{{ measurementResult.value.distance_km.toFixed(2) }} km</div>
+            <div class="text-slate-400">{{ measurementResult.value.distance_nm.toFixed(2) }} NM</div>
+            <div class="text-slate-400">{{ measurementResult.value.distance_mi.toFixed(2) }} mi</div>
+            <div class="text-slate-400">Bearing</div>
+            <div class="text-white">{{ measurementResult.value.bearing.toFixed(1) }}°</div>
+          </div>
+          <button @click="clearMeasurement" class="w-full rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">Borrar medición</button>
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted, watch } from 'vue'
+import { computed, reactive, ref, onMounted, watch, nextTick } from 'vue'
 import { useExpedientesStore } from '../stores/expedientes'
 import { useFlightsStore } from '../stores/flights'
+import { useSystemStore } from '../stores/system'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { loadAirports, addAirport, updateAirport, removeAirport } from '../data/airports'
-import { loadPoints, addPoint, updatePoint, removePoint } from '../data/points'
+import { loadAirports, addAirport } from '../data/airports'
+import { loadFMStations, addFMStation } from '../data/fmStations'
+import { loadPoints, savePoints, addPoint } from '../data/points'
+import { loadRfEvents, addRfEvent } from '../data/rfEvents'
 
 const expedientesStore = useExpedientesStore()
 const flightsStore = useFlightsStore()
+const systemStore = useSystemStore()
+
 const map = ref(null)
 const markerLayer = ref(null)
-const routeLayer = ref(null)
 const flightLayer = ref(null)
-const hotspotLayer = ref(null)
-const routeLines = ref({})
+const userLayer = ref(null)
+const eventLayer = ref(null)
+const heatmapLayer = ref(null)
+const drawLayer = ref(null)
 
-const layers = ref({
-  airports: true,
-  antennas: true,
-  measurements: true,
-  expedientes: true,
-  routes: true,
-  flights: true,
-  hotspots: false,
-})
+const toolMode = ref('select')
+const activePoints = ref([])
+const activeCircleCenter = ref(null)
+const activeCircleRadius = ref(5)
+const activeRadiusUnit = ref('nm')
+const measurementPoints = ref([])
+const measurementResult = ref(null)
+const selectedFeature = ref(null)
+const selectedType = ref(null)
+const logs = ref([])
 
-const flightSearch = reactive({
-  origin: 'EZE',
-  destination: 'COR',
-  callsign: '',
-  source: 'sample',
-})
+const airportForm = reactive({ icao: '', iata: '', name: '', lat: -34.82, lon: -58.54, elev: 0 })
+const fmForm = reactive({ name: '', frequency_mhz: 98.1, lat: -34.82, lon: -58.54 })
+const eventForm = reactive({ frecuencia_mhz: 118.0, nivel_dbm: -60, expediente: '', descripcion: '', lat: null, lon: null })
+const flightSearch = reactive({ origin: 'EZE', destination: 'COR', callsign: '', source: 'sample' })
 
-const sourceOptions = [
-  { value: 'sample', label: 'Datos de ejemplo' },
-  { value: 'opensky', label: 'OpenSky' },
-]
-
-const mapFilters = reactive({
-  airport: '',
-  severity: '',
-  status: '',
-  flightStatus: '',
-})
-
-const severityOptions = ['baja', 'media', 'alta', 'crítica']
-const statusOptions = ['abierto', 'investigacion', 'resuelto', 'cerrado']
-const flightStatusOptions = ['en ruta', 'despegando', 'aterrizando']
-
-const airports = [
-  ...loadAirports().map(a => ({ lat: a.lat, lng: a.lon, label: a.code })),
-]
-
-const antennaSites = [
-  { lat: -34.780, lng: -58.560, label: 'Antena A' },
-  { lat: -34.790, lng: -58.520, label: 'Antena B' },
-]
-
-const measurementPoints = [
-  ...loadPoints().filter(p => p.type === 'measurement'),
-]
-
-const hotspotZones = [
-  // hotspots will be loaded from points of type 'hotspot'
-  ...loadPoints().filter(p => p.type === 'hotspot').map(h => ({ lat: h.lat, lng: h.lon, radius: h.radius }))
-]
-
-// state for editing/adding points
-const customPoint = reactive({ id: null, type: 'measurement', lat: '', lon: '', label: '', radius: 500 })
+const airports = ref(loadAirports())
+const fmStations = ref(loadFMStations())
 const pointsList = ref(loadPoints())
+const rfEvents = ref(loadRfEvents())
+const antennaSites = [
+  { lat: -34.780, lon: -58.560, label: 'Antena A' },
+  { lat: -34.790, lon: -58.520, label: 'Antena B' },
+]
 
-const expedienteMarkers = computed(() =>
-  (expedientesStore.expedientes || []).filter((exp) => exp.lat != null && exp.lon != null)
-)
-
-const airportOptions = computed(() => {
-  const airports = new Set()
-  expedientesStore.expedientes.forEach((exp) => {
-    if (exp.aeropuerto) airports.add(exp.aeropuerto)
-  })
-  return Array.from(airports).sort()
+const layers = reactive({
+  airports: true,
+  fmStations: true,
+  rfEvents: true,
+  hotspots: true,
+  expedientes: true,
+  antennas: true,
+  flights: true,
+  heatmap: false,
+  userMarkers: true,
 })
 
-const filteredExpedienteMarkers = computed(() => {
-  return expedienteMarkers.value.filter((exp) => {
-    if (mapFilters.airport && exp.aeropuerto !== mapFilters.airport) return false
-    if (mapFilters.severity && exp.severidad !== mapFilters.severity) return false
-    if (mapFilters.status && exp.estado !== mapFilters.status) return false
-    return true
-  })
+const toolLabel = computed(() => {
+  switch (toolMode.value) {
+    case 'point': return 'Agregar punto'
+    case 'line': return 'Dibujar línea'
+    case 'polygon': return 'Dibujar polígono'
+    case 'circle': return 'Dibujar círculo'
+    case 'radius': return 'Crear radio'
+    case 'measure': return 'Medir distancia'
+    case 'event': return 'Registrar evento'
+    default: return 'Seleccionar elemento'
+  }
 })
 
-const filteredFlightRoutes = computed(() => {
-  return flightsStore.routes.filter((flight) => {
-    if (mapFilters.flightStatus && flight.status !== mapFilters.flightStatus) return false
-    return true
-  })
+const toolInstructions = computed(() => {
+  switch (toolMode.value) {
+    case 'point': return 'Haga clic en el mapa para crear un marcador de usuario.'
+    case 'line': return 'Haga clic en múltiples puntos para definir una línea. Pulse Guardar cuando termine.'
+    case 'polygon': return 'Haga clic en al menos tres puntos para crear un polígono.'
+    case 'circle': return 'Haga clic en el centro del círculo y luego guarde el radio.'
+    case 'radius': return 'Haga clic en el centro y elija el radio en NM.'
+    case 'measure': return 'Haga clic en dos puntos para medir distancia y bearing.'
+    case 'event': return 'Haga clic donde se registró el evento RF.'
+    default: return 'Seleccione un elemento para ver detalles y herramientas.'
+  }
 })
 
-const totalCount = computed(() => expedientesStore.expedientes.length)
-const mappedCount = computed(() => filteredExpedienteMarkers.value.length)
-const unmappedCount = computed(() => totalCount.value - mappedCount.value)
+const drawStatus = computed(() => {
+  if (toolMode.value === 'line' || toolMode.value === 'polygon') {
+    return `${activePoints.value.length} puntos cargados`
+  }
+  if (toolMode.value === 'circle' && activeCircleCenter.value) {
+    return `Centro marcado · radio ${activeCircleRadius.value} ${activeRadiusUnit.value}`
+  }
+  if (toolMode.value === 'measure') {
+    return `${measurementPoints.value.length} puntos` 
+  }
+  return 'Listo'
+})
+
+const userMarkers = computed(() => pointsList.value.filter((p) => p.type === 'marker'))
+const userLines = computed(() => pointsList.value.filter((p) => p.type === 'line'))
+const userPolygons = computed(() => pointsList.value.filter((p) => p.type === 'polygon'))
+const userCircles = computed(() => pointsList.value.filter((p) => p.type === 'circle'))
+const shapeCount = computed(() => userLines.value.length + userPolygons.value.length)
+
+const addLog = (title, subtitle, detail) => {
+  logs.value.unshift({ id: Date.now() + Math.random(), title, subtitle, detail })
+  if (logs.value.length > 30) logs.value.pop()
+}
+
+const saveAirport = () => {
+  if (!airportForm.icao || !airportForm.name) return
+  const next = addAirport({
+    icao: airportForm.icao.toUpperCase(),
+    iata: airportForm.iata.toUpperCase(),
+    name: airportForm.name,
+    lat: airportForm.lat || -34.82,
+    lon: airportForm.lon || -58.54,
+    elev: airportForm.elev || 0,
+  })
+  airports.value = next
+  addLog('Aeropuerto agregado', airportForm.icao.toUpperCase(), airportForm.name)
+  airportForm.icao = ''
+  airportForm.iata = ''
+  airportForm.name = ''
+  airportForm.elev = 0
+  renderMapLayers()
+}
+
+const saveFMStation = () => {
+  if (!fmForm.name || !fmForm.frequency_mhz) return
+  const next = addFMStation({
+    id: `fm-${Date.now()}`,
+    name: fmForm.name,
+    frequency_mhz: Number(fmForm.frequency_mhz),
+    lat: Number(fmForm.lat),
+    lon: Number(fmForm.lon),
+    power_dbm: 30,
+    height_m: 100,
+    description: 'Emisora FM agregada por el operador',
+  })
+  fmStations.value = next
+  addLog('Emisora FM guardada', fmForm.name, `${fmForm.frequency_mhz} MHz`)
+  fmForm.name = ''
+  fmForm.frequency_mhz = 98.1
+  fmForm.lat = -34.82
+  fmForm.lon = -58.54
+  renderMapLayers()
+}
+
+const createRfEvent = () => {
+  if (!eventForm.frecuencia_mhz || !eventForm.descripcion) return
+  const event = {
+    id: `rf-${Date.now()}`,
+    fecha: new Date().toISOString(),
+    frecuencia_mhz: Number(eventForm.frecuencia_mhz),
+    nivel_dbm: Number(eventForm.nivel_dbm),
+    lat: systemStore.cursor.lat || -34.8186,
+    lon: systemStore.cursor.lon || -58.5358,
+    expediente: eventForm.expediente,
+    descripcion: eventForm.descripcion,
+    notas: '',
+  }
+  rfEvents.value = addRfEvent(event)
+  addLog('Evento RF creado', `${event.frecuencia_mhz} MHz`, event.descripcion)
+  eventForm.frecuencia_mhz = 118.0
+  eventForm.nivel_dbm = -60
+  eventForm.expediente = ''
+  eventForm.descripcion = ''
+  renderMapLayers()
+}
+
+const setTool = (mode) => {
+  toolMode.value = mode
+  if (mode !== 'measure') {
+    measurementPoints.value = []
+    measurementResult.value = null
+  }
+  if (mode !== 'line' && mode !== 'polygon') {
+    activePoints.value = []
+  }
+  if (mode !== 'circle' && mode !== 'radius') {
+    activeCircleCenter.value = null
+  }
+  renderMapLayers()
+}
 
 const initMap = () => {
   if (map.value) return
-  map.value = L.map('map').setView([-34.8186, -58.5358], 10)
+
+  map.value = L.map('map', { zoomControl: false }).setView([-34.8186, -58.5358], 9)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map.value)
 
-  markerLayer.value = L.layerGroup().addTo(map.value)
-  routeLayer.value = L.layerGroup().addTo(map.value)
-  flightLayer.value = L.layerGroup().addTo(map.value)
-  hotspotLayer.value = L.layerGroup().addTo(map.value)
+  L.control.zoom({ position: 'topright' }).addTo(map.value)
+  L.control.scale({ position: 'bottomleft', imperial: false, metric: true }).addTo(map.value)
 
-  map.value.on('click', (event) => addMarker(event.latlng))
+  markerLayer.value = L.layerGroup().addTo(map.value)
+  flightLayer.value = L.layerGroup().addTo(map.value)
+  userLayer.value = L.layerGroup().addTo(map.value)
+  eventLayer.value = L.layerGroup().addTo(map.value)
+  heatmapLayer.value = L.layerGroup().addTo(map.value)
+  drawLayer.value = L.layerGroup().addTo(map.value)
+
+  map.value.on('mousemove', (event) => {
+    systemStore.cursor = { lat: event.latlng.lat, lon: event.latlng.lng }
+  })
+
+  map.value.on('click', (event) => handleMapClick(event.latlng))
+}
+
+const formatPopup = (title, details) => {
+  const lines = Object.entries(details).map(([label, value]) => `<div><strong>${label}:</strong> ${value}</div>`)
+  return `<div class="text-sm"><strong>${title}</strong>${lines.join('')}</div>`
+}
+
+const selectFeature = (feature, type) => {
+  selectedType.value = type
+  selectedFeature.value = feature
 }
 
 const renderMapLayers = () => {
   if (!map.value) return
 
   markerLayer.value.clearLayers()
-  routeLayer.value.clearLayers()
   flightLayer.value.clearLayers()
-  hotspotLayer.value.clearLayers()
-  routeLines.value = {}
+  userLayer.value.clearLayers()
+  eventLayer.value.clearLayers()
+  heatmapLayer.value.clearLayers()
+  drawLayer.value.clearLayers()
 
-  if (layers.value.airports) {
-    airports.forEach((airport) => {
-      L.circleMarker([airport.lat, airport.lng], {
+  if (layers.airports) {
+    airports.value.forEach((airport) => {
+      const marker = L.circleMarker([airport.lat, airport.lon], {
         color: '#38bdf8',
         radius: 8,
         fillOpacity: 0.9,
-      })
-        .bindPopup(`<strong>${airport.label}</strong>`)
-        .addTo(markerLayer.value)
+      }).addTo(markerLayer.value)
+      marker.bindPopup(formatPopup(airport.name, {
+        ICAO: airport.icao,
+        IATA: airport.iata,
+        Elevación: `${airport.elev} ft`, 
+      }))
+      marker.on('click', () => selectFeature({ title: airport.name, details: { ICAO: airport.icao, IATA: airport.iata, Elevación: `${airport.elev} ft`, Lat: airport.lat.toFixed(5), Lon: airport.lon.toFixed(5) } }, 'Aeropuerto'))
     })
   }
 
-  if (layers.value.antennas) {
-    antennaSites.forEach((site) => {
-      L.marker([site.lat, site.lng], {
-        icon: L.divIcon({
-          className: 'bg-yellow-400 text-black rounded-full p-1',
-          html: '📡',
-          iconSize: [28, 28],
-        }),
-      })
-        .bindPopup(`<strong>${site.label}</strong>`)
-        .addTo(markerLayer.value)
+  if (layers.fmStations) {
+    fmStations.value.forEach((station) => {
+      const marker = L.marker([station.lat, station.lon], {
+        icon: L.divIcon({ className: 'text-slate-100', html: '📻', iconSize: [24, 24] }),
+      }).addTo(markerLayer.value)
+      marker.bindPopup(formatPopup(station.name, {
+        Frecuencia: `${station.frequency_mhz} MHz`, 
+        Potencia: `${station.power_dbm} dBm`, 
+        Altura: `${station.height_m} m`, 
+      }))
+      marker.on('click', () => selectFeature({ title: station.name, details: { Frecuencia: `${station.frequency_mhz} MHz`, Potencia: `${station.power_dbm} dBm`, Lat: station.lat.toFixed(5), Lon: station.lon.toFixed(5) } }, 'FM'))
     })
   }
 
-  if (layers.value.measurements) {
-    measurementPoints.forEach((measurement) => {
-      L.circle([measurement.lat, measurement.lng], {
+  if (layers.rfEvents) {
+    rfEvents.value.forEach((event) => {
+      const marker = L.circleMarker([event.lat, event.lon], {
         color: '#f97316',
-        radius: 120,
-        fillOpacity: 0.18,
-      })
-        .bindPopup(`<strong>${measurement.label}</strong><br/>${measurement.freq} MHz<br/>${measurement.power} dBm`)
-        .addTo(markerLayer.value)
-    })
-  }
-
-  // custom points from local storage
-  pointsList.value.forEach((p) => {
-    if (p.type === 'measurement') {
-      L.circle([p.lat, p.lon], { color: '#f97316', radius: 120, fillOpacity: 0.18 })
-        .bindPopup(`<strong>${p.label}</strong><br/>${p.meta || ''}`)
-        .addTo(markerLayer.value)
-    }
-    if (p.type === 'fms' || p.type === 'source') {
-      L.marker([p.lat, p.lon]).bindPopup(`<strong>${p.label}</strong><br/>${p.type}`).addTo(markerLayer.value)
-    }
-    if (p.type === 'hotspot') {
-      L.circle([p.lat, p.lon], { radius: p.radius || 500, color: '#ef4444', fillOpacity: 0.12 })
-        .bindPopup(`<strong>${p.label}</strong><br/>Radio: ${p.radius} m`).addTo(markerLayer.value)
-    }
-  })
-
-  if (layers.value.expedientes) {
-    expedienteMarkers.value.forEach((exp) => {
-      L.circleMarker([exp.lat, exp.lon], {
-        color: exp.severidad === 'crítica' ? '#dc2626' : '#22c55e',
         radius: 10,
-        fillOpacity: 0.85,
-      })
-        .bindPopup(`
-          <strong>${exp.numero_expediente}</strong><br/>
-          ${exp.aeropuerto || 'Aeropuerto no definido'}<br/>
-          ${exp.freq_mhz?.toFixed(3) || 'N/A'} MHz<br/>
-          Estado: ${exp.estado}
-        `)
-        .addTo(markerLayer.value)
+        fillOpacity: 0.7,
+      }).addTo(eventLayer.value)
+      marker.bindPopup(formatPopup(`RF ${event.frecuencia_mhz} MHz`, {
+        Nivel: `${event.nivel_dbm} dBm`,
+        Expediente: event.expediente || 'N/A',
+        Descripción: event.descripcion,
+      }))
+      marker.on('click', () => selectFeature({ title: `Evento RF ${event.frecuencia_mhz} MHz`, details: { Fecha: new Date(event.fecha).toLocaleString(), Nivel: `${event.nivel_dbm} dBm`, Expediente: event.expediente || 'N/A', Descripción: event.descripcion } }, 'Evento RF'))
     })
   }
 
-  if (layers.value.flights) {
-    filteredFlightRoutes.value.forEach((flight) => {
-      const routeLine = L.polyline(flight.path, {
-        color: '#a855f7',
-        weight: 4,
-        opacity: 0.9,
-      }).addTo(flightLayer.value)
-
-      // store reference for external focus
-      try {
-        if (flight.callsign) routeLines.value[flight.callsign] = routeLine
-      } catch (e) {}
-
-      routeLine.bindPopup(`
-        <strong>${flight.callsign}</strong><br/>
-        ${flight.origin} → ${flight.destination}<br/>
-        Estado: ${flight.status}
-      `)
-      // on click, zoom to route and open popup
-      routeLine.on('click', () => {
-        if (map.value) {
-          try {
-            map.value.fitBounds(routeLine.getBounds(), { padding: [60, 60] })
-          } catch (e) {
-            /* ignore fitBounds errors */
-          }
-        }
-        routeLine.openPopup()
-      })
-    })
-  }
-
-  if (layers.value.hotspots) {
-    hotspotZones.forEach((zone) => {
-      L.circle([zone.lat, zone.lng], {
-        radius: zone.radius,
+  if (layers.hotspots) {
+    userCircles.value.forEach((circle) => {
+      const shape = L.circle([circle.lat, circle.lon], {
+        radius: circle.radius || 5000,
         color: '#ef4444',
-        fillOpacity: 0.18,
-      }).addTo(hotspotLayer.value)
+        fillOpacity: 0.16,
+      }).addTo(userLayer.value)
+      shape.on('click', () => selectFeature({ title: circle.label || 'Zona radial', details: { Radio: `${circle.radius || 5000} m`, Lat: circle.lat.toFixed(5), Lon: circle.lon.toFixed(5) } }, 'Radio'))
     })
+  }
+
+  if (layers.antennas) {
+    antennaSites.forEach((antenna) => {
+      const marker = L.marker([antenna.lat, antenna.lon], {
+        icon: L.divIcon({ className: 'text-slate-100', html: '📡', iconSize: [24, 24] }),
+      }).addTo(markerLayer.value)
+      marker.bindPopup(formatPopup(antenna.label, {
+        Tipo: 'Antena', Lat: antenna.lat.toFixed(5), Lon: antenna.lon.toFixed(5),
+      }))
+      marker.on('click', () => selectFeature({ title: antenna.label, details: { Tipo: 'Antena', Lat: antenna.lat.toFixed(5), Lon: antenna.lon.toFixed(5) } }, 'Antena'))
+    })
+  }
+
+  if (layers.expedientes) {
+    expedienteMarkers.value.forEach((exp) => {
+      const marker = L.circleMarker([exp.lat, exp.lon], {
+        color: exp.severidad === 'crítica' ? '#dc2626' : '#22c55e',
+        radius: 9,
+        fillOpacity: 0.85,
+      }).addTo(markerLayer.value)
+      marker.bindPopup(formatPopup(exp.numero_expediente, {
+        Aeropuerto: exp.aeropuerto,
+        Frecuencia: `${exp.freq_mhz?.toFixed(3) || 'N/A'} MHz`,
+        Estado: exp.estado,
+      }))
+      marker.on('click', () => selectFeature({ title: exp.numero_expediente, details: { Aeropuerto: exp.aeropuerto, Frecuencia: `${exp.freq_mhz?.toFixed(3) || 'N/A'} MHz`, Estado: exp.estado, Lat: exp.lat.toFixed(5), Lon: exp.lon.toFixed(5) } }, 'Expediente'))
+    })
+  }
+
+  if (layers.flights) {
+    flightsStore.routes.forEach((flight) => {
+      const path = normalizeFlightPath(flight.path)
+      if (path.length < 2) return
+      const line = L.polyline(path, { color: '#a855f7', weight: 4, opacity: 0.9 }).addTo(flightLayer.value)
+      line.bindPopup(formatPopup(flight.callsign, {
+        Origen: `${flight.origin}`,
+        Destino: `${flight.destination}`,
+        Estado: flight.status,
+      }))
+      line.on('click', () => {
+        selectFeature({
+          title: flight.callsign,
+          details: {
+            Origen: flight.origin,
+            Destino: flight.destination,
+            Estado: flight.status,
+            'Salida': flight.departure_time ? new Date(flight.departure_time).toLocaleString() : 'N/A',
+            'Llegada': flight.arrival_time ? new Date(flight.arrival_time).toLocaleString() : 'N/A',
+          },
+        }, 'Vuelo')
+        zoomToFlight(flight)
+      })
+    })
+  }
+
+  if (layers.userMarkers) {
+    userMarkers.value.forEach((markerData) => {
+      const marker = L.marker([markerData.lat, markerData.lon]).addTo(userLayer.value)
+      marker.bindPopup(formatPopup(markerData.label || 'Marcador', {
+        Tipo: markerData.type,
+        Lat: markerData.lat.toFixed(5),
+        Lon: markerData.lon.toFixed(5),
+      }))
+      marker.on('click', () => selectFeature({ title: markerData.label || 'Marcador', details: { Tipo: markerData.type, Lat: markerData.lat.toFixed(5), Lon: markerData.lon.toFixed(5) } }, 'Marcador'))
+    })
+    userLines.value.forEach((shape) => {
+      const polyline = L.polyline(shape.path, { color: '#10b981', weight: 3, dashArray: '6,4' }).addTo(userLayer.value)
+      polyline.on('click', () => selectFeature({ title: shape.label || 'Línea', details: { Puntos: shape.path.length, Tipo: 'Línea' } }, 'Línea'))
+    })
+    userPolygons.value.forEach((shape) => {
+      const polygon = L.polygon(shape.path, { color: '#818cf8', weight: 3, fillOpacity: 0.12 }).addTo(userLayer.value)
+      polygon.on('click', () => selectFeature({ title: shape.label || 'Polígono', details: { Puntos: shape.path.length, Tipo: 'Polígono' } }, 'Polígono'))
+    })
+    userCircles.value.forEach((circle) => {
+      const circleLayer = L.circle([circle.lat, circle.lon], { radius: circle.radius || 5000, color: '#f59e0b', fillOpacity: 0.14 }).addTo(userLayer.value)
+      circleLayer.on('click', () => selectFeature({ title: circle.label || 'Círculo', details: { Radio: `${circle.radius || 5000} m` } }, 'Círculo'))
+    })
+  }
+
+  if (measurementResult.value && measurementResult.value.points.length === 2) {
+    const [a, b] = measurementResult.value.points
+    L.polyline([a, b], { color: '#38bdf8', weight: 2, dashArray: '8,4' }).addTo(drawLayer.value)
+    L.circleMarker(a, { radius: 6, color: '#38bdf8', fillOpacity: 1 }).addTo(drawLayer.value)
+    L.circleMarker(b, { radius: 6, color: '#38bdf8', fillOpacity: 1 }).addTo(drawLayer.value)
+  }
+
+  if (toolMode.value === 'line' && activePoints.value.length > 0) {
+    L.polyline(activePoints.value, { color: '#38bdf8', weight: 3, dashArray: '6,4' }).addTo(drawLayer.value)
+    activePoints.value.forEach((coord) => L.circleMarker(coord, { radius: 5, color: '#38bdf8' }).addTo(drawLayer.value))
+  }
+
+  if (toolMode.value === 'polygon' && activePoints.value.length > 0) {
+    if (activePoints.value.length >= 3) {
+      L.polygon(activePoints.value, { color: '#8b5cf6', weight: 2, fillOpacity: 0.08 }).addTo(drawLayer.value)
+    }
+    activePoints.value.forEach((coord) => L.circleMarker(coord, { radius: 5, color: '#8b5cf6' }).addTo(drawLayer.value))
+  }
+
+  if ((toolMode.value === 'circle' || toolMode.value === 'radius') && activeCircleCenter.value) {
+    const radiusMeters = activeRadiusUnit.value === 'nm' ? activeCircleRadius.value * 1852 : activeCircleRadius.value * 1000
+    L.circle(activeCircleCenter.value, { radius: radiusMeters, color: '#f97316', fillOpacity: 0.08 }).addTo(drawLayer.value)
+    L.circleMarker(activeCircleCenter.value, { radius: 6, color: '#f97316', fillOpacity: 1 }).addTo(drawLayer.value)
+  }
+  if (map.value && map.value.invalidateSize) {
+    map.value.invalidateSize()
   }
 }
 
-const focusFlight = (flight) => {
-  if (!map.value || !flight) return
-  const key = flight.callsign
-  const line = routeLines.value[key]
-  if (line) {
-    try { map.value.fitBounds(line.getBounds(), { padding: [60, 60] }) } catch (e) {}
-    line.openPopup()
+const normalizeFlightPath = (path) => {
+  if (!Array.isArray(path)) return []
+  return path.map((coord) => {
+    if (!Array.isArray(coord) || coord.length < 2) return null
+    const lat = Number(coord[0])
+    const lon = Number(coord[1])
+    return Number.isFinite(lat) && Number.isFinite(lon) ? [lat, lon] : null
+  }).filter(Boolean)
+}
+
+const zoomToFlight = (flight) => {
+  if (!map.value || !flight?.path) return
+  const bounds = normalizeFlightPath(flight.path)
+  if (bounds.length > 0) {
+    map.value.fitBounds(bounds, { padding: [40, 40] })
+  }
+}
+
+const handleMapClick = (latlng) => {
+  if (toolMode.value === 'point') {
+    const marker = {
+      id: `marker-${Date.now()}`,
+      type: 'marker',
+      label: `Ubicación ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`,
+      lat: latlng.lat,
+      lon: latlng.lng,
+    }
+    pointsList.value = addPoint(marker)
+    addLog('Marcador agregado', marker.label, `Lat ${marker.lat.toFixed(5)}, Lon ${marker.lon.toFixed(5)}`)
+    renderMapLayers()
     return
   }
-  // fallback: draw temporary line then fit
-  if (flight.path && flight.path.length > 0) {
-    const tmp = L.polyline(flight.path, { color: '#a855f7', weight: 3, dashArray: '6,6' }).addTo(flightLayer.value)
-    try { map.value.fitBounds(tmp.getBounds(), { padding: [60,60] }) } catch (e) {}
-    tmp.bindPopup(`<strong>${flight.callsign}</strong>`).openPopup()
-    setTimeout(() => { flightLayer.value.removeLayer(tmp) }, 5000)
+
+  if (toolMode.value === 'line' || toolMode.value === 'polygon') {
+    activePoints.value.push([latlng.lat, latlng.lng])
+    addLog('Punto de dibujo agregado', `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`, `Total: ${activePoints.value.length}`)
+    renderMapLayers()
+    return
+  }
+
+  if (toolMode.value === 'circle' || toolMode.value === 'radius') {
+    activeCircleCenter.value = [latlng.lat, latlng.lng]
+    addLog('Centro de círculo marcado', `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`, `Radio: ${activeCircleRadius.value} ${activeRadiusUnit.value}`)
+    renderMapLayers()
+    return
+  }
+
+  if (toolMode.value === 'measure') {
+    measurementPoints.value.push([latlng.lat, latlng.lng])
+    if (measurementPoints.value.length === 2) {
+      const [a, b] = measurementPoints.value
+      const distance_km = getHaversineDistance(a, b)
+      measurementResult.value = {
+        points: [a, b],
+        distance_km,
+        distance_nm: distance_km / 1.852,
+        distance_mi: distance_km * 0.621371,
+        bearing: getBearing(a, b),
+      }
+      addLog('Medición completada', `Distancia ${measurementResult.value.distance_km.toFixed(2)} km`, `Bearing ${measurementResult.value.bearing.toFixed(1)}°`)
+    }
+    renderMapLayers()
+    return
+  }
+
+  if (toolMode.value === 'event') {
+    eventForm.lat = latlng.lat
+    eventForm.lon = latlng.lng
+    createRfEvent()
+    return
   }
 }
 
-watch(() => flightsStore.selectedCallsign, (cs) => {
-  if (!cs) return
-  const f = flightsStore.routes.find((r) => r.callsign === cs)
-  if (f) focusFlight(f)
-  // clear selection after focusing
-  flightsStore.selectedCallsign = null
-})
-
-const exportGeoJSON = () => {
-  const features = filteredFlightRoutes.value.map((f) => ({
-    type: 'Feature',
-    properties: { callsign: f.callsign, origin: f.origin, destination: f.destination, status: f.status },
-    geometry: { type: 'LineString', coordinates: f.path.map((p) => [p[1], p[0]]) },
-  }))
-  const geo = { type: 'FeatureCollection', features }
-  const blob = new Blob([JSON.stringify(geo, null, 2)], { type: 'application/vnd.geo+json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'flight_routes.geojson'
-  a.click()
-  URL.revokeObjectURL(url)
+const getHaversineDistance = ([lat1, lon1], [lat2, lon2]) => {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
 }
 
-const exportGPX = () => {
-  const header = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="SIARI">\n`;
-  const footer = `</gpx>`
-  const tracks = filteredFlightRoutes.value.map((f) => {
-    const trkseg = f.path.map((p) => `  <trkpt lat="${p[0]}" lon="${p[1]}"></trkpt>`).join('\n')
-    return `<trk><name>${f.callsign}</name>\n<trkseg>\n${trkseg}\n</trkseg>\n</trk>`
-  }).join('\n')
-  const content = header + tracks + '\n' + footer
-  const blob = new Blob([content], { type: 'application/gpx+xml' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'flight_routes.gpx'
-  a.click()
-  URL.revokeObjectURL(url)
+const getBearing = ([lat1, lon1], [lat2, lon2]) => {
+  const φ1 = lat1 * Math.PI / 180
+  const φ2 = lat2 * Math.PI / 180
+  const Δλ = (lon2 - lon1) * Math.PI / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  const θ = Math.atan2(y, x)
+  return (θ * 180 / Math.PI + 360) % 360
 }
 
-const searchAllFlights = async () => {
-  flightSearch.origin = ''
-  flightSearch.destination = ''
-  flightSearch.callsign = ''
-  await searchFlights()
+const commitShape = () => {
+  if (toolMode.value === 'line' && activePoints.value.length >= 2) {
+    const line = {
+      id: `line-${Date.now()}`,
+      type: 'line',
+      label: `Línea ${new Date().toLocaleTimeString()}`,
+      path: [...activePoints.value],
+    }
+    pointsList.value = addPoint(line)
+    activePoints.value = []
+    addLog('Línea guardada', line.label, `Puntos: ${line.path.length}`)
+    renderMapLayers()
+    return
+  }
+  if (toolMode.value === 'polygon' && activePoints.value.length >= 3) {
+    const polygon = {
+      id: `polygon-${Date.now()}`,
+      type: 'polygon',
+      label: `Polígono ${new Date().toLocaleTimeString()}`,
+      path: [...activePoints.value],
+    }
+    pointsList.value = addPoint(polygon)
+    activePoints.value = []
+    addLog('Polígono guardado', polygon.label, `Puntos: ${polygon.path.length}`)
+    renderMapLayers()
+    return
+  }
 }
 
-const resetView = () => {
+const commitCircle = () => {
+  if (!activeCircleCenter.value) return
+  const radiusMeters = activeRadiusUnit.value === 'nm' ? activeCircleRadius.value * 1852 : activeCircleRadius.value * 1000
+  const circle = {
+    id: `circle-${Date.now()}`,
+    type: 'circle',
+    label: `Radio ${activeCircleRadius.value}${activeRadiusUnit.value}`,
+    lat: activeCircleCenter.value[0],
+    lon: activeCircleCenter.value[1],
+    radius: radiusMeters,
+  }
+  pointsList.value = addPoint(circle)
+  activeCircleCenter.value = null
+  addLog('Círculo guardado', circle.label, `Radio ${radiusMeters.toFixed(0)} m`)
+  renderMapLayers()
+}
+
+const clearMeasurement = () => {
+  measurementPoints.value = []
+  measurementResult.value = null
+  addLog('Medición borrada', 'Regla reiniciada', '')
+  renderMapLayers()
+}
+
+const clearUserData = () => {
+  const preserved = loadPoints().filter((item) => !['marker', 'line', 'polygon', 'circle', 'measurement', 'hotspot'].includes(item.type))
+  savePoints(preserved)
+  pointsList.value = preserved
+  addLog('Datos de usuario borrados', 'Se eliminaron pines, líneas, polígonos y mediciones', '')
+  renderMapLayers()
+}
+
+const resetMapView = () => {
   if (!map.value) return
   const bounds = []
-  expedienteMarkers.value.forEach((exp) => bounds.push([exp.lat, exp.lon]))
-  flightsStore.routes.forEach((flight) => flight.path.forEach((pos) => bounds.push(pos)))
-  if (bounds.length > 0) {
-    map.value.fitBounds(bounds, { padding: [60, 60] })
-  }
-}
-
-const addMarkerMode = ref(false)
-const startMarkerPlacement = () => {
-  addMarkerMode.value = true
-  alert('Haga clic en el mapa para colocar un nuevo punto de medición.')
-}
-
-const addMarker = (latlng) => {
-  if (!addMarkerMode.value || !map.value) return
-  // open a mini-form to create a custom point
-  customPoint.id = Date.now()
-  customPoint.type = 'measurement'
-  customPoint.lat = latlng.lat
-  customPoint.lon = latlng.lng
-  customPoint.label = `Medición ${new Date().toISOString().slice(0,19)}`
-  // persist
-  pointsList.value = addPoint({ id: customPoint.id, type: customPoint.type, lat: customPoint.lat, lon: customPoint.lon, label: customPoint.label })
-  renderMapLayers()
-  addMarkerMode.value = false
+  airports.value.forEach((airport) => bounds.push([airport.lat, airport.lon]))
+  fmStations.value.forEach((station) => bounds.push([station.lat, station.lon]))
+  pointsList.value.forEach((point) => {
+    if (point.type === 'marker' || point.type === 'circle') bounds.push([point.lat, point.lon])
+    if (point.type === 'line' || point.type === 'polygon') point.path.forEach((coord) => bounds.push(coord))
+  })
+  rfEvents.value.forEach((event) => bounds.push([event.lat, event.lon]))
+  flightsStore.routes.forEach((flight) => normalizeFlightPath(flight.path).forEach((coord) => bounds.push(coord)))
+  if (bounds.length > 0) map.value.fitBounds(bounds, { padding: [50, 50] })
 }
 
 const searchFlights = async () => {
@@ -553,55 +771,69 @@ const searchFlights = async () => {
       callsign: flightSearch.callsign,
       source: flightSearch.source,
     })
-
+    addLog('Búsqueda de vuelos', 'Ruta actualizada', `${flightsStore.routes.length} vuelos cargados`)
     renderMapLayers()
-
-    if (flightsStore.routes.length > 0 && map.value) {
-      const bounds = flightsStore.routes.flatMap((flight) => flight.path)
-      map.value.fitBounds(bounds, { padding: [60, 60] })
-    }
   } catch (err) {
-    alert('Error buscando vuelos: ' + err.message)
+    addLog('Error de vuelos', err.message || 'Error desconocido', '')
   }
 }
 
-// helpers to manage custom points from UI
-const onAddCustomPoint = (payload) => {
-  const id = Date.now()
-  const p = { id, ...payload }
-  pointsList.value = addPoint(p)
-  renderMapLayers()
+const loadSampleFlights = async () => {
+  flightSearch.origin = ''
+  flightSearch.destination = ''
+  flightSearch.callsign = ''
+  flightSearch.source = 'sample'
+  await searchFlights()
 }
 
-const onRemovePoint = (id) => {
-  pointsList.value = removePoint(id)
-  renderMapLayers()
-}
-
-const onUpdatePoint = (id, patch) => {
-  pointsList.value = updatePoint(id, patch)
-  renderMapLayers()
-}
-
-const loadExpedientes = async () => {
-  await expedientesStore.fetchExpedientes()
-  if (filteredExpedienteMarkers.value.length > 0 && map.value) {
-    map.value.fitBounds(filteredExpedienteMarkers.value.map((exp) => [exp.lat, exp.lon]))
+const refreshOpenSky = async () => {
+  try {
+    await flightsStore.searchFlights({
+      origin: flightSearch.origin,
+      destination: flightSearch.destination,
+      callsign: flightSearch.callsign,
+      source: 'opensky',
+    })
+    addLog('OpenSky actualizado', 'Vuelos en tiempo real recargados', `${flightsStore.routes.length} rutas`)
+    renderMapLayers()
+  } catch (err) {
+    addLog('OpenSky fallo', err.message || 'No se pudo actualizar', '')
   }
-  renderMapLayers()
 }
+
+const loadData = () => {
+  airports.value = loadAirports()
+  fmStations.value = loadFMStations()
+  pointsList.value = loadPoints()
+  rfEvents.value = loadRfEvents()
+}
+
+const expedienteMarkers = computed(() => (expedientesStore.expedientes || []).filter((exp) => exp.lat != null && exp.lon != null))
+
+watch([() => layers, () => flightsStore.routes.length, pointsList, rfEvents], renderMapLayers, { deep: true })
 
 onMounted(async () => {
+  await nextTick()
   initMap()
-  await loadExpedientes()
+  loadData()
   await searchFlights()
+  renderMapLayers()
+  if (map.value && map.value.invalidateSize) {
+    map.value.invalidateSize()
+  }
 })
 
-watch([layers, filteredExpedienteMarkers, () => filteredFlightRoutes.value.length, () => flightsStore.routes], renderMapLayers, { deep: true })
+const buttonClass = (active) => {
+  return [
+    'rounded-2xl px-3 py-2 text-xs font-semibold transition-colors',
+    active ? 'bg-primary text-slate-950' : 'bg-slate-800 text-slate-200 hover:bg-slate-700',
+  ]
+}
 </script>
 
 <style scoped>
 #map {
   min-height: 100%;
+  height: 100%;
 }
 </style>

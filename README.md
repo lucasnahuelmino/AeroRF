@@ -348,3 +348,34 @@ rm siari.db
 
 **ENACOM — Ente Nacional de Comunicaciones**
 Gestión del Espectro
+
+---
+
+## Arranque rápido (scripts añadidos)
+
+Se añadieron dos scripts en la raíz para facilitar el arranque:
+
+- `start.sh` — Script para entornos Unix/WSL/Git Bash. Usa el virtualenv `.venv` si existe y arranca `uvicorn` en el puerto 8000 y `vite` para frontend en modo `dev`.
+- `start.bat` — Script equivalente para Windows (CMD / PowerShell).
+
+Ejemplos:
+
+```bash
+# Desarrollo (Unix/WSL/Git Bash)
+./start.sh dev
+
+# Producción (construye frontend y sirve)
+./start.sh prod
+
+# Detener backend
+./start.sh stop
+```
+
+```cmd
+:: En Windows (CMD / PowerShell)
+start.bat dev
+start.bat prod
+start.bat stop
+```
+
+Si quieres, puedo crear un `docker-compose.yml` y un `systemd` unit file de ejemplo para producción.

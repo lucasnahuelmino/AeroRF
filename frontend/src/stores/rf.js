@@ -16,7 +16,9 @@ export const useRFStore = defineStore('rf', () => {
         body: JSON.stringify(payload),
       })
       if (!response.ok) throw new Error('Failed to calculate')
-      results.value = await response.json()
+      const data = await response.json()
+      // API returns an object with `matches`; store the array of matches for the UI
+      results.value = data.matches || []
       return results.value
     } catch (err) {
       error.value = err.message

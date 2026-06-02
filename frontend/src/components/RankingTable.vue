@@ -23,17 +23,17 @@
         <div class="grid grid-cols-3 gap-3 text-sm mb-2">
           <div>
             <span class="text-gray-400">Resultado:</span>
-            <div class="font-semibold text-primary">{{ result.resultado?.toFixed(3) }} MHz</div>
+            <div class="font-semibold text-primary">{{ (result.result_mhz ?? result.resultado)?.toFixed(3) }} MHz</div>
           </div>
           <div>
             <span class="text-gray-400">Error:</span>
-            <div :class="result.error_khz < 5 ? 'text-success' : 'text-warning'">
-              {{ result.error_khz?.toFixed(2) }} kHz
+            <div :class="(result.error_khz ?? 0) < 5 ? 'text-success' : 'text-warning'">
+              {{ (result.error_khz ?? 0)?.toFixed(2) }} kHz
             </div>
           </div>
           <div>
             <span class="text-gray-400">Proximidad:</span>
-            <div class="text-gray-200">{{ (result.proximity * 100).toFixed(0) }}%</div>
+            <div class="text-gray-200">{{ Math.round(((result.proximity ?? result.score_breakdown?.proximity ?? 0) * 100)) }}%</div>
           </div>
         </div>
 
