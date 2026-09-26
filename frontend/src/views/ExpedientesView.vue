@@ -1,7 +1,7 @@
 <template>
-  <div class="space-y-6">
+  <div class="page-doc">
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold">📋 Expedientes</h1>
+      <h1 class="page-doc-title">📋 Expedientes</h1>
       <button
         @click="showNewForm = true"
         class="px-4 py-2 bg-primary hover:bg-blue-600 rounded-lg transition-colors font-semibold"

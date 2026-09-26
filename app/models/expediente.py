@@ -11,6 +11,8 @@ from sqlalchemy.sql import func
 from app.database.database import Base
 from datetime import datetime
 
+from app.core.time import utcnow
+
 
 class Expediente(Base):
     """
@@ -38,8 +40,8 @@ class Expediente(Base):
     lon = Column(Float, nullable=True)
     
     # Case metadata
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
-    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=utcnow)
+    fecha_actualizacion = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # Status and severity
     estado = Column(String(20), default="abierto")  # abierto, investigacion, resuelto, cerrado

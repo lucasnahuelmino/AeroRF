@@ -1,13 +1,46 @@
-/.venv/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node
 node_modules/
 dist/
-build/
-*.log
-*.sqlite3
-*.pyc
-__pycache__/
+.vite/
+
+# Environment — NEVER commit. Holds the OpenSky OAuth2 credentials.
 .env
 .env.*
+!.env.example
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+# Logs
+*.log
+logs/
+backend*.log
+backend*.err.log
+vite*.log
+vite*.err.log
+
+# Stale process marker from the previous launcher
+.backend.pid
+
+# Editors / OS
+.vscode/
+.idea/
 .DS_Store
-/.vscode/
-cmdtest.txt
+Thumbs.db
+
+# Test artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/

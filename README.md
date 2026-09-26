@@ -1,381 +1,226 @@
-# RF Interference System
+# AeroRF
 
-Proyecto para detectar y analizar interferencias RF, con dashboard, mapas y búsqueda de rutas de vuelo.
+**Plataforma GIS para el análisis de interferencias aeronáuticas**
 
-Contenido:
-- `app/` - backend FastAPI
-- `frontend/` - Vue 3 + Vite frontend
-- `rf_engine/` - motor de análisis RF
+AeroRF es una herramienta de investigación geográfica para el estudio de
+interferencias en las bandas de comunicaciones aeronáuticas. Permite medir
+distancias y áreas de protección, documentar hallazgos en expedientes y
+correlacionar espacialmente fuentes de interferencia con el tráfico aéreo
+real, dejando en cada caso constancia de **de dónde viene cada dato**.
 
-Instrucciones rápidas:
-
-1. Backend (Python):
-
-```bash
-# crear y activar venv
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-2. Frontend:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-3. Para subir a GitHub: inicializa repo local (ya hecho) y añade un remoto con la URL que crea tu repositorio en GitHub, luego `git push -u origin main`.
-# SIARI — RF Interference Analysis System
-
-Plataforma profesional para investigación y análisis de interferencias en banda aeronáutica.
-
-## Estructura del Proyecto
-
-```
-rf-interference-system/
-├── app/                          # Backend (Python/FastAPI)
-│   ├── main.py                   # Punto de entrada
-│   ├── api/
-│   │   └── routes/
-│   │       ├── rf.py             # Cálculos RF básicos
-│   │       ├── rf_expediente.py  # RF integrado con expedientes
-│   │       └── expedientes.py    # Gestión de casos
-│   ├── models/
-│   │   ├── expediente.py         # Modelo de caso
-│   │   ├── medicion.py           # Mediciones de campo
-│   │   ├── evento_rf.py          # Eventos RF detectados
-│   │   ├── espectro.py           # Registros espectrales
-│   │   ├── rf_models.py          # Modelos RF originales
-│   │   └── schemas.py            # Schemas Pydantic
-│   ├── rf_engine/                # Motor RF (existente)
-│   │   ├── engine.py
-│   │   ├── harmonics.py
-│   │   ├── intermod.py
-│   │   ├── ranking.py
-│   │   └── ...
-│   ├── services/
-│   │   └── rf_service.py         # Servicio RF integrado
-│   ├── database/
-│   │   └── database.py           # Configuración SQLAlchemy
-│   └── core/
-├── frontend/                     # Frontend (Vue 3/Vite)
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   └── src/
-│       ├── main.js
-│       ├── App.vue
-│       ├── components/           # Componentes Vue
-│       ├── views/
-│       │   ├── DashboardView.vue
-│       │   ├── ExpedientesView.vue
-│       │   ├── ExpedienteDetalleView.vue
-│       │   ├── CalculadoraRFView.vue
-│       │   ├── MapasView.vue
-│       │   └── EspectroView.vue
-│       ├── stores/               # Pinia stores
-│       │   ├── expedientes.js
-│       │   └── rf.js
-│       ├── services/             # API clients
-│       ├── assets/
-│       └── utils/
-├── requirements.txt              # Dependencias Python
-├── .env.example                  # Variables de entorno
-└── README.md
-```
-
-## Setup Inicial
-
-### 1. Backend
-
-```bash
-# Navegar a la raíz del proyecto
-cd rf-interference-system
-
-# Crear ambiente virtual (ya debe existir)
-python -m venv .venv
-
-# Activar ambiente
-.venv\Scripts\activate  # Windows
-# o
-source .venv/bin/activate  # Linux/Mac
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Crear archivo .env
-cp .env.example .env
-
-# Ejecutar servidor
-uvicorn app.main:app --reload --port 8000
-```
-
-Swagger UI: http://localhost:8000/docs
-
-### 2. Frontend
-
-```bash
-# En otra terminal, navegar a la carpeta frontend
-cd frontend
-
-# Instalar dependencias (requiere Node.js 18+)
-npm install
-
-# Ejecutar servidor de desarrollo
-npm run dev
-```
-
-App estará disponible en: http://localhost:5173
-
-## Stack Tecnológico
-
-### Backend
-- **FastAPI** — Framework web moderno
-- **SQLAlchemy** — ORM para base de datos
-- **Pydantic** — Validación de datos
-- **pandas/NumPy** — Análisis de datos
-
-### Frontend
-- **Vue 3** — Framework UI reactivo
-- **Vite** — Build tool ultra-rápido
-- **Pinia** — Estado global
-- **TailwindCSS** — Estilos
-- **Plotly.js** — Gráficos
-- **Leaflet** — Mapas interactivos
-- **Axios** — HTTP client
-
-### Base de datos
-- **SQLite** (desarrollo) / **PostgreSQL** (producción)
-
-## Módulos Funcionales
-
-### ✅ Implementados
-
-1. **Gestión de Expedientes** — Crear, listar, actualizar expedientes
-2. **Motor Matemático RF** — Cálculos de armónicas e IM (existente)
-3. **Integración RF-BD** — Almacenar y correlacionar resultados
-4. **Dashboard** — Vista general de casos activos
-5. **Calculadora RF** — Interfaz para cálculos interactivos
-6. **Detalle de Expediente** — Análisis completo de caso
-
-### 🔄 En desarrollo
-
-7. **Mapas y Geolocalización** — Visualizar puntos de medición
-8. **Rutas de Vuelo** — Integración OpenSky API
-9. **Registro Espectral** — Cargar y procesar espectrogramas
-10. **Exportación** — PDF, Excel, reportes
-
-## API Endpoints
-
-### Expedientes
-```
-GET    /api/v1/expedientes                    — Listar todos
-POST   /api/v1/expedientes                    — Crear nuevo
-GET    /api/v1/expedientes/{id}               — Obtener uno
-PUT    /api/v1/expedientes/{id}               — Actualizar
-DELETE /api/v1/expedientes/{id}               — Eliminar
-GET    /api/v1/expedientes/{id}/mediciones    — Mediciones
-GET    /api/v1/expedientes/{id}/eventos       — Eventos RF
-```
-
-### RF Engine
-```
-POST   /api/v1/rf/calculate                   — Cálculo rápido
-GET    /api/v1/rf/harmonics/{freq}            — Tabla armónicas
-POST   /api/v1/rf/expedientes/{id}/calculate  — Cálculo integrado
-GET    /api/v1/rf/expedientes/{id}/candidates — Top candidatos
-GET    /api/v1/rf/frequency-conflicts         — Búsqueda histórica
-```
-
-## Estructura de Datos
-
-### Expediente
-```json
-{
-  "id": 1,
-  "numero_expediente": "EXP-2026-001",
-  "freq_mhz": 119.0,
-  "aeropuerto": "Ministro Pistarini",
-  "lat": -34.8196,
-  "lon": -58.5356,
-  "estado": "investigacion",
-  "severidad": "alta",
-  "inspector_responsable": "Juan Pérez",
-  "observaciones": "Interferencia intermitente",
-  "fecha_creacion": "2026-05-27T10:00:00"
-}
-```
-
-### EventoRF
-```json
-{
-  "id": 1,
-  "expediente_id": 1,
-  "formula": "2×88.5 - 58.0",
-  "tipo_producto": "IM3",
-  "resultado_mhz": 119.0,
-  "error_khz": 0.5,
-  "score_probabilidad": 92,
-  "freq_1_mhz": 88.5,
-  "freq_2_mhz": 58.0
-}
-```
-
-## Cálculos RF
-
-El sistema calcula:
-
-1. **Armónicas**: 2f, 3f, 4f, ... nf
-2. **IM2**: f1 + f2, |f1 - f2|
-3. **IM3**: 2f1 - f2, 2f2 - f1, 2f1 + f2, 2f2 + f1
-4. **IM5 y IM7**: Órdenes superiores
-
-### Scoring
-- **Proximidad**: ¿Qué tan cerca está del objetivo?
-- **Orden del producto**: ¿Qué tan probable es este tipo?
-- **Tipo de señal**: ¿Qué emisor es? (FM, TV, etc)
-- **Potencia**: Si se conoce, ¿cuál es la potencia?
-
-Resultado: **Score 0-99** que indica probabilidad de interferencia.
-
-## Desarrollo
-
-### Agregar nueva ruta
-```python
-# En app/api/routes/nueva_ruta.py
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/nueva", tags=["Mi Módulo"])
-
-@router.get("/")
-def mi_endpoint():
-    return {"message": "Hola"}
-
-# En app/main.py
-from app.api.routes.nueva_ruta import router as nueva_router
-app.include_router(nueva_router, prefix="/api/v1")
-```
-
-### Agregar nuevo modelo
-```python
-# En app/models/nuevo_modelo.py
-from app.database.database import Base
-from sqlalchemy import Column, Integer, String
-
-class MiModelo(Base):
-    __tablename__ = "mi_tabla"
-    id = Column(Integer, primary_key=True)
-    nombre = Column(String(100))
-
-# En app/models/__init__.py
-from app.models.nuevo_modelo import MiModelo
-```
-
-### Agregar componente Vue
-```vue
-<!-- En frontend/src/components/MiComponente.vue -->
-<template>
-  <div>Mi Componente</div>
-</template>
-
-<script setup>
-// Lógica
-</script>
-```
-
-## Testing
-
-```bash
-# Backend
-pytest app/rf_engine/test_rf_engine.py -v
-
-# Frontend (futuro)
-npm run test
-```
-
-## Producción
-
-### Backend
-```bash
-# Con Gunicorn + Uvicorn
-pip install gunicorn
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-```
-
-### Frontend
-```bash
-# Build
-npm run build
-
-# Servir con nginx o similar
-```
-
-## Troubleshooting
-
-### "Module not found: app"
-- Asegurar que se ejecuta uvicorn desde la **raíz del proyecto**
-- No desde la carpeta `app/`
-
-### Port 8000 ya en uso
-```bash
-netstat -ano | findstr :8000  # Windows
-kill -9 <PID>
-```
-
-### Base de datos corrupta
-```bash
-# Eliminar y recrear
-rm siari.db
-# Se recreará automáticamente en el startup
-```
-
-## Próximos Pasos
-
-1. ✅ Estructura base
-2. ✅ Motor RF integrado
-3. ⏳ Mapas interactivos (Leaflet)
-4. ⏳ Integración OpenSky (rutas de vuelo)
-5. ⏳ Dashboard en tiempo real (WebSockets)
-6. ⏳ Exportación de reportes (PDF)
-7. ⏳ IA para detección automática
-8. ⏳ Streaming en tiempo real (SDR)
-
-## Contacto
-
-**ENACOM — Ente Nacional de Comunicaciones**
-Gestión del Espectro
+Desarrollado para la **Dirección Nacional de Control y Fiscalización
+(ENACOM)**.
 
 ---
 
-## Arranque rápido (scripts añadidos)
+## Qué hace y qué no hace
 
-Se añadieron dos scripts en la raíz para facilitar el arranque:
+Esta distinción es lo más importante de la herramienta, y está impuesta en el
+código, no sólo en la documentación.
 
-- `start.sh` — Script para entornos Unix/WSL/Git Bash. Usa el virtualenv `.venv` si existe y arranca `uvicorn` en el puerto 8000 y `vite` para frontend en modo `dev`.
-- `start.bat` — Script equivalente para Windows (CMD / PowerShell).
+**AeroRF no inventa posiciones.** No hay vuelos de demostración, ni datos
+sintéticos, ni recorridos inventados para que el mapa se vea lleno. Cuando
+OpenSky no tiene datos de una aeronave, la interfaz dice *"sin datos"*. Cuando
+una posición no existe, el campo queda vacío en lugar de rellenarse.
 
-Ejemplos:
+**AeroRF no afirma causalidad.** La correlación entre una fuente de
+interferencia y una aeronave informa de proximidad espacial. Dos cosas que
+están cerca no se lesionan una a la otra por estarlo, y la herramienta nunca
+lo insinúa: cada informe de correlación lleva la advertencia explícita.
 
-```bash
-# Desarrollo (Unix/WSL/Git Bash)
-./start.sh dev
+**Todo dato declara su procedencia.** Cada punto, cada tramo de trayectoria y
+cada valor guardado indica si es observado, histórico, en vivo, calculado o
+introducido por el operador. Es la diferencia entre una medición y una
+suposición, y en un expediente de la medida es lo único que hace defendible el
+documento.
 
-# Producción (construye frontend y sirve)
-./start.sh prod
+---
 
-# Detener backend
-./start.sh stop
+## Instalación
+
+Requisitos: **Python 3.11+** y **Node.js 18+**.
+
+```powershell
+# Backend
+cd AeroRF
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Frontend
+cd frontend
+npm install
 ```
 
-```cmd
-:: En Windows (CMD / PowerShell)
-start.bat dev
-start.bat prod
-start.bat stop
+### Credenciales de OpenSky (opcional)
+
+Sin credenciales AeroRF funciona por completo para el trabajo de campo: dibuja,
+mide, guarda objetos, arma expedientes. Lo que se pierde son los vuelos en vivo
+y las trayectorias históricas.
+
+Para habilitarlas, copiá `.env.example` a `.env` y completá `OPENSKY_CLIENT_ID`
+y `OPENSKY_CLIENT_SECRET` con las claves OAuth2 de OpenSky. El archivo `.env`
+está en `.gitignore` y nunca debe subirse a un repositorio.
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-Si quieres, puedo crear un `docker-compose.yml` y un `systemd` unit file de ejemplo para producción.
+**Modo anónimo:** sin ningún valor configurado, AeroRF usa el acceso anónimo de
+OpenSky, que permite consultar los vectores de estado globales. Es útil para
+ver tráfico en vivo, aunque tiene límites de frecuencia más estrictos.
+
+---
+
+## Puesta en marcha
+
+Dos procesos. El backend en el 8010 y el frontend en el 5173.
+
+```powershell
+# Terminal 1 — API
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8010
+
+# Terminal 2 — interfaz
+cd frontend
+$env:VITE_API_TARGET="http://127.0.0.1:8010"
+npm run dev
+```
+
+Abrí `http://localhost:5173`.
+
+> **El puerto 8010 no es arbitrario.** En esta máquina el 8000 está ocupado por
+> otro proyecto. Si en la tuya está libre, AeroRF funciona igual en el 8000:
+> ajustá `--port` y `VITE_API_TARGET` juntos.
+
+También hay `start.bat` (Windows) y `start.sh` (Linux), que levantan ambos
+procesos con las variables ya configuradas.
+
+---
+
+## Las cinco secciones
+
+La barra superior está presente en **todas** las secciones, así que siempre se
+sabe dónde se está y siempre se puede ir a otro lugar.
+
+| Sección | Para qué es |
+|---|---|
+| **Mapa** | La herramienta principal. Todo el trabajo geográfico ocurre acá. |
+| **Panel** | Estado del sistema: objetos, expedientes, fuentes, y aeronaves en seguimiento. |
+| **Expedientes** | Casos de investigación. Cada expediente agrupa objetos, notas e historial. |
+| **Calculadora RF** | Frecuencias, armónicos e intermodulación. Motor de cálculo, sin mapa. |
+| **Espectro** | Análisis espectral de mediciones. |
+
+El detalle de cada una está en **[MANUAL.md](MANUAL.md)**.
+
+---
+
+## Cómo está construido
+
+### Backend
+
+FastAPI sobre Uvicorn. Se eligió sobre Flask (que sugería la especificación)
+porque el repositorio ya usaba FastAPI, porque el WebSocket de vuelos necesita
+soporte nativo de ASGI, y porque la validación con Pydantic cubre los contratos
+de la API. Cambiar de framework habría duplicado la arquitectura y perdido el
+WebSocket.
+
+- **19 tablas** en SQLAlchemy. `map_objects` es la raíz única de todo objeto
+  espacial del operador, con tablas satélite 1:1 para fuentes RF, antenas,
+  eventos, mediciones y referencias.
+- **Geometría doble**: columnas `Float` de latitud y longitud indexadas, para
+  consultas espaciales portables, más una columna JSON `geometry` en GeoJSON.
+  Migrar a PostGIS es un `ALTER TABLE`.
+- **86 endpoints** bajo `/api/v1`.
+
+### Frontend
+
+Vue 3 con Vite, Tailwind, Pinia y Leaflet.
+
+- **`MapEngine`** es una clase, no un composable: maneja los objetos de Leaflet
+  y no debe ser reactivado por Vue. Los componentes hablan con el store, el
+  store empuja al motor, y nunca al revés.
+- **`map/geo.js`** implementa la geodesia sin importar Leaflet, para poder
+  probarla en Node y compararla con el backend.
+- **Cuatro stores**: `map`, `flights`, `system`, `expedientes`.
+
+### El orden de las coordenadas
+
+Tres sistemas, tres órdenes: las herramientas de dibujo usan el orden de
+Leaflet `[lat, lon]`, la API y el almacenamiento usan GeoJSON `[lon, lat]`, y el
+operador escribe lo que escribe. La conversión ocurre en un único lugar
+(`toApiPayload`, en el store de mapa) porque repartirla en varios sitios es la
+forma más común de que un mapa dibuje una cosa y la base guarde otra.
+
+---
+
+## Pruebas
+
+| Suite | Cubre | Comando |
+|---|---|---|
+| Python (336) | Lógica de negocio, geodesia, API, persistencia | `pytest -m "not integration"` |
+| Integración (7) | WebSocket contra el backend real | `pytest -m integration` |
+| Paridad (675) | Geodesia JS contra Python, número a número | `node tests/geo_parity.mjs` |
+| Componentes (78) | Montaje real en jsdom: shell, paneles, motores | `npm test` |
+| Layout (15) | Proporciones del shell, leídas del CSS construido | `npm run test:layout` |
+| Objetos (11) | Traducción de geometría, cierre de anillos | `npm run test:objects` |
+| Aeropuertos (31) | Datos, capa conmutable, medición | `npm run test:airports` |
+| Barra (12) | Botones de herramientas, área de clic | `npm run test:toolbar` |
+| Marca (14) | Cabecera, menú, lockup institucional | `npm run test:brandbar` |
+
+**Total: 343 en Python, 161 en el navegador, 675 de paridad.**
+
+Ninguna prueba por defecto toca la red. OpenSky se ejercita con
+`httpx.MockTransport`, y los contratos están fijados a **capturas reales** de su
+API, no a lo que dice su documentación.
+
+La paridad geodesica merece una nota: `geo_parity.mjs` ejecuta los mismos
+vectores en Node y en Python y compara los resultados como texto. Cualquier
+divergencia de unadecimal fallaría ambos lados.
+
+---
+
+## Documentación
+
+- **[MANUAL.md](MANUAL.md)** — guía de uso: cada sección, cada herramienta, los
+  atajos de teclado y el flujo de trabajo recomendado.
+- **[AERORF_ARCHITECTURE.md](AERORF_ARCHITECTURE.md)** — decisiones de diseño y
+  sus motivos, para quien tenga que mantener el código.
+- **[AERORF_AUDIT.md](AERORF_AUDIT.md)** — qué se encontró al examinar el
+  sistema.
+- **[AERORF_CHANGELOG.md](AERORF_CHANGELOG.md)** — qué cambió y por qué.
+- **[RETOMAR.md](RETOMAR.md)** — estado actual y qué queda pendiente.
+
+---
+
+## Estructura
+
+```
+AeroRF/
+├── app/
+│   ├── api/routes/     86 endpoints
+│   ├── core/           geodesia, unidades, tiempo, config, logging
+│   ├── models/         19 tablas SQLAlchemy
+│   └── services/       lógica de negocio
+├── frontend/src/
+│   ├── components/gis/ paneles del shell
+│   ├── map/            MapEngine, dibujo, medición, aeronaves
+│   ├── stores/         estado de Pinia
+│   └── views/          las cinco secciones
+├── tests/              suite de Python y paridad
+├── tools/              generadores de datos de referencia
+└── .env.example
+```
+
+---
+
+## Licencia y atribución
+
+Software developed for the **Dirección Nacional de Control y Fiscalización
+(ENACOM)**.
+
+Los puntos de referencia de aeródromo provienen de **OurAirports** (dominio
+público) y se generan con `tools/build_airports.py`. Los datos de vuelo
+provienen de la **OpenSky Network** bajo su respetiva licencia.
+
+La marca ENACOM no se reproduce en el software: se usa un lockup tipográfico.
+Si la institución suministra el archivo oficial, se coloca en
+`frontend/src/assets/enacom.svg` y se activa en `BrandBar.vue`.

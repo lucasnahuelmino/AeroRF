@@ -9,6 +9,8 @@ from sqlalchemy.sql import func
 from app.database.database import Base
 from datetime import datetime
 
+from app.core.time import utcnow
+
 
 class RegistroEspectral(Base):
     """
@@ -33,7 +35,7 @@ class RegistroEspectral(Base):
     nombre_archivo = Column(String(100))
     
     # Metadata
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utcnow)
     frecuencia_centro_mhz = Column(Float, nullable=True)
     ancho_vista_khz = Column(Float, nullable=True)
     

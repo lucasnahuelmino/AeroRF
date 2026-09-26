@@ -165,15 +165,17 @@ class TestEngine:
         self.engine = RFEngine()
 
     def _saez_request(self, **kwargs) -> RFCalculationRequest:
-        return RFCalculationRequest(
-            target_mhz=119.0,
-            tolerance_khz=10.0,
-            frequencies=[
+        # `tolerance_khz` is set via setdefault so a caller can override it
+        # without passing the keyword twice (which is a TypeError).
+        params = {
+            "tolerance_khz": 10.0,
+            "frequencies": [
                 FrequencyInput(freq_mhz=88.5, label="FM Radio",  signal_type=SignalType.FM),
                 FrequencyInput(freq_mhz=58.0, label="TV señal",  signal_type=SignalType.TV_UHF),
             ],
-            **kwargs,
-        )
+        }
+        params.update(kwargs)
+        return RFCalculationRequest(target_mhz=119.0, **params)
 
     def test_canonical_result_present(self):
         """2×88.5 − 58.0 = 119.000 must be the top result."""

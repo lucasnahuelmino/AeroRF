@@ -1,80 +1,84 @@
 #!/usr/bin/env bash
-set -e
+# AeroRF — start script
+#   ./start.sh [dev|prod|stop|test]
 
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MODE=${1:-dev}
+set -euo pipefail
 
-activate_venv() {
-  if [ -f "$ROOT_DIR/.venv/bin/activate" ]; then
-    # Unix-style venv
-    source "$ROOT_DIR/.venv/bin/activate"
-  elif [ -f "$ROOT_DIR/.venv/Scripts/activate" ]; then
-    # Windows Git Bash / MSYS-style venv
-    source "$ROOT_DIR/.venv/Scripts/activate"
-  else
-    echo "No virtualenv found at .venv; backend will use system Python if available."
-  fi
-}
+MODE="${1:-dev}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
 
-start_backend() {
-  echo "[backend] Starting uvicorn on :8000... (logs -> backend.log)"
-  # run in background and store pid
-  uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > "$ROOT_DIR/backend.log" 2>&1 &
-  echo $! > "$ROOT_DIR/.backend.pid"
-  echo "[backend] PID $(cat $ROOT_DIR/.backend.pid)"
-}
+echo
+echo " [AeroRF] Modo: $MODE"
+echo
 
-start_frontend_dev() {
-  echo "[frontend] Starting Vite dev server..."
-  cd "$ROOT_DIR/frontend"
-  npm run dev
-}
+# ── Load .env ────────────────────────────────────────────────────────────────
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  echo " Configuración cargada desde .env"
+else
+  echo " No se encontró .env. Copie .env.example a .env (opcional para el mapa)."
+fi
 
-start_frontend_prod() {
-  echo "[frontend] Serving built frontend (port 5173)..."
-  cd "$ROOT_DIR/frontend"
-  if [ ! -d dist ]; then
-    echo "[frontend] Building frontend..."
-    npm run build
-  fi
-  # use npx serve if available
-  if command -v npx >/dev/null 2>&1; then
-    npx serve -s dist -l 5173
-  else
-    echo "npx not found — using Python http.server as fallback (not SPA-friendly)"
-    cd dist
-    python -m http.server 5173
-  fi
-}
+PORT="${PORT:-8000}"
+VITE_PORT="${VITE_PORT:-5173}"
+VITE_API_TARGET="${VITE_API_TARGET:-http://127.0.0.1:${PORT}}"
 
-stop_backend() {
-  if [ -f "$ROOT_DIR/.backend.pid" ]; then
-    PID=$(cat "$ROOT_DIR/.backend.pid")
-    echo "[backend] Stopping PID $PID"
-    kill -TERM "$PID" || kill -9 "$PID" || true
-    rm -f "$ROOT_DIR/.backend.pid"
-    echo "[backend] stopped"
-  else
-    echo "[backend] no PID file found"
-  fi
-}
+echo " Backend:  $VITE_API_TARGET"
+echo " Frontend: http://localhost:${VITE_PORT}"
+echo
+
+# ── Virtualenv ───────────────────────────────────────────────────────────────
+if [ -d .venv ]; then
+  # shellcheck disable=SC1091
+  source .venv/bin/activate
+else
+  echo " AVISO: no se encontró .venv"
+  echo "   python3 -m venv .venv"
+  echo "   .venv/bin/pip install -r requirements.txt"
+  echo
+fi
 
 case "$MODE" in
-  dev)
-    activate_venv
-    start_backend
-    start_frontend_dev
-    ;;
-  prod)
-    activate_venv
-    start_backend
-    start_frontend_prod
-    ;;
   stop)
-    stop_backend
+    echo " Deteniendo AeroRF..."
+    pkill -f "uvicorn app.main:app" || true
     ;;
+
+  test)
+    echo " Ejecutando pruebas..."
+    python -m pytest tests app/rf_engine -q
+    node tests/geo_parity.mjs
+    ;;
+
+  dev)
+    echo " Iniciando backend (uvicorn)..."
+    python -m uvicorn app.main:app --host 127.0.0.1 --port "$PORT" --reload \
+      > "$ROOT/backend.log" 2>&1 &
+    sleep 3
+    echo " Iniciando frontend (Vite)..."
+    cd frontend
+    [ -d node_modules ] || npm install
+    VITE_API_TARGET="$VITE_API_TARGET" VITE_PORT="$VITE_PORT" npm run dev
+    ;;
+
+  prod)
+    echo " Iniciando backend (uvicorn, sin recarga)..."
+    python -m uvicorn app.main:app --host 127.0.0.1 --port "$PORT" \
+      > "$ROOT/backend.log" 2>&1 &
+    echo " Construyendo frontend..."
+    cd frontend
+    npm run build
+    echo
+    echo " Sirva dist/ con un servidor con fallback SPA, por ejemplo:"
+    echo "   npx serve -s dist -l ${VITE_PORT}"
+    ;;
+
   *)
-    echo "Usage: $0 {dev|prod|stop}"
+    echo " Uso: ./start.sh [dev|prod|stop|test]"
     exit 1
     ;;
 esac

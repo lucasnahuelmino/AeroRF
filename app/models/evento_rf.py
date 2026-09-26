@@ -9,6 +9,8 @@ from sqlalchemy.sql import func
 from app.database.database import Base
 from datetime import datetime
 
+from app.core.time import utcnow
+
 
 class EventoRF(Base):
     """
@@ -27,7 +29,7 @@ class EventoRF(Base):
     expediente_id = Column(Integer, ForeignKey("expedientes.id"))
     
     # Event identification
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utcnow)
     frecuencia_resultado_mhz = Column(Float)
     
     # RF calculation details

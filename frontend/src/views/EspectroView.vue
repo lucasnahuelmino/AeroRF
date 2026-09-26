@@ -1,6 +1,6 @@
 <template>
-  <div class="space-y-6">
-    <h1 class="text-3xl font-bold">📊 Análisis Espectral</h1>
+  <div class="page-doc">
+    <h1 class="page-doc-title">📊 Análisis Espectral</h1>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 bg-gray-800 border border-gray-700 rounded-lg p-6">

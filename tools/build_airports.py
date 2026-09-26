@@ -1,0 +1,222 @@
+"""
+Generate src/data/airports.js from OurAirports.
+
+The point of generating rather than hand-writing is that hand-writing
+produced a file with four duplicated ICAO codes, four duplicated IATA codes,
+two sets of identical coordinates under different names, and stray characters.
+All of it looked plausible. A reference file that invents aerodromes is worse
+than no reference file at all: an operator measuring interference protection
+around a wrong ARP would produce a wrong report with total confidence.
+
+So: the coordinates and codes come from OurAirports (public domain), and this
+script is the only thing allowed to write the file.
+"""
+import csv, io, json, os
+
+# Aerodromes chosen for aeronautical radio work: the ones with real traffic
+# and the ones near the Argentine FIR boundaries, where interference from
+# across the border shows up. Sorted by relevance within each country.
+SELECTED = {
+    "AR": [
+        # Large: the ones with heavy traffic and a full TWR/APP.
+        "SAEZ",  # Ezeiza - the hub. Most Spanish-language traffic in the country.
+        "SABE",  # Aeroparque - the other Buenos Aires field.
+        "SACO",  # Cordoba
+        "SAME",  # Mendoza
+        "SAAR",  # Rosario
+        "SASA",  # Salta
+        "SANT",  # Tucuman
+        "SARE",  # Resistencia
+        "SAVC",  # Comodoro Rivadavia
+        "SAWG",  # Rio Grande
+        "SAZN",  # Neuquén
+        "SAZS",  # Bariloche
+        # Medium with scheduled service: regional connections, still worth
+        # plotting for a propagation study.
+        "SANC",  # Catamarca
+        "SANL",  # La Rioja
+        "SANR",  # Termas de Rio Hondo
+        "SANU",  # San Juan
+        "SAOU",  # San Luis
+        "SARC",  # Corrientes
+        "SARF",  # Formosa
+        "SARI",  # Puerto Iguazu
+        "SARP",  # Posadas
+        "SAMR",  # Mendoza, AAP
+        "SAVE",  # Esquel
+        "SAVT",  #.Relief / General Acha area
+        "SAVV",  # Viedma
+        "SAVY",  # Puerto Madryn
+        "SAWC",  # El Calafate
+        "SAWD",  # Puerto Deseado
+        "SAWE",  # Rio Gallegos
+        "SAWH",  # Ushuaia
+        "SAWP",  # Perito Moreno
+        "SAZB",  # Bahia Blanca
+        "SAZL",  # Santa Teresita
+        "SAZM",  # Mar del Plata
+        "SAZO",  # Necochea
+        "SAZR",  # Santa Rosa
+        "SAZY",  # San Martin de los Andes
+        "SAAP",  # Parana
+        "SAAV",  # Sauce Viejo / Santa Fe
+    ],
+    "UY": ["SUMU", "SULS", "SUCU", "SUVO", "SUCA"],
+    "PY": ["SGAS", "SGCI", "SGME", "SGPP"],
+    "CL": ["SCEL", "SCFA", "SCTN", "SCQP", "SCJO", "SCQR", "SCQN", "SCGL", "SCRD"],
+    "BR": ["SBGR", "SBPA", "SBCT", "SBSV", "SBRF", "SBCF"],
+    "ES": ["LEMD", "LEBL", "LEPA", "LEAS"],
+    # Reference: a few elsewhere, for long-baseline interference studies.
+    "US": ["KJFK", "KLAX", "KMIA", "KORD"],
+    "FR": ["LFPG", "LFML"],
+}
+
+ORDER = {"large_airport": 0, "medium_airport": 1, "small_airport": 2, "heliport": 3}
+ALL = {c for codes in SELECTED.values() for c in codes}
+COUNTRY_LABEL = {
+    "AR": "Argentina", "UY": "Uruguay", "PY": "Paraguay", "CL": "Chile",
+    "BR": "Brasil", "ES": "España", "US": "Estados Unidos", "FR": "Francia",
+}
+
+found = {}
+with io.open("_ap.csv", encoding="utf-8", errors="replace", newline="") as fh:
+    for r in csv.DictReader(fh):
+        icao = (r.get("icao_code") or "").strip().upper()
+        if icao in ALL and icao not in found:
+            found[icao] = r
+
+# Report anything we asked for and did not get, so a gap is never silent.
+missing = sorted(ALL - set(found))
+if missing:
+    print("AUSENTES en la fuente (no se inventan):", ", ".join(missing))
+
+out = []
+for cc, codes in SELECTED.items():
+    block = [found[c] for c in codes if c in found]
+    block.sort(key=lambda r: (ORDER.get((r.get("type") or "").strip(), 5),
+                              -(int(float(r.get("latitude_deg") or 0)))))
+    out.append((cc, block))
+
+lines = ["""/**
+ * data/airports.js
+ * ───────────────
+ * Aerodrome reference points, for use as map layers and as the origin of a
+ * distance measurement.
+ *
+ * ── Provenance ───────────────────────────────────────────────────────────
+ *
+ * `reference`. These are published aerodrome reference points from
+ * OurAirports, not anything AeroRF observed or measured. The layer is drawn
+ * as reference data and its legend says so.
+ *
+ * ── Why a generated file and not a database table ────────────────────────
+ *
+ * An ICAO code and an ARP do not change between sessions, and they are the
+ * same for every operator. Seeding them into `map_objects` would put rows in
+ * the same table as the operator's own work, where a reference point could be
+ * mistaken for something they drew, and a later correction would have to
+ * fight the rows a previous run created.
+ *
+ * The layer is therefore not persisted: showing it, hiding it and filtering
+ * it by country change nothing in the database.
+ *
+ * ── Do not hand-edit this file ──────────────────────────────────────────
+ *
+ * It is generated by `tools/build_airports.py` from OurAirports. A
+ * hand-written version of this file had duplicated ICAO codes, duplicated
+ * IATA codes, two identical coordinate pairs under different names, and a
+ * set of coordinates that belonged to no aerodrome at all. Every one of them
+ * looked plausible, which is the problem: an operator computing interference
+ * protection around a wrong ARP produces a confidently wrong report.
+ *
+ * ── Accuracy ─────────────────────────────────────────────────────────────
+ *
+ * Coordinates are the ARP as published, to about 1e-5 degrees (~1 m). That is
+ * the precision of the source, not of the application: an ADS-B position is
+ * far coarser. Do not present a distance to an airport as a measured
+ * separation.
+ */
+"""]
+
+for cc, block in out:
+    lines.append("/** @type {Airport[]} %s. */" % COUNTRY_LABEL.get(cc, cc))
+    lines.append("const %s = [" % cc.lower())
+    for r in block:
+        icao = r["icao_code"].strip().upper()
+        iata = (r.get("iata_code") or "").strip().upper()
+        name = (r.get("name") or "").strip()
+        name = name.encode("ascii", "ignore").decode()
+        typ = (r.get("type") or "").strip()
+        lat = float(r["latitude_deg"])
+        lon = float(r["longitude_deg"])
+        elev = (r.get("elevation_ft") or "").strip()
+        sched = (r.get("scheduled_service") or "").strip() == "yes"
+        lines.append("  {")
+        lines.append("    icao: '%s'," % icao)
+        lines.append("    iata: %s," % ("'%s'" % iata if iata else "null"))
+        lines.append("    name: '%s'," % name.replace("'", "\\'"))
+        lines.append("    country: '%s'," % cc)
+        lines.append("    kind: '%s'," % typ)
+        lines.append("    lat: %s," % round(lat, 6))
+        lines.append("    lon: %s," % round(lon, 6))
+        lines.append("    elevFt: %s," % (int(float(elev)) if elev else "null"))
+        lines.append("    scheduled: %s," % ("true" if sched else "false"))
+        lines.append("  },")
+    lines.append("]")
+    lines.append("")
+
+lines.append("""/**
+ * @typedef {object} Airport
+ * @property {string}  icao     ICAO location indicator
+ * @property {?string} iata     IATA code, null when the field has none
+ * @property {string}  name     Aerodrome name, ASCII
+ * @property {string}  country  ISO 3166-1 alpha-2
+ * @property {string}  kind     large_airport | medium_airport | small_airport | heliport
+ * @property {number}  lat      ARP latitude, WGS84 decimal degrees
+ * @property {number}  lon      ARP longitude, WGS84 decimal degrees
+ * @property {?number} elevFt   Field elevation, feet, null when unpublished
+ * @property {boolean} scheduled Whether scheduled passenger service
+ */
+""")
+spread = "\n".join("  ...%s," % cc.lower() for cc, _ in out)
+country_rows = ",\n".join(
+    "  { code: '%s', label: '%s', count: %s.length }" % (cc, COUNTRY_LABEL.get(cc, cc), cc.lower())
+    for cc, _ in out
+)
+
+lines.append(
+    "/** Every airport, ordered by country then by size. */\n"
+    "export const AIRPORTS = [\n%s\n]\n" % spread
+)
+lines.append(
+    "/** Countries present, for the layer's filter. */\n"
+    "export const AIRPORT_COUNTRIES = [\n%s\n]\n" % country_rows
+)
+
+lines.append("""/** Lookup by ICAO, case-insensitive. */
+export const AIRPORTS_BY_ICAO = new Map(AIRPORTS.map((a) => [a.icao.toLowerCase(), a]))
+
+/** Lookup by IATA. */
+export const AIRPORTS_BY_IATA = new Map(AIRPORTS.filter((a) => a.iata).map((a) => [a.iata, a]))
+
+/**
+ * Resolve an airport from an ICAO or IATA code, case-insensitively.
+ *
+ * The distance tool asks for a code and the operator may type either, so
+ * both are accepted.
+ *
+ * @param {string} text
+ * @returns {Airport | null}
+ */
+export function findAirport(text) {
+  if (!text) return null
+  const t = String(text).trim().toUpperCase()
+  if (t.length !== 4) return null
+  return AIRPORTS_BY_ICAO.get(t.toLowerCase()) || AIRPORTS_BY_IATA.get(t) || null
+}
+""")
+
+os.makedirs("frontend/src/data", exist_ok=True)
+with io.open("frontend/src/data/airports.js", "w", encoding="utf-8", newline="\n") as fh:
+    fh.write("\n".join(lines))
+print("escrito frontend/src/aerof.js -> src/data/airports.js con %d aeropuertos" % len(found))

@@ -1,0 +1,27 @@
+# Normalización de fin de línea.
+#
+# Windows development, Linux deployment, and a shell script in the repository.
+# Without this, every checkout rewrites the whole tree's line endings and the
+# diff is noise that hides real changes.
+#
+#   * text=auto  - git decides, and normalises to LF in the repository
+#   *.bat, *.sh - must stay CRLF, or Windows cannot run them
+
+* text=auto
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh text eol=lf
+
+# Binary: never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.db binary
+*.sqlite3 binary
+*.woff binary
+*.woff2 binary

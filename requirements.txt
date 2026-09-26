@@ -1,20 +1,46 @@
-# SIARI — RF Interference Analysis API
-# Sistema Inteligente de Análisis de Interferencias RF Aeronáuticas
+# ─────────────────────────────────────────────────────────────────────────────
+# AeroRF — Python dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+#   python -m venv .venv
+#   .venv\Scripts\activate          (Windows)
+#   source .venv/bin/activate       (Linux/macOS)
+#   pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────────────────────────
 
-# ─── Core Framework ───────────────────────────────────────────────────────────
-fastapi==0.109.0          # Modern web framework for building APIs
-uvicorn==0.27.0           # ASGI server to run FastAPI in development/production
-pydantic==2.6.1           # Data validation and settings management
-# ─── Database ──────────────────────────────────────────────────────────────────
-sqlalchemy==2.0.23        # SQL toolkit and ORM
-alembic==1.13.1           # Database migration tool
+# ─── Core framework and server ───────────────────────────────────────────────
+# uvicorn[standard] is required, not just uvicorn: the WebSocket support
+# for /ws/flights comes from the `websockets` package, which the bare
+# `uvicorn` distribution does NOT include. Without it uvicorn answers
+# "Unsupported upgrade request" and every live flight feed silently 404s.
+fastapi==0.141.1
+uvicorn[standard]==0.37.0
+websockets==15.0.1
+pydantic==2.13.5
+python-dotenv==1.2.1
 
-# ─── Data Processing ──────────────────────────────────────────────────────────
-pandas==2.1.3             # Data manipulation and analysis
-numpy==1.26.2             # Numerical computing
-# ─── Testing ───────────────────────────────────────────────────────────────────
-pytest==7.4.4             # Testing framework
-pytest-asyncio==0.23.2    # Pytest plugin for asyncio support
+# ─── Database ────────────────────────────────────────────────────────────────
+SQLAlchemy==2.1.1
 
-# ─── Development (optional, comment out for production) ──────────────────────
-python-dotenv==1.0.0      # Load environment variables from .env file
+# PostgreSQL driver — uncomment when moving off SQLite.
+#   pip install alembic psycopg[binary]
+# alembic==1.16.4
+# psycopg[binary]==3.2.9
+
+# ─── HTTP client for OpenSky ────────────────────────────────────────────────
+# Already pulled in by uvicorn[standard]; listed explicitly because
+# OpenSkyService depends on it directly.
+httpx==0.28.1
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+pytest==8.4.2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Notes
+# ─────────────────────────────────────────────────────────────────────────────
+# The RF engine (app/rf_engine) is pure Python. It does NOT require numpy
+# or pandas, and neither does anything else in AeroRF. The previous
+# requirements.txt declared them; they have been removed.
+#
+# The frontend needs no backend credentials to build or run. OpenSky
+# OAuth2 client credentials live in `.env` (see `.env.example`) and are
+# only used at runtime, by the backend.

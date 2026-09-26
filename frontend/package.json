@@ -6,23 +6,36 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext .js,.jsx,.ts,.tsx,.vue"
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx,.vue",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:geo": "vitest run tests/geo.spec.js",
+    "test:components": "vitest run tests/components.spec.js",
+    "test:parity": "node ../tests/geo_parity.mjs",
+    "test:layout": "npm run build && vitest run tests/layout.spec.js"
   },
   "dependencies": {
-    "vue": "^3.4.0",
-    "vue-router": "^4.2.0",
-    "pinia": "^2.1.0",
     "axios": "^1.6.0",
-    "plotly.js": "^2.26.0",
     "leaflet": "^1.9.0",
-    "tailwindcss": "^3.4.0"
+    "pinia": "^2.1.0",
+    "plotly.js": "^2.26.0",
+    "tailwindcss": "^3.4.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
     "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0",
     "eslint": "^8.52.0",
-    "eslint-plugin-vue": "^9.17.0"
+    "eslint-plugin-vue": "^9.17.0",
+    "jsdom": "^24.1.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.19",
+    "vite": "^5.0.0",
+    "vitest": "^1.6.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
   }
 }

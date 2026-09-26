@@ -1,0 +1,33 @@
+{
+ "_comment": "Real OpenSky /flights/aircraft response, captured 2026-09-25 with OAuth2. Note camelCase keys and the absence of dep_lat.",
+ "records": [
+  {
+   "icao24": "39de4f",
+   "firstSeen": 1790355974,
+   "estDepartureAirport": null,
+   "lastSeen": 1790362471,
+   "estArrivalAirport": null,
+   "callsign": "TVF26SK ",
+   "estDepartureAirportHorizDistance": null,
+   "estDepartureAirportVertDistance": null,
+   "estArrivalAirportHorizDistance": null,
+   "estArrivalAirportVertDistance": null,
+   "departureAirportCandidatesCount": 0,
+   "arrivalAirportCandidatesCount": 0
+  },
+  {
+   "icao24": "39de4f",
+   "firstSeen": 1790341508,
+   "estDepartureAirport": "LFPO",
+   "lastSeen": 1790351672,
+   "estArrivalAirport": "LGTL",
+   "callsign": "TVF42VD ",
+   "estDepartureAirportHorizDistance": 639,
+   "estDepartureAirportVertDistance": 50,
+   "estArrivalAirportHorizDistance": 162219,
+   "estArrivalAirportVertDistance": 2429,
+   "departureAirportCandidatesCount": 88,
+   "arrivalAirportCandidatesCount": 0
+  }
+ ]
+}

@@ -1,254 +1,232 @@
 <template>
-  <div class="space-y-6">
-    <!-- KPIs -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <StatCard
-        title="Expedientes"
-        :value="stats.totalExpedientes"
-        label="Total"
-        :secondary="stats.abiertos"
-        secondary-label="Abiertos"
-        :tertiary="stats.investigacion"
-        tertiary-label="En inv."
-      />
-      <StatCard
-        title="Interferencias"
-        :value="stats.interferenciasActivas"
-        label="Activas"
-        :secondary="stats.interferenciasResuelta"
-        secondary-label="Resueltas"
-      />
-      <StatCard
-        title="Frecuencias"
-        :value="stats.frecuenciasAnalizado"
-        label="Analizadas"
-        :secondary="stats.frecuenciasAltaRiesgo"
-        secondary-label="Alto riesgo"
-      />
-      <StatCard
-        title="Sistema"
-        :value="stats.baseDataQuality"
-        label="Calidad BD"
-        :secondary="stats.uptime"
-        secondary-label="Uptime"
-      />
+  <div class="page-doc">
+    <header class="page-doc-head">
+      <h1 class="page-doc-title">Panel operativo</h1>
+      <p class="page-doc-sub">
+        Resumen del estado del sistema. El mapa es la herramienta principal:
+        <router-link to="/" class="text-sky-400 hover:text-sky-300 underline">
+          abrir el GIS
+        </router-link>
+      </p>
+    </header>
+
+    <!-- System status -->
+    <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <StatCard title="Objetos en el mapa" :value="mapStore.stats?.total ?? 0" :subtitle="objectSummary" />
+      <StatCard title="Expedientes" :value="stats.totalExpedientes" :subtitle="`${stats.abiertos} abiertos`" />
+      <StatCard title="Fuentes / Eventos" :value="rfCounts" :subtitle="`${rfSummary?.events_total ?? 0} eventos RF`" />
+      <StatCard title="Aeronaves en seguimiento" :value="flightsStore.trackedCount" :subtitle="`máximo ${5}`" />
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Expedientes recientes -->
-      <div class="lg:col-span-2">
-        <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <div>
-              <h2 class="text-lg font-semibold flex items-center gap-2">📋 Casos Recientes</h2>
-              <p class="text-sm text-gray-400">Filtra los expedientes más recientes por aeropuerto y estado.</p>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-3">
-              <select v-model="filterAirport" class="px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-gray-200 focus:outline-none focus:border-primary">
-                <option value="">Todos los aeropuertos</option>
-                <option v-for="airport in airportOptions" :key="airport" :value="airport">{{ airport }}</option>
-              </select>
-              <select v-model="filterStatus" class="px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-gray-200 focus:outline-none focus:border-primary">
-                <option value="">Todos los estados</option>
-                <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
-              </select>
-            </div>
-          </div>
-          <DataTable
-            :columns="['Expediente', 'Frecuencia', 'Aeropuerto', 'Estado']"
-            :rows="casosRecientes"
-            :actions="[
-              { label: 'Ver', event: 'view', class: 'px-3 py-1 bg-blue-900 hover:bg-blue-800 rounded text-xs transition-colors' },
-            ]"
-            @view="goToExpediente"
-          />
+    <!--
+      Only what the header dots cannot say. Backend, database and OpenSky are
+      three coloured dots in BrandBar now; repeating them here in full cards
+      was noise. What is left is the detail an operator needs and the one
+      warning that actually needs a sentence: OpenSky is not configured.
+    -->
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+        Estado del sistema
+      </h2>
+      <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <dt class="text-[10px] uppercase tracking-widest text-slate-500">Backend</dt>
+          <dd class="mt-0.5 text-sm text-slate-200">{{ systemStore.backendStatus }}</dd>
         </div>
-      </div>
+        <div>
+          <dt class="text-[10px] uppercase tracking-widest text-slate-500">Base de datos</dt>
+          <dd class="mt-0.5 text-sm text-slate-200">
+            {{ systemStore.dbConnected ? `${systemStore.dbStatus.tables.length} tablas` : 'no disponible' }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-[10px] uppercase tracking-widest text-slate-500">OpenSky Network</dt>
+          <dd class="mt-0.5 text-sm text-slate-200">
+            {{ flightsStore.openskyConfigured ? 'configurado' : 'sin configurar' }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-[10px] uppercase tracking-widest text-slate-500">Objetos por capa</dt>
+          <dd class="mt-0.5 text-sm text-slate-200">{{ mapStore.layers.length }} capas</dd>
+        </div>
+      </dl>
+      <p
+        v-if="!flightsStore.openskyConfigured"
+        class="mt-3 rounded border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-[11px] leading-snug text-amber-200/90"
+      >
+        OpenSky no está configurado: no hay vuelos en vivo ni trayectorias.
+        Defina las credenciales OAuth2 en el <code>.env</code> del backend y
+        reinícielo. Sin ellas AeroRF sigue funcionando para el resto del
+        trabajo.
+      </p>
+    </section>
 
-      <!-- Frecuencias críticas -->
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-4">🔥 Frecuencias Críticas</h2>
-        <div class="space-y-2">
-          <div
-            v-for="(freq, idx) in topFrequencies"
-            :key="idx"
-            class="p-3 bg-gray-700 rounded flex justify-between items-center"
-          >
-            <div>
-              <div class="font-mono font-semibold text-warning">{{ freq.mhz }} MHz</div>
-              <div class="text-xs text-gray-400">{{ freq.aeropuerto }}</div>
-            </div>
-            <div class="text-right">
-              <div class="font-bold text-danger">{{ freq.count }}</div>
-              <div class="text-xs text-gray-400">casos</div>
-            </div>
-          </div>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <!-- Object census by type -->
+      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+          Objetos por tipo
+        </h2>
+        <DataTable
+          v-if="objectRows.length"
+          :columns="[
+            { key: 'type', label: 'Tipo' },
+            { key: 'count', label: 'Cantidad', align: 'right' },
+          ]"
+          :rows="objectRows"
+        />
+        <p v-else class="text-sm text-slate-500">
+          Sin objetos. Cree el primero desde el mapa.
+        </p>
+      </section>
+
+      <!-- Expedientes -->
+      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-semibold uppercase tracking-widest text-slate-300">
+            Expedientes recientes
+          </h2>
+          <router-link to="/expedientes" class="text-xs text-blue-400 hover:text-blue-300">
+            ver todos
+          </router-link>
         </div>
-      </div>
+        <DataTable
+          v-if="expedienteRows.length"
+          :columns="[
+            { key: 'numero_expediente', label: 'Expediente' },
+            { key: 'freq_mhz', label: 'MHz' },
+            { key: 'aeropuerto', label: 'Aeropuerto' },
+            { key: 'estado', label: 'Estado' },
+          ]"
+          :rows="expedienteRows"
+        />
+        <p v-else class="text-sm text-slate-500">Sin expedientes.</p>
+      </section>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 bg-gray-800 border border-gray-700 rounded-lg p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold">✈️ Vuelos recientes</h2>
-          <button @click="goToMapas" class="text-xs px-3 py-1 bg-blue-900 hover:bg-blue-800 rounded transition-colors">Ver en Mapas</button>
+    <!-- RF summary -->
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+        Resumen del dominio RF
+      </h2>
+      <div class="grid gap-3 md:grid-cols-4">
+        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
+          <div class="text-[10px] uppercase tracking-wide text-slate-500">Fuentes</div>
+          <div class="text-lg font-semibold text-orange-300">{{ rfSummary?.sources_total ?? 0 }}</div>
         </div>
-        <div v-if="flightsStore.routes.length === 0" class="text-gray-400 text-sm">No se encontraron rutas de vuelo. Ejecuta la búsqueda de vuelos para cargar datos.</div>
-        <div class="space-y-3">
-          <div
-            v-for="flight in flightsStore.routes"
-            :key="flight.callsign"
-            class="p-4 bg-gray-700 rounded border border-gray-700 cursor-pointer hover:bg-gray-700/80"
-            @click="focusFromDashboard(flight)"
-          >
-            <div class="text-sm font-semibold">{{ flight.callsign }}</div>
-            <div class="text-xs text-gray-400">{{ flight.origin }} → {{ flight.destination }}</div>
-            <div class="text-xs text-gray-400">Salida: {{ flight.departure_time }} | Llegada: {{ flight.arrival_time }}</div>
-            <div class="text-xs text-gray-400">Estado: {{ flight.status }}</div>
+        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
+          <div class="text-[10px] uppercase tracking-wide text-slate-500">Eventos</div>
+          <div class="text-lg font-semibold text-red-300">{{ rfSummary?.events_total ?? 0 }}</div>
+        </div>
+        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
+          <div class="text-[10px] uppercase tracking-wide text-slate-500">Antenas</div>
+          <div class="text-lg font-semibold text-emerald-300">{{ rfSummary?.antennas_total ?? 0 }}</div>
+        </div>
+        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
+          <div class="text-[10px] uppercase tracking-wide text-slate-500">Banda de eventos</div>
+          <div class="text-sm text-slate-300">
+            <template v-if="rfSummary?.event_frequencies?.count">
+              {{ rfSummary.event_frequencies.min_mhz }}–{{ rfSummary.event_frequencies.max_mhz }} MHz
+            </template>
+            <template v-else>n/d</template>
           </div>
         </div>
       </div>
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
-        <h2 class="text-lg font-semibold mb-4">📍 Mapa de Rutas</h2>
-        <p class="text-sm text-gray-400">Vista previa rápida del mapa con capas RF y rutas.</p>
-        <div class="mt-4">
-          <RFMap compact />
-        </div>
-      </div>
-    </div>
+    </section>
 
-    <!-- Gráficos -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Chart
-        title="Distribución de Severidad"
-        type="bar"
-        :data="[
-          { label: 'Baja', value: 3 },
-          { label: 'Media', value: 7 },
-          { label: 'Alta', value: 4 },
-          { label: 'Crítica', value: 1 },
+    <!-- Recording sessions -->
+    <section v-if="flightsStore.sessions.length" class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+        Sesiones de grabación
+      </h2>
+      <DataTable
+        :columns="[
+          { key: 'icao24', label: 'ICAO24' },
+          { key: 'callsign', label: 'Callsign' },
+          { key: 'status', label: 'Estado' },
+          { key: 'sample_count', label: 'Muestras', align: 'right' },
+          { key: 'started_at', label: 'Inicio' },
         ]"
+        :rows="flightsStore.sessions.slice(0, 10)"
       />
-      <Chart
-        title="Tendencia de Casos (últimas 6 semanas)"
-        type="line"
-        :data="[
-          { x: 'Sem 1', y: 2 },
-          { x: 'Sem 2', y: 4 },
-          { x: 'Sem 3', y: 3 },
-          { x: 'Sem 4', y: 5 },
-          { x: 'Sem 5', y: 8 },
-          { x: 'Sem 6', y: 12 },
-        ]"
-      />
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useExpedientesStore } from '../stores/expedientes'
-import { useFlightsStore } from '../stores/flights'
-import StatCard from '../components/StatCard.vue'
-import DataTable from '../components/DataTable.vue'
-import Chart from '../components/Chart.vue'
-import RFMap from '../components/maps/RFMap.vue'
+/**
+ * views/DashboardView.vue
+ * ────────────────────────
+ * Operational summary.
+ *
+ * Rewritten during the AeroRF refactor. The previous version embedded
+ * `RFMap` (a third copy of the map implementation) and listed
+ * `flightsStore.routes`, which were the fabricated demo flights. Both are
+ * gone by design: the map lives in the GIS shell, and flight data now
+ * comes only from OpenSky.
+ */
+import { computed, onMounted, ref } from 'vue'
 
-const router = useRouter()
+import { rf as rfApi } from '@/api/client'
+import { useExpedientesStore } from '@/stores/expedientes'
+import { useFlightsStore } from '@/stores/flights'
+import { useMapStore, typeName } from '@/stores/map'
+import { useSystemStore } from '@/stores/system'
+import StatCard from '@/components/StatCard.vue'
+import DataTable from '@/components/DataTable.vue'
+
 const expedientesStore = useExpedientesStore()
 const flightsStore = useFlightsStore()
+const mapStore = useMapStore()
+const systemStore = useSystemStore()
+
+const rfSummary = ref(null)
 
 const stats = computed(() => {
   const expedientes = expedientesStore.expedientes || []
-  const total = expedientes.length
-  const abiertos = expedientes.filter((exp) => exp.estado === 'abierto').length
-  const investigacion = expedientes.filter((exp) => exp.estado === 'investigacion').length
-  const resueltos = expedientes.filter((exp) => exp.estado === 'resuelto').length
-  const altas = expedientes.filter((exp) => ['alta', 'crítica'].includes(exp.severidad)).length
-  const mapped = expedientes.filter((exp) => exp.lat != null && exp.lon != null).length
-
   return {
-    totalExpedientes: total,
-    abiertos,
-    investigacion,
-    interferenciasActivas: abiertos + investigacion,
-    interferenciasResuelta: resueltos,
-    frecuenciasAnalizado: total,
-    frecuenciasAltaRiesgo: altas,
-    baseDataQuality: total === 0 ? 0 : Math.round((mapped / total) * 100),
-    uptime: '99.8%',
+    totalExpedientes: expedientes.length,
+    abiertos: expedientes.filter((e) => e.estado === 'abierto').length,
   }
 })
 
-const topFrequencies = computed(() => {
-  const counts = {}
-  expedientesStore.expedientes.forEach((exp) => {
-    const key = exp.freq_mhz != null ? exp.freq_mhz.toFixed(3) : 'N/A'
-    if (!counts[key]) {
-      counts[key] = {
-        mhz: exp.freq_mhz || 0,
-        aeropuerto: exp.aeropuerto || 'N/A',
-        count: 0,
-      }
-    }
-    counts[key].count += 1
-  })
-  return Object.values(counts)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3)
+const objectRows = computed(() =>
+  Object.entries(mapStore.stats?.by_type || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => ({ type: typeName(type), count })),
+)
+
+const objectSummary = computed(() => {
+  const s = mapStore.stats
+  if (!s) return '—'
+  return `${s.visible} visibles · ${s.hidden} ocultos`
 })
 
-const statusOptions = ['abierto', 'investigacion', 'resuelto', 'cerrado']
-const airportOptions = computed(() => {
-  const airports = new Set()
-  expedientesStore.expedientes.forEach((exp) => {
-    if (exp.aeropuerto) airports.add(exp.aeropuerto)
-  })
-  return Array.from(airports).sort()
-})
+const rfCounts = computed(
+  () => (rfSummary.value?.sources_total ?? 0),
+)
 
-const filterAirport = ref('')
-const filterStatus = ref('')
-
-const filteredExpedientes = computed(() => {
-  return (expedientesStore.expedientes || []).filter((exp) => {
-    if (filterAirport.value && exp.aeropuerto !== filterAirport.value) return false
-    if (filterStatus.value && exp.estado !== filterStatus.value) return false
-    return true
-  })
-})
-
-const casosRecientes = computed(() => {
-  return filteredExpedientes.value.slice(0, 5).map((exp) => ({
-    Expediente: exp.numero_expediente || 'N/A',
-    Frecuencia: exp.freq_mhz != null ? exp.freq_mhz.toFixed(3) : 'N/A',
-    Aeropuerto: exp.aeropuerto || 'N/A',
-    Estado: exp.estado || 'abierto',
-    id: exp.id,
-  }))
-})
-
-const goToExpediente = (row) => {
-  router.push(`/expedientes/${row.id}`)
-}
-
-const goToMapas = () => {
-  router.push('/map')
-}
-
-const focusFromDashboard = (flight) => {
-  if (!flight || !flight.callsign) return
-  flightsStore.selectedCallsign = flight.callsign
-  router.push('/map')
-}
+const expedienteRows = computed(() =>
+  (expedientesStore.expedientes || []).slice(0, 10).map((e) => ({
+    numero_expediente: e.numero_expediente,
+    freq_mhz: e.freq_mhz,
+    aeropuerto: e.aeropuerto,
+    estado: e.estado,
+  })),
+)
 
 onMounted(async () => {
-  expedientesStore.fetchExpedientes()
+  await Promise.all([
+    systemStore.checkBackend(),
+    flightsStore.probeBackend(),
+    expedientesStore.fetchExpedientes(),
+    mapStore.loadStats(),
+    flightsStore.loadSessions(),
+  ])
   try {
-    await flightsStore.searchFlights({ origin: 'EZE', destination: 'COR' })
-  } catch (_err) {
-    // ignore flight lookup errors for dashboard preview
+    rfSummary.value = await rfApi.summary()
+  } catch {
+    rfSummary.value = null
   }
 })
 </script>

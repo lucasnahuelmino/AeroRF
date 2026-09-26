@@ -1,8 +1,8 @@
 <template>
-  <div class="space-y-6">
+  <div class="page-doc">
     <div class="mb-6">
-      <h1 class="text-4xl font-bold text-slate-100 mb-2">🧮 Calculadora RF</h1>
-      <p class="text-slate-400">Motor de análisis de frecuencias, armónicas e intermodulación</p>
+      <h1 class="page-doc-title">🧮 Calculadora RF</h1>
+      <p class="page-doc-sub">Motor de análisis de frecuencias, armónicas e intermodulación</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">

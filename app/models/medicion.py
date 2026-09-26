@@ -9,6 +9,8 @@ from sqlalchemy.sql import func
 from app.database.database import Base
 from datetime import datetime
 
+from app.core.time import utcnow
+
 
 class Medicion(Base):
     """
@@ -37,7 +39,7 @@ class Medicion(Base):
     lon = Column(Float)
     
     # Timestamp
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utcnow)
     fecha_medicion = Column(String(50))
     
     # Metadata

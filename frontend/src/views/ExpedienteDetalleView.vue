@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="page-doc">
     <div class="flex items-center gap-4 mb-6">
       <button
         @click="$router.back()"
@@ -7,7 +7,7 @@
       >
         ← Volver
       </button>
-      <h1 class="text-3xl font-bold">Expediente {{ expediente?.numero_expediente }}</h1>
+      <h1 class="page-doc-title">Expediente {{ expediente?.numero_expediente }}</h1>
     </div>
 
     <div v-if="!expediente" class="text-center text-gray-400 py-12">Cargando...</div>

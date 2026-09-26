@@ -1,117 +1,125 @@
 <template>
-  <div id="app" class="min-h-screen bg-slate-950 text-slate-100">
-    <header class="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 shadow-sm">
-      <!-- Fila superior: Logo e información del sistema -->
-      <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-          <div class="flex items-center gap-3">
-            <img :src="logo" alt="AeroRF" class="h-10 w-auto rounded-md" />
-            <div>
-              <div class="text-lg font-semibold tracking-wide text-primary">AeroRF</div>
-              <div class="text-xs text-slate-400">Centro operativo RF-Aeronáutico</div>
-            </div>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-300">
-          <div class="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
-            <div class="text-slate-500 uppercase">Backend</div>
-            <div class="font-semibold">{{ backendStatus }}</div>
-          </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
-            <div class="text-slate-500 uppercase">OpenSky</div>
-            <div class="font-semibold">{{ openSkyStatus }}</div>
-          </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
-            <div class="text-slate-500 uppercase">Vuelos cargados</div>
-            <div class="font-semibold">{{ flightsLoaded }}</div>
-          </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
-            <div class="text-slate-500 uppercase">Cursor</div>
-            <div class="font-semibold">{{ cursorText }}</div>
-          </div>
-        </div>
-      </div>
+  <div class="app-root">
+    <!--
+      One header for the whole application, thin and always present.
 
-      <!-- Fila de navegación -->
-      <nav class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800">
-        <div class="flex flex-wrap gap-1 py-2 overflow-x-auto">
-          <router-link 
-            v-for="item in navItems" 
-            :key="item.path"
-            :to="item.path"
-            :class="[
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
-              isActive(item.path)
-                ? 'bg-blue-600/20 text-blue-300 border border-blue-500'
-                : 'text-slate-400 hover:text-slate-200 border border-transparent hover:border-slate-700'
-            ]"
-          >
-            {{ item.label }}
-          </router-link>
-        </div>
-      </nav>
-    </header>
+      It used to be two: the map drew its own toolbar with no link out, and
+      the other screens grew a ~130px header with four status cards. So the
+      menu existed on some routes and not on the one the operator lives in.
+    -->
+    <BrandBar :compact="isShell" />
 
-    <main class="min-h-[calc(100vh-120px)] bg-slate-950 px-2 py-2">
-      <div class="max-w-8xl mx-auto h-full">
-        <div class="h-full">
-          <router-view />
-        </div>
-      </div>
-    </main>
+    <router-view />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import logo from './assets/aerorf.png'
+/**
+ * App.vue
+ * ───────
+ * Application shell.
+ *
+ * The previous version called `http://localhost:8000` directly, bypassing
+ * the Vite proxy and hard-coding a port (audit P6). Status is now read from
+ * the system store, which uses the shared API client.
+ *
+ * This component is now only the frame. The header lives in BrandBar so it
+ * can be thin on the map and slightly taller on the document views without
+ * duplicating it.
+ */
+import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { useFlightsStore } from './stores/flights'
-import { useSystemStore } from './stores/system'
+
+import BrandBar from '@/components/BrandBar.vue'
+import { useSystemStore } from '@/stores/system'
+import { useFlightsStore } from '@/stores/flights'
+import { useMapStore } from '@/stores/map'
 
 const route = useRoute()
-const flightsStore = useFlightsStore()
 const systemStore = useSystemStore()
+const flightsStore = useFlightsStore()
+const mapStore = useMapStore()
 
-const backendStatus = computed(() => systemStore.backendStatus)
-const openSkyStatus = computed(() => systemStore.openSkyStatus)
-const flightsLoaded = computed(() => flightsStore.routes.length)
-const cursorText = computed(() => {
-  const { lat, lon } = systemStore.cursor
-  return lat != null && lon != null ? `${lat.toFixed(5)}, ${lon.toFixed(5)}` : 'n/a'
+/**
+ * The map owns the full viewport: it draws its own toolbar and manages its
+ * own scrolling. Every other screen is a document that scrolls normally.
+ */
+const isShell = computed(() => route.path === '/' || route.path === '/map')
+
+onMounted(async () => {
+  await systemStore.checkBackend()
+  await flightsStore.probeBackend()
+  if (!mapStore.stats) await mapStore.loadStats()
+  flightsStore.connectSocket()
 })
 
-const navItems = [
-  { path: '/', label: 'Dashboard' },
-  { path: '/expedientes', label: 'Expedientes' },
-  { path: '/calculadora', label: 'Calculadora RF' },
-  { path: '/mapas', label: 'Mapas' },
-  { path: '/espectro', label: 'Espectro' },
-]
-
-const isActive = (path) => route.path === path || route.path.startsWith(path + '/')
-
-const refreshSystemStatus = async () => {
-  const backendBase = 'http://localhost:8000'
-  try {
-    const response = await fetch(`${backendBase}/health`)
-    if (!response.ok) throw new Error('offline')
-    const data = await response.json()
-    systemStore.backendStatus = data.status || 'ok'
-  } catch (err) {
-    systemStore.backendStatus = 'desconectado'
-  }
-
-  try {
-    const response = await fetch(`${backendBase}/api/v1/flights/search?source=opensky`)
-    systemStore.openSkyStatus = response.ok ? 'conectado' : 'fallo'
-  } catch (err) {
-    systemStore.openSkyStatus = 'fallo'
-  }
-}
-
-onMounted(refreshSystemStatus)
+onBeforeUnmount(() => {
+  flightsStore.disconnectSocket()
+})
 </script>
 
 <style scoped>
+/* The shell is exactly one viewport tall and manages its own overflow. The
+   document views scroll the page, so the root must not lock them. */
+.app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #020617;
+  color: #e2e8f0;
+}
+</style>
+
+<style>
+/* Document views: a centred column that reads as a page, not as a map.
+   The vertical rhythm replaces the `space-y-6` each view used to carry, so
+   the gap between sections is the same everywhere. */
+.page-doc {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+.page-doc > * + * {
+  margin-top: 1.25rem;
+}
+
+.page-doc-head {
+  margin-bottom: 1rem;
+}
+.page-doc-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #e6edf7;
+}
+.page-doc-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* A section card, used by the dashboard and the management views. */
+.card {
+  border-radius: 0.625rem;
+  border: 1px solid #16233a;
+  background: #070d1a;
+  padding: 0.875rem 1rem;
+}
+.card-title {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #5b6b85;
+  margin-bottom: 0.5rem;
+}
+
+/* The old stylesheet styled `button` globally with a blue background and
+   8px/12px padding, which turned every control in the interface into an
+   oversized blue rectangle. Tailwind's preflight resets that; these two rules
+   are all that is needed for buttons to look like buttons. */
+button {
+  font: inherit;
+  cursor: pointer;
+}
 </style>
