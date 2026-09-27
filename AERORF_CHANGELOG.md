@@ -1125,3 +1125,35 @@ para todos los tipos, que es exactamente lo que pide la especificacion.
 - `components.spec.js`: Timeline con sesion cargada, sin `ReferenceError`.
 
 **Totales: 357 + 7 Python, 169 frontend, 675 de paridad.**
+
+## [0.20.1] - 2026-09-27 - La calculadora RF tarda en abrir
+
+### Corregido
+
+`Chart.vue` importaba la libreria de graficos de forma **estatica**, asi que
+quedaba en el grafo de modulos de toda vista que mostrara un grafico. Abrir la
+calculadora significaba descargar y parsear 1085 KB antes de que la pagina
+pudiera pintar nada: la seccion parecia colgada.
+
+La importacion ahora es dinamica. La vista se pinta primero y la libreria
+llega detras, con un placeholder que dice que esta pasando. En la segunda visita
+el modulo ya esta en la cache del navegador y no hay espera ninguna.
+
+Ademas:
+- El wrapper `Chart` paso de 1085 KB a **3,3 KB**: queda como un modulo
+  chico que se renderiza de inmediato.
+- Plotly quedo aislado en su propio chunk, que solo se descarga si hay un
+  grafico que dibujar.
+- La libreria se pide **una vez por pagina**, no una por grafico.
+- Si la carga falla, aparece el motivo y un boton de reintento, en vez de una
+  caja vacia.
+- Un `modulepreload` en el HTML la descargaria desde el primer pintado, que es
+  justo lo que se esta corrigiendo. Un test lo verifica.
+
+### Como se comprueba
+
+El bundle se lee directamente: `CalculadoraRFView` pesa 10 KB, `Chart` 3 KB, y
+la libreria esta en su propio chunk. Un test comprueba las tres cosas, mas que
+el mapa no crezca.
+
+**Totales: 357 + 7 Python, 178 frontend, 675 de paridad.**

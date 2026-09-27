@@ -3,19 +3,49 @@
     <h3 v-if="title" class="mb-3 text-sm font-semibold text-slate-200">
       {{ title }}
     </h3>
+
+    <!--
+      The placeholder exists because the library is fetched after this
+      component mounts. Without it the box is simply blank for a second and a
+      half, which reads as a broken section rather than a slow one.
+    -->
     <div
-      v-if="!data || data.length === 0"
+      v-if="loading"
+      class="grid place-items-center gap-2"
+      :style="{ height: `${height}px` }"
+    >
+      <div class="h-1 w-40 overflow-hidden rounded-full bg-slate-800">
+        <div class="h-full w-1/3 animate-pulse rounded-full bg-sky-600" />
+      </div>
+      <span class="text-[10px] text-slate-600">Cargando el motor de gráficos…</span>
+    </div>
+
+    <div
+      v-else-if="error"
+      class="grid place-items-center text-center"
+      :style="{ height: `${height}px` }"
+    >
+      <div>
+        <p class="text-xs text-amber-300">No se pudo cargar el motor de gráficos.</p>
+        <p class="mt-1 text-[10px] text-slate-600">{{ error }}</p>
+        <button
+          class="mt-2 rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-800"
+          @click="draw"
+        >
+          Reintentar
+        </button>
+      </div>
+    </div>
+
+    <div
+      v-else-if="!data || data.length === 0"
       class="grid place-items-center text-xs text-slate-500"
       :style="{ height: `${height}px` }"
     >
       Sin datos para graficar.
     </div>
-    <div
-      v-else
-      :id="hostId"
-      class="w-full"
-      :style="{ height: `${height}px` }"
-    />
+
+    <div v-else :id="hostId" class="w-full" :style="{ height: `${height}px` }" />
   </div>
 </template>
 
@@ -23,24 +53,31 @@
 /**
  * Chart.vue
  * ─────────
- * A Plotly chart, loaded from a partial bundle.
+ * A Plotly chart, loaded on demand.
  *
- * ── Why the partial import ──────────────────────────────────────────────────
+ * ── Why the import is dynamic ──────────────────────────────────────────────
+ * The library was imported statically, which put it in the module graph of
+ * every view that shows a chart. Opening the RF calculator meant downloading
+ * and parsing a megabyte before the page could paint anything, so the section
+ * appeared to hang.
+ *
+ * The component now renders first and fetches the library in the background.
+ * The calculator is usable while it arrives, and the chart fills in behind a
+ * placeholder that says what is happening. On a second visit the module is
+ * already in the browser cache and there is no wait at all.
+ *
+ * ── Why the partial bundle ────────────────────────────────────────────────
  * `plotly.js` ships every trace type: surface, mesh3d, choropleth, ternary,
- * polar, ohlc. That is 4.4 MB. This component draws exactly three kinds —
- * scatter, bar and line — so the import is trimmed to those. Same behaviour,
- * roughly a tenth of the weight, and it stays in the lazy chunk that only
- * the spectrum and calculator views load.
+ * polar, ohlc. That is 4.4 MB. This component draws three kinds, so the import
+ * is trimmed to `plotly-basic`: about a quarter of the weight, same behaviour.
  *
  * ── Why the id is generated ────────────────────────────────────────────────
- * The container used to be `id="chart"`, a hard-coded value. Two charts on
- * one page therefore shared a node, and the second silently overwrote the
- * first: whichever mounted last took the box, and the first was left blank
- * with no error anywhere. `useId` is per-component-instance, so each chart
- * gets its own node.
+ * The container used to be `id="chart"`. Two charts on one page therefore
+ * shared a node, and the second silently overwrote the first: whichever
+ * mounted last took the box, and the first was left blank with no error
+ * anywhere. `useId` is per component instance.
  */
 import { computed, onMounted, onBeforeUnmount, ref, useId, watch } from 'vue'
-import Plotly from 'plotly.js/dist/plotly-basic'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -51,13 +88,17 @@ const props = defineProps({
   height: { type: Number, default: 300 },
 })
 
-// Vue 3.5+ generates an id per instance. Fall back to a counter for older
-// versions rather than shipping a shared id again.
 const uid = useId ? useId() : null
 const fallbackId = ref(0)
 const hostId = computed(
   () => `aerorf-chart-${uid || (fallbackId.value += 1)}`,
 )
+
+const loading = ref(true)
+const error = ref('')
+/** Resolves to the module, so the fetch happens once per page however many
+ *  charts there are, rather than once per chart. */
+let library = null
 
 const LAYOUT = {
   paper_bgcolor: '#070d1a',
@@ -119,10 +160,25 @@ function buildTraces() {
   ]
 }
 
-function draw() {
-  const el = document.getElementById(hostId.value)
-  if (!el || !props.data?.length) return
-  Plotly.react(el, buildTraces(), LAYOUT, CONFIG)
+async function draw() {
+  if (!props.data?.length) return
+  loading.value = true
+  error.value = ''
+  try {
+    // Awaited once and cached in module scope: several charts on one page
+    // share a single fetch.
+    if (!library) {
+      library = await import('plotly.js/dist/plotly-basic')
+    }
+    const Plotly = library.default || library
+    const el = document.getElementById(hostId.value)
+    if (!el) return
+    Plotly.react(el, buildTraces(), LAYOUT, CONFIG)
+  } catch (e) {
+    error.value = e?.message || 'No se pudo cargar.'
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(draw)
@@ -134,6 +190,9 @@ onBeforeUnmount(() => {
   // Leaving a Plotly node behind keeps its ResizeObserver and its inline
   // styles alive in the detached element.
   const el = document.getElementById(hostId.value)
-  if (el) Plotly.purge(el)
+  if (el && library) {
+    const Plotly = library.default || library
+    Plotly.purge(el)
+  }
 })
 </script>
