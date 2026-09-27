@@ -1045,3 +1045,83 @@ conviene saberlo.
   seleccion de texto, `touch-action` y sensacion de pulsar.
 
 **Totales: 357 + 7 Python, 164 frontend, 675 de paridad.**
+
+## [0.20.0] - 2026-09-27 - Revision intensiva de punta a punta
+
+Barrido del backend y del frontend buscando defectos reales, no preferencias.
+
+### Corregido: un id desbordado devolvia 500
+
+Un id mayor que 2**63-1 llegaba a SQLite y lanzaba `OverflowError`, que salia
+al cliente como 500. Un id que no puede existir es un error del cliente: la
+respuesta es 404.Habia cinco sitios que filtraban por id, y cinco era el numero
+de oportunidades de olvidarse del sexto, asi que ahora todos pasan por
+`_find_by_id`.
+
+### Corregido: `flightStore` en Timeline
+
+La insignia de procedencia leia `flightStore.track` cuando el store es
+`flightsStore`. Solo se renderiza con una sesion cargada, asi que estaba
+detras de un `v-if` falso en todos los demas tests: el build, el linter y las
+165 pruebas pasaban con un `ReferenceError` esperando. Hay un test que carga una
+sesion y lo comprueba.
+
+### Corregido: Espectro era un cascaron
+
+La vista mostraba una caja con el texto "Grafico de espectro (Plotly)" y un
+boton "Procesar" sin manejador. Desde el menu parecía una seccion que funcionaba.
+Un control que no hace nada es peor que ningun control: le promete una
+capacidad al operador que no existe.
+
+Ahora lee CSV o TXT, en cualquiera de los formatos que usan los instrumentos de
+campo (coma, punto y coma o espacios, con o sin encabezado), grafica, y señala
+los picos que caen dentro de banda aeronautica con la advertencia de que un
+pico no prueba interferencia. Las lineas que no se pueden leer se cuentan y se
+informan, no se descartan en silencio.
+
+### Corregido: dos gráficos en una pagina se pisaban
+
+`Chart.vue` usaba `id="chart"` fijo. Dos graficos compartian el mismo nodo y
+el segundo sobrescribia al primero sin error en ninguna parte. Ahora el id es
+por instancia, y el grafico se libera al desmontar.
+
+### Plotly: 4.640 KB a 1.095 KB
+
+El componente dibuja scatter, bar y line, que es un 3 % de plotly. La
+importacion ahora es parcial. El build bajo de 50 s a 29 s, y como el chunk es
+lazy el mapa nunca lo cargo.
+
+### Tema unificado
+
+Las vistas de expedientes usaban `gray-*` y el color `primary` viejo, mientras
+el resto usaba `slate-*` y `sky-*`. Cuatro secciones de una misma herramienta
+parecian cuatro aplicaciones. Ademas `border-primary` no se genera: el=config
+deja el color pero no esa utilidad, asi que esos bordes eran invisibles.
+
+Todo mapeado por luminosidad, para que no cambie la jerarquia, solo el tono. Hay
+un test que prohibe el regreso de cualquier token retirado y, en espejo,
+comprueba que la paleta actual este presente: un archivo vaciado pasaria el
+primer chequeo.
+
+### Rendimiento: falso alarma aclarada
+
+`/map/objects` tardaba 187 ms con un solo objeto. Medido por partes: 389 ms en
+frio y 14,6 ms en caliente. Es el arranque del pool de conexiones, no la
+consulta. No se cambio nada porque no habia nada que cambiar.
+
+### Lo que se comprobo y estaba bien
+
+Sin timeouts faltantes en las llamadas a OpenSky, sin consultas N+1, sin
+commits dentro de bucles, sin botones sin nombre accesible, sin imagenes sin
+`alt`. Los tres `except Exception` silenciosos degradan con elegancia y estan
+comentados. Las funciones largas lo son por tener muchos parametros, no por
+complejidad: `create_object` son 30 argumentos porque es un unico endpoint
+para todos los tipos, que es exactamente lo que pide la especificacion.
+
+### Tests
+
+- `frontend/tests/theme.spec.js` (4): ningun token retirado, la paleta actual
+  presente, y las clases usadas existen en el CSS construido.
+- `components.spec.js`: Timeline con sesion cargada, sin `ReferenceError`.
+
+**Totales: 357 + 7 Python, 169 frontend, 675 de paridad.**

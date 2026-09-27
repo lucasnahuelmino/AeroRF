@@ -54,8 +54,8 @@
         <span class="font-mono text-slate-300">
           {{ session.callsign || session.icao24 }}
         </span>
-        <span class="rounded bg-slate-800 px-1.5 py-0.5 text-slate-400">
-          {{ flightStore.track?.source || 'aerorf' }}
+        <span class="rounded bg-slate-800 px-1.5 py-1 text-slate-400">
+          {{ session.source || 'aerorf' }}
         </span>
         <span class="text-slate-500">
           {{ flightsStore.replayIndex + 1 }}/{{ flightsStore.replayPoints.length }}

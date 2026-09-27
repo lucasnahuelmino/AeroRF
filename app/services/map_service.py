@@ -349,7 +349,44 @@ def _attach_payloads(
 
 # ─── Read ────────────────────────────────────────────────────────────────────
 
+#: SQLite stores INTEGER as at most 8 bytes. An id outside that range cannot
+#: exist, and passing one straight to the driver raises OverflowError, which
+#: reached the client as a 500. An id that cannot exist is a client error, not
+#: a server fault: the answer is 404, the same as any other missing id.
+MAX_SQLITE_INT = 2**63 - 1
+MIN_SQLITE_INT = -(2**63)
+
+
+def _is_storable_id(value: Any) -> bool:
+    """Whether an id can exist at all.
+
+    SQLite stores INTEGER in at most 8 bytes, so anything outside 2**63-1
+    cannot be a row. `bool` is excluded on purpose: it is an `int` subclass in
+    Python, and `True` as an id means the client sent a flag, not an id.
+    """
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and MIN_SQLITE_INT <= value <= MAX_SQLITE_INT
+    )
+
+
+def _find_by_id(db: Session, object_id: int) -> Optional[MapObject]:
+    """Fetch one object, tolerating an id that cannot exist.
+
+    Every id-based lookup goes through here. Four of the five call sites that
+    filtered by id directly each had the same OverflowError bug; the
+    alternative to this helper is five places to remember the same guard, and
+    one of them would eventually be missed.
+    """
+    if not _is_storable_id(object_id):
+        return None
+    return db.query(MapObject).filter(MapObject.id == object_id).first()
+
+
 def get_object(db: Session, object_id: int) -> Optional[MapObject]:
+    if not _is_storable_id(object_id):
+        return None
     return (
         db.query(MapObject)
         .options(
@@ -620,7 +657,7 @@ def delete_object(
     flight/track relation, is refused unless ``cascade=True``, so an
     operator cannot quietly destroy part of a case file.
     """
-    obj = db.query(MapObject).filter(MapObject.id == object_id).first()
+    obj = _find_by_id(db, object_id)
     if obj is None:
         return
 
@@ -669,7 +706,7 @@ def add_note(
     """Append a note. There is no update path, by design."""
     if not (text or "").strip():
         raise MapServiceError("A note cannot be empty.")
-    if db.query(MapObject).filter(MapObject.id == object_id).first() is None:
+    if _find_by_id(db, object_id) is None:
         raise MapServiceError(f"Object {object_id} not found")
 
     note = ObjectNote(object_id=object_id, text=text.strip(), user=user)
@@ -731,7 +768,7 @@ def add_annotation(
     author: Optional[str] = None,
     category: Optional[str] = None,
 ) -> Annotation:
-    obj = db.query(MapObject).filter(MapObject.id == object_id).first()
+    obj = _find_by_id(db, object_id)
     if obj is None:
         raise MapServiceError(f"Object {object_id} not found")
     ann = Annotation(

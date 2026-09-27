@@ -317,6 +317,43 @@ describe('Timeline', () => {
     expect(w.text()).toBeTruthy()
     w.unmount()
   })
+
+  it('renders a loaded session without throwing', async () => {
+    // The regression this covers: the provenance badge read
+    // `flightStore.track`, and the store is `flightsStore`. It only renders
+    // when a session is loaded, so it sat behind a v-if that was false in
+    // every other test, and the build, the linter and the whole suite passed
+    // with a ReferenceError waiting behind that condition.
+    const pinia = makePinia()
+    const { useFlightsStore } = await import('@/stores/flights')
+    const flights = useFlightsStore()
+
+    flights.replaySession = {
+      session: { id: 1, icao24: 'abc123', callsign: 'TEST1', source: 'aerorf' },
+      positions: [
+        { latitude: -34.6, longitude: -58.4, timestamp: 1758000000, altitude: 3000 },
+        { latitude: -34.5, longitude: -58.3, timestamp: 1758000060, altitude: 3200 },
+      ],
+    }
+    flights.replayIndex = 0
+
+    const errors = []
+    const spy = vi.spyOn(console, 'error').mockImplementation((...a) => errors.push(a.join(' ')))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation((...a) => errors.push(a.join(' ')))
+
+    const w = mountComponent(Timeline, { pinia })
+    await flushPromises()
+
+    // It found the store: the source badge rendered.
+    expect(w.text()).toContain('aerorf')
+    // And the point counter agrees with what was loaded.
+    expect(w.text()).toContain('1/2')
+    expect(errors).toEqual([])
+
+    spy.mockRestore()
+    warnSpy.mockRestore()
+    w.unmount()
+  })
 })
 
 describe('ExpedientePanel', () => {

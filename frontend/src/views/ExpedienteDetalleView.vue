@@ -3,34 +3,34 @@
     <div class="flex items-center gap-4 mb-6">
       <button
         @click="$router.back()"
-        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+        class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
       >
         ← Volver
       </button>
       <h1 class="page-doc-title">Expediente {{ expediente?.numero_expediente }}</h1>
     </div>
 
-    <div v-if="!expediente" class="text-center text-gray-400 py-12">Cargando...</div>
+    <div v-if="!expediente" class="text-center text-slate-400 py-12">Cargando...</div>
     <div v-else class="space-y-6">
       <!-- Info básica -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
           <h2 class="text-lg font-semibold mb-4">Información General</h2>
           <div class="space-y-2 text-sm">
-            <div><span class="text-gray-400">Número:</span> {{ expediente.numero_expediente }}</div>
-            <div><span class="text-gray-400">Frecuencia:</span> <span class="font-mono text-primary">{{ expediente.freq_mhz }} MHz</span></div>
-            <div><span class="text-gray-400">Aeropuerto:</span> {{ expediente.aeropuerto }}</div>
-            <div><span class="text-gray-400">Estado:</span> <span :class="statusClass(expediente.estado)">{{ expediente.estado }}</span></div>
-            <div><span class="text-gray-400">Severidad:</span> {{ expediente.severidad }}</div>
+            <div><span class="text-slate-400">Número:</span> {{ expediente.numero_expediente }}</div>
+            <div><span class="text-slate-400">Frecuencia:</span> <span class="font-mono text-sky-600">{{ expediente.freq_mhz }} MHz</span></div>
+            <div><span class="text-slate-400">Aeropuerto:</span> {{ expediente.aeropuerto }}</div>
+            <div><span class="text-slate-400">Estado:</span> <span :class="statusClass(expediente.estado)">{{ expediente.estado }}</span></div>
+            <div><span class="text-slate-400">Severidad:</span> {{ expediente.severidad }}</div>
           </div>
         </div>
 
-        <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
           <h2 class="text-lg font-semibold mb-4">Coordenadas</h2>
           <div class="space-y-2 text-sm">
-            <div><span class="text-gray-400">Latitud:</span> {{ expediente.lat }}</div>
-            <div><span class="text-gray-400">Longitud:</span> {{ expediente.lon }}</div>
-            <button class="mt-4 px-3 py-1 bg-primary hover:bg-blue-600 rounded text-sm transition-colors">
+            <div><span class="text-slate-400">Latitud:</span> {{ expediente.lat }}</div>
+            <div><span class="text-slate-400">Longitud:</span> {{ expediente.lon }}</div>
+            <button class="mt-4 px-3 py-1 bg-sky-600 hover:bg-blue-600 rounded text-sm transition-colors">
               📍 Ver en mapa
             </button>
           </div>
@@ -38,7 +38,7 @@
       </div>
 
       <!-- Cálculos RF -->
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
         <h2 class="text-lg font-semibold mb-4">🧮 Análisis RF</h2>
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
@@ -47,20 +47,20 @@
               type="number"
               placeholder="Frecuencia (MHz)"
               step="0.001"
-              class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary"
+              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
             />
             <input
               v-model="rfForm.tolerance_khz"
               type="number"
               placeholder="Tolerancia (kHz)"
               step="0.1"
-              class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary"
+              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
             />
           </div>
           <button
             @click="calculateRF"
             :disabled="rfStore.loading"
-            class="px-4 py-2 bg-primary hover:bg-blue-600 disabled:bg-gray-600 rounded-lg font-semibold transition-colors"
+            class="px-4 py-2 bg-sky-600 hover:bg-blue-600 disabled:bg-slate-600 rounded-lg font-semibold transition-colors"
           >
             {{ rfStore.loading ? 'Calculando...' : 'Calcular' }}
           </button>
@@ -72,10 +72,10 @@
               <div
                 v-for="(result, idx) in rfStore.results"
                 :key="idx"
-                class="p-3 bg-gray-700 rounded text-sm"
+                class="p-3 bg-slate-700 rounded text-sm"
               >
-                <div class="font-mono text-primary">{{ result.formula }}</div>
-                <div class="text-gray-400">Tipo: <span class="text-white">{{ result.tipo }}</span> | Error: <span class="text-warning">{{ result.error_khz }} kHz</span></div>
+                <div class="font-mono text-sky-600">{{ result.formula }}</div>
+                <div class="text-slate-400">Tipo: <span class="text-white">{{ result.tipo }}</span> | Error: <span class="text-warning">{{ result.error_khz }} kHz</span></div>
                 <div class="text-right font-semibold text-success">Score: {{ result.score }}%</div>
               </div>
             </div>
@@ -84,16 +84,16 @@
       </div>
 
       <!-- Observaciones -->
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
         <h2 class="text-lg font-semibold mb-4">Observaciones</h2>
         <textarea
           v-model="expediente.observaciones"
           rows="4"
-          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary"
+          class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
         ></textarea>
         <button
           @click="updateExpediente"
-          class="mt-3 px-4 py-2 bg-primary hover:bg-blue-600 rounded-lg font-semibold transition-colors"
+          class="mt-3 px-4 py-2 bg-sky-600 hover:bg-blue-600 rounded-lg font-semibold transition-colors"
         >
           Guardar
         </button>
@@ -123,7 +123,7 @@ const statusClass = (status) => {
     abierto: 'text-blue-300',
     investigacion: 'text-yellow-300',
     resuelto: 'text-green-300',
-    cerrado: 'text-gray-300',
+    cerrado: 'text-slate-300',
   }
   return classes[status] || classes.abierto
 }
