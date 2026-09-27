@@ -93,6 +93,10 @@ export class ToolManager {
     this.active = name
     this.options = { ...this.options, ...options }
     this.draft = null
+    // A new shape starts without a pointer position: the sizing line is drawn
+    // from the centre to here, and until the pointer moves there is no
+    // "here".
+    this._pointer = null
 
     if (name === TOOLS.SELECT) {
       this._restoreCursor()
@@ -111,6 +115,24 @@ export class ToolManager {
     this._keyHandler = onKey
 
     this._emitChange()
+  }
+
+  /**
+   * Re-read the options without changing the active tool.
+   *
+   * The options were snapshotted in `activate`, so a radius typed *after* the
+   * tool was picked was ignored: the operator set 20 NM, clicked, and got a
+   * circle of whatever the previous default happened to be. The tool options
+   * panel is meant to be usable while drawing, so the panel pushes its changes
+   * here rather than requiring the operator to re-pick the tool.
+   *
+   * An in-progress shape is not resized. Its centre has already been placed
+   * and the operator may be mid-drag, so changing the radius under their
+   * pointer would move the ring they are sizing. It applies to the next shape.
+   */
+  setOptions(options = {}) {
+    this.options = { ...this.options, ...options }
+    if (!this.draft) this._emitChange()
   }
 
   /** Finish the current drawing and clean up. */
@@ -307,6 +329,9 @@ export class ToolManager {
 
   _updateCircle(point) {
     const { center } = this.draft
+    // Remember where the pointer is: the sizing line is drawn from the centre
+    // to here, so without it the live readout has nothing to point at.
+    this._pointer = point
     const distanceM = haversine(center[0], center[1], point[0], point[1])
     this.draft.radiusM = distanceM
     // Report the radius in the unit the operator is working in.
@@ -331,14 +356,45 @@ export class ToolManager {
       'center',
       L.circleMarker(center, { radius: 5, color: '#3b82f6', fillOpacity: 1, weight: 2 }),
     )
+    this._renderEdge(this.draft.radius, this.draft.unit, '#3b82f6')
     this.handlers.onPreview?.({ type: 'circle', ...this.draft })
+  }
+
+  /**
+   * A line from the centre to the pointer, labelled with the live distance.
+   *
+   * Without this the operator extends the pointer and gets no number: the
+   * tooltip on the ring only appears on hover, and a ring cannot be hovered
+   * while you are still dragging it. Sizing a circle is exactly the case
+   * where a live readout is not a nicety.
+   */
+  _renderEdge(radius, unit, color) {
+    const { center } = this.draft
+    const metres = typeof radius === 'number' && unit ? toMetres(radius, unit) : radius
+    if (!metres || !this._pointer) {
+      this.engine.removeDraft('edge')
+      return
+    }
+    // Leaflet has no `L.line`: a two-point segment is a polyline.
+    const line = L.polyline([center, this._pointer], {
+      color,
+      weight: 1.5,
+      dashArray: '4,4',
+      interactive: false,
+    })
+    line.bindTooltip(formatRadius(radius, unit), {
+      permanent: true,
+      direction: 'top',
+      className: 'aerorf-draft-label',
+    })
+    this.engine.setDraft('edge', L.layerGroup([line]))
   }
 
   /** Confirm the current circle. */
   commitCircle() {
     if (this.active !== TOOLS.CIRCLE || !this.draft?.center) return null
     const { center, radiusM } = this.draft
-    return this._emitComplete({
+    const result = this._emitComplete({
       type: 'circle',
       latitude: center[0],
       longitude: center[1],
@@ -346,6 +402,10 @@ export class ToolManager {
       radius_unit: this.draft.unit,
       radius_m: radiusM,
     })
+    // The object is stored; drop the sizing aids so the map is left clean.
+    this.engine.removeDraft('edge')
+    this._pointer = null
+    return result
   }
 
   // ─── Radial (spec §11, §37) ───────────────────────────────────────────────

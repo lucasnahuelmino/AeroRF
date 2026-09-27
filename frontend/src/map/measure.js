@@ -46,9 +46,14 @@ export class MeasureEngine {
   reset() {
     this.points = []
     this.active = false
+    // The cursor preview must not survive a reset, or a stale dashed line
+    // keeps following the pointer after the measurement was discarded.
+    this.previewTo = null
+    this.originLabel = null
     this.engine.clearDraft('measure')
     this.engine.clearDraft('measure-vertices')
     this.engine.clearDraft('measure-labels')
+    this.engine.clearDraft('measure-cursor')
     this._notify()
   }
 
@@ -57,8 +62,44 @@ export class MeasureEngine {
     if (!this.active) this.start()
     const point = [latlng.lat, latlng.lng]
     this.points.push(point)
+    // A committed point releases the cursor preview: the measurement is now
+    // anchored on the map and follows the pointer no more.
+    this.previewTo = null
     this.render()
     return this.current()
+  }
+
+  /**
+   * Start measuring from an existing point, following the cursor.
+   *
+   * This is the case an operator actually works in: a source of interference
+   * is already on the map, and the question is how far the nearest runway is.
+   * The origin is the object's own position, so the pointer is free to show
+   * the distance rather than to place the origin.
+   *
+   * @param {{lat: number, lng: number}} latlng the fixed origin
+   * @param {string} label shown at the origin, e.g. the object name
+   */
+  fromOrigin(latlng, label = null) {
+    if (!this.active) this.start()
+    this.points = [[latlng.lat, latlng.lng]]
+    this.originLabel = label
+    this.render()
+    return this.current()
+  }
+
+  /**
+   * Track the cursor against the last committed point, without adding it.
+   *
+   * Called on every pointer move. Nothing is stored, so moving the pointer
+   * cannot change the measurement; the number is a preview until the next
+   * click.
+   */
+  previewToPoint(latlng) {
+    // Only meaningful with a committed point to measure from.
+    if (!this.active || this.points.length === 0) return
+    this.previewTo = [latlng.lat, latlng.lng]
+    this.render()
   }
 
   /** Remove the most recent point (Backspace). */
@@ -129,6 +170,7 @@ export class MeasureEngine {
     this.engine.clearDraft('measure')
     this.engine.clearDraft('measure-vertices')
     this.engine.clearDraft('measure-labels')
+    this.engine.clearDraft('measure-cursor')
     if (this.points.length < 1) return
 
     if (this.points.length >= 2) {
@@ -177,6 +219,35 @@ export class MeasureEngine {
         }),
       ),
     )
+
+    // ── The line that follows the cursor ──────────────────────────────────
+    // Measuring from a point to wherever the pointer is: the origin is
+    // committed, the target is not, so this is drawn dashed and labelled with
+    // the live distance. It is a preview — the next click commits it.
+    if (this.previewTo) {
+      const from = this.points[this.points.length - 1]
+      const d = haversine(from[0], from[1], this.previewTo[0], this.previewTo[1])
+      const mid = [
+        (from[0] + this.previewTo[0]) / 2,
+        (from[1] + this.previewTo[1]) / 2,
+      ]
+      const line = L.polyline([from, this.previewTo], {
+        color: '#facc15',
+        weight: 2,
+        opacity: 0.75,
+        dashArray: '3,5',
+        interactive: false,
+      })
+      const label = L.marker(mid, {
+        interactive: false,
+        icon: L.divIcon({
+          className: 'aerorf-measure-label',
+          html: `<span>${formatMetres(d)}</span>`,
+          iconSize: null,
+        }),
+      })
+      this.engine.setDraft('measure-cursor', L.layerGroup([line, label]))
+    }
   }
 
   /** Payload for persisting the measurement as a real object. */

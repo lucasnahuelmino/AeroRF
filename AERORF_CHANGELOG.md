@@ -1157,3 +1157,53 @@ la libreria esta en su propio chunk. Un test comprueba las tres cosas, mas que
 el mapa no crezca.
 
 **Totales: 357 + 7 Python, 178 frontend, 675 de paridad.**
+
+## [0.21.0] - 2026-09-27 - El circulo no se podia crear, ni medir desde un punto
+
+Cuatro problemas reportados en la misma sesion, todos en el flujo de dibujo.
+
+### 1. El radio tecleado se ignoraba
+
+`ToolManager.activate` copia las opciones **una sola vez**, al activar la
+herramienta. El panel de opciones si escribia en el store, pero la herramienta
+ya habia capturado sus valores: poner 20 NM, hacer clic, y el circulo salia
+con el valor por defecto anterior.
+
+Ahora existe `setOptions`, y el panel empuja el cambio a la herramienta viva.
+Una forma en curso no se redimensiona: su centro ya esta puesto y el operador
+puede estar arrastrando, asi que moverle el radio debajo del puntero lo
+confundiria. El valor nuevo aplica a la siguiente forma.
+
+### 2. Mientras extendias el circulo no decia el radio
+
+La etiqueta estaba sobre el anillo, y un anillo no se puede hoverar mientras se
+arrastra. Extender el puntero no daba ningun numero.
+
+Ahora hay una guia punteada del centro al puntero, con el radio en vivo
+encima. Se borra al confirmar.
+
+### 3. El circulo no se podia confirmar con un clic
+
+Este era el grave. **Cada** clic se enviaba a `previewAt`, nunca a confirmar. La
+unica forma de terminar era `Enter`, y un operador que hacia clic dos veces para
+ajustar el tamano se quedaba con nada en el mapa.
+
+Ahora el primer clic pone el centro, el puntero ajusta, y el **segundo clic
+confirma**. Lo mismo para el radial. `Esc` sigue abandonando sin crear nada.
+
+### 4. Medir desde un punto seleccionado hasta el cursor
+
+Pedia poder medir desde un objeto ya ubicado en el mapa. Existia la medicion por
+clics, pero el origen tambien se colocaba a clic, cuando lo que se quiere es
+usar la posicion del objeto y mover el cursor.
+
+Agregado `fromOrigin` y `previewToPoint`: el objeto queda como origen, el
+cursor muestra la distancia en vivo, y el clic la fija. Boton nuevo en la barra
+del objeto seleccionado.
+
+### Pruebas
+
+`drawing-flow.spec.js` (22). El control negativo resulto informativo: la primera
+version ejercitaba el `ToolManager` directamente y **no detecto** el bug del
+segundo clic, porque el shell es quien decide que significa un clic. Se
+reescribio para montar el shell y hacer clic en el mapa real, y ahi si cae.

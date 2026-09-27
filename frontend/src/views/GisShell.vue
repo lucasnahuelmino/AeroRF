@@ -191,6 +191,13 @@
               {{ mapStore.selected.name || typeName(mapStore.selected.type) }}
             </span>
             <span class="w-px h-4 bg-slate-700" />
+            <button
+              class="gis-mini-btn"
+              title="Medir desde este objeto hasta el cursor"
+              @click="measureFromSelected"
+            >
+              ↔
+            </button>
             <button class="gis-mini-btn" title="Centrar" @click="centerSelected">⊙</button>
             <button class="gis-mini-btn" title="Duplicar" @click="mapStore.duplicateObject(mapStore.selected.id)">⧉</button>
             <button class="gis-mini-btn" title="Ocultar" @click="toggleSelectedVisibility">
@@ -520,9 +527,21 @@ function bindEngineEvents() {
         return
       }
 
-      // Preview a circle/radial while the pointer moves after the centre.
+      // Circle and radial: the first click places the centre, the pointer
+      // sizes it, and the second click commits it. Before, every click was
+      // routed to previewAt, so the shape could only ever be finished with
+      // Enter — and an operator who clicked twice to adjust the size ended up
+      // with nothing on the map.
       if (toolManager?.active === TOOLS.CIRCLE || toolManager?.active === TOOLS.RADIAL) {
-        toolManager.previewAt(latlng)
+        if (toolManager.draft?.center || toolManager.draft?.origin) {
+          // The shape already exists, so this click is the decision to keep
+          // it. Re-preview first so the click point is the final size, then
+          // commit, so the stored radius matches where the operator clicked.
+          toolManager.previewAt(latlng)
+          toolManager.finish()
+        } else {
+          toolManager.previewAt(latlng)
+        }
         return
       }
       if (toolManager?.active === TOOLS.MEASURE) {
@@ -551,9 +570,17 @@ function bindEngineEvents() {
     }),
   )
 
-  // Leaflet's own mousemove drives the shape previews.
+  // Leaflet's own mousemove drives the shape previews, and the live distance
+  // readout for a measurement. Both are previews: nothing is stored until a
+  // click.
   engine.map.on('mousemove', (e) => {
-    if (toolManager?.isDrawing) toolManager.previewAt(e.latlng)
+    if (toolManager?.isDrawing) {
+      toolManager.previewAt(e.latlng)
+      return
+    }
+    if (measureEngine?.active && measureEngine.points?.length) {
+      measureEngine.previewToPoint(e.latlng)
+    }
   })
 }
 
@@ -722,6 +749,30 @@ function saveMeasurement() {
 
 function centerSelected() {
   engine?.fitObject(mapStore.selected)
+}
+
+/**
+ * Measure from the selected object to wherever the pointer is.
+ *
+ * The object is already on the map, so its position is the origin and the
+ * pointer is free to show the distance instead of placing it. This is the
+ * question an operator actually asks: how far is the source from the runway.
+ */
+function measureFromSelected() {
+  const obj = mapStore.selected
+  if (!obj || obj.latitude == null || obj.longitude == null) {
+    mapStore.notice = 'El objeto seleccionado no tiene posición.'
+    return
+  }
+  measureEngine?.start()
+  measureEngine.fromOrigin(
+    { lat: obj.latitude, lng: obj.longitude },
+    obj.name || typeName(obj.type),
+  )
+  toolManager?.deactivate()
+  mapStore.activeTool = TOOLS.MEASURE
+  mapStore.toolHint =
+    'Mueva el puntero para ver la distancia. Clic para fijarla, Esc para terminar.'
 }
 
 function toggleSelectedVisibility() {
@@ -1138,6 +1189,25 @@ watch(
   font-family: ui-monospace, monospace;
   white-space: nowrap;
 }
+
+/*
+ * The live radius shown while sizing a circle or a radial. Rendered as a
+ * permanent Leaflet tooltip, so it needs its arrow removed: the marker it is
+ * attached to is an invisible guide line, and an arrow would point at nothing.
+ */
+.aerorf-draft-label {
+  background: #1d4ed8;
+  border: 1px solid #60a5fa;
+  color: #fff;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 0.25rem;
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.8);
+  white-space: nowrap;
+}
+.aerorf-draft-label::before { display: none; }
 
 .aerorf-popup { min-width: 210px; font-size: 12px; }
 .aerorf-popup-title { font-weight: 600; color: #0f172a; margin-bottom: 2px; }

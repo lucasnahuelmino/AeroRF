@@ -260,18 +260,27 @@ function setUnit(unit) {
 
 function applyRadius(value = radius.value) {
   const v = Math.max(0.001, Number(value) || 0)
+  radius.value = v
   mapStore.setToolOption('radius', v)
+  // Push it to the live tool. Without this the value only sits in the store:
+  // the tool snapshotted its options when it was activated, so a radius typed
+  // after picking the tool was silently ignored.
+  mapStore.toolManager?.setOptions({ radius: v })
 }
 
 function applyAzimuth(value = azimuth.value) {
   const v = ((Number(value) || 0) % 360 + 360) % 360
-  mapStore.setToolOption('azimuth', v)
   azimuth.value = v
   azimuthSlider.value = v
+  mapStore.setToolOption('azimuth', v)
+  mapStore.toolManager?.setOptions({ azimuth: v })
 }
 
 function applyLength(value = length.value) {
-  mapStore.setToolOption('length', Math.max(0.001, Number(value) || 0))
+  const v = Math.max(0.001, Number(value) || 0)
+  length.value = v
+  mapStore.setToolOption('length', v)
+  mapStore.toolManager?.setOptions({ length: v })
 }
 
 // ─── Manual entry (spec §7 method B) ────────────────────────────────────────
