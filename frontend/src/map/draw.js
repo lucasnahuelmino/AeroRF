@@ -224,9 +224,22 @@ export class ToolManager {
         return this._pushPoint(point, true)
 
       case TOOLS.CIRCLE:
+        // The first click places the centre; the second one is the decision
+        // to keep the circle, sized to where the operator clicked. Sizing is
+        // measured from that click before committing, so the stored radius is
+        // the one the pointer was showing, not a stale value from the last
+        // mousemove.
+        if (this.draft?.center) {
+          this._updateCircle(point)
+          return this.commitCircle()
+        }
         return this._startCircle(point)
 
       case TOOLS.RADIAL:
+        if (this.draft?.origin) {
+          this._updateRadial(point)
+          return this.commitRadial()
+        }
         return this._startRadial(point)
 
       case TOOLS.MEASURE:

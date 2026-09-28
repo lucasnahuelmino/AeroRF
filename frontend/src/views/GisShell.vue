@@ -527,29 +527,27 @@ function bindEngineEvents() {
         return
       }
 
-      // Circle and radial: the first click places the centre, the pointer
-      // sizes it, and the second click commits it. Before, every click was
-      // routed to previewAt, so the shape could only ever be finished with
-      // Enter — and an operator who clicked twice to adjust the size ended up
-      // with nothing on the map.
-      if (toolManager?.active === TOOLS.CIRCLE || toolManager?.active === TOOLS.RADIAL) {
-        if (toolManager.draft?.center || toolManager.draft?.origin) {
-          // The shape already exists, so this click is the decision to keep
-          // it. Re-preview first so the click point is the final size, then
-          // commit, so the stored radius matches where the operator clicked.
-          toolManager.previewAt(latlng)
-          toolManager.finish()
-        } else {
-          toolManager.previewAt(latlng)
-        }
+      // ── One owner per click ────────────────────────────────────────────
+      // The ToolManager subscribes to the map's click event itself, so it
+      // already handles the tools. The shell used to handle them too, and
+      // both ran on every click: the shell sized and committed the circle,
+      // then the manager's own handler saw the tool still armed and started a
+      // second one. The result was a circle that never kept the size the
+      // operator chose, and a tool that could not be left.
+      //
+      // So the shell stops interpreting clicks for the drawing tools. It only
+      // handles the two cases the manager does not own: a pending airport
+      // measurement, and clearing the selection with the select tool.
+      if (airportMeasureArmed.value) {
+        airportMeasureResult.value = measureFromAirport(airportMeasureCode.value, latlng)
+        clearAirportMeasure()
         return
       }
-      if (toolManager?.active === TOOLS.MEASURE) {
-        measureEngine.addPoint(latlng)
-        return
+      if (toolManager?.active === TOOLS.SELECT) {
+        mapStore.clearSelection()
       }
-      // Clicking empty space with the select tool clears the selection.
-      if (toolManager?.active === TOOLS.SELECT) mapStore.clearSelection()
+      // Every other tool, including measurement, is the manager's business.
+      // Returning without acting is correct: it has already run.
     }),
   )
 

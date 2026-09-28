@@ -161,6 +161,61 @@ describe('the pressed tool', () => {
     expect(marked[0].text()).toContain('Círculo')
   })
 
+  it('keeps the size the operator was shown, and releases the tool', async () => {
+    // The ToolManager subscribes to the map's click event itself, and the
+    // shell subscribed too. Both ran on every click: the shell sized and
+    // committed the circle, then the manager's own handler — still armed —
+    // started a second one. The stored circle came out at the wrong size and
+    // the tool stayed armed, so no other tool could be picked.
+    //
+    // This can only be observed through the shell: driving the ToolManager
+    // alone leaves no second handler, which is why the same test written
+    // against the engine passed against the broken shell.
+    const { TOOLS } = await import('@/map/draw')
+    const created = []
+    const real = map.createObject
+    map.createObject = (payload) => {
+      created.push(payload)
+      return Promise.resolve({ id: created.length, ...payload, latlngs: [], latlng: null })
+    }
+
+    const buttons = w.findAll('.gis-tool')
+    const circleIndex = buttons.findIndex((b) => b.text().includes('Círculo'))
+    await buttons[circleIndex].trigger('click')
+    await flushPromises()
+
+    const engine = map.engine
+    const CENTRE = { lat: -34.6, lng: -58.4 }
+    const FURTHER = { lat: -34.4, lng: -58.4 }
+
+    // First click: the centre.
+    engine.map.fire('click', { latlng: CENTRE })
+    await flushPromises()
+    expect(created.length, 'el primer clic no debe crear nada').toBe(0)
+
+    // The operator drags out to the size they want.
+    map.toolManager.previewAt(FURTHER)
+    const shownM = map.toolManager.draft.radiusM
+    expect(shownM, 'la guia no midio nada').toBeGreaterThan(1000)
+
+    // Second click: keep it.
+    engine.map.fire('click', { latlng: FURTHER })
+    await flushPromises()
+
+    expect(created.length, 'el segundo clic debe crear un unico circulo').toBe(1)
+    // And at the size that was on screen, not a stale one.
+    expect(created[0].radius_m).toBeCloseTo(shownM, 3)
+    // The tool is released, which is what lets another tool be picked.
+    expect(pressed().length, 'la herramienta quedo armada tras confirmar').toBe(0)
+
+    // A line can start immediately, with no leftover state.
+    await buttons[1].trigger('click')
+    await flushPromises()
+    expect(pressed().length).toBe(1)
+
+    map.createObject = real
+  })
+
   it('un-presses when the same tool is pressed again', async () => {
     const buttons = w.findAll('.gis-tool')
     const point = buttons.findIndex((b) => b.text().includes('Punto'))

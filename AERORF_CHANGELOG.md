@@ -1252,3 +1252,42 @@ Verificado revirtiendo el watcher: los tests caen con *Maximum recursive
 updates*.
 
 **Totales: 357 + 7 Python, 204 frontend, 675 de paridad.**
+
+## [0.22.1] - 2026-09-27 - El circulo no conservaba la medida al confirmar
+
+### Causa: dos dueños para el mismo clic
+
+`ToolManager` se suscribe al evento de clic del mapa al activarse, y el shell
+tambien estaba suscrito. Los dos se ejecutaban en cada clic.
+
+Peor: el `Set` de listeners de `MapEngine` se itera con `forEach`, y `cleanup()`
+borra el handler **mientras se itera**. El handler de la herramienta ya estaba
+en la cola, asi que se ejecutaba igual: con `active` en `null` caia al `default`
+y no hacia nada. Por eso el fallo era **intermitente** ydependia del orden de
+suscripcion, en lugar de romper siempre.
+
+### Un solo dueño
+
+El shell dejo de interpretar clics para las herramientas de dibujo. Solo le
+quedan los dos casos que el manager no posee: una medicion de aeropuerto
+pendiente, y limpiar la seleccion con la herramienta de seleccionar.
+
+Ahora el segundo clic lo gestiona `_onClick`: recalcula el radio desde el
+punto del clic y confirma. El radio que se guarde es el que estaba en pantalla.
+
+### Idempotencia
+
+Un clic crea **un** circulo. Con el doble manejo, un tercer clic resucitaba la
+herramienta y abria un segundo circulo.
+
+### Pruebas
+
+Cuatro nuevos, y uno que solo podía fallar asi:
+
+- el arrastre real conserva la medida mostrada,
+- queda un unico circulo por operacion,
+- la herramienta queda liberada, y otra arranca limpia,
+- y a traves del shell montado: `active-tool.spec.js` comprueba que el objeto
+  guardado tiene el radio que se veia y que la herramienta se suelta.
+
+**Totales: 357 + 7 Python, 209 frontend, 675 de paridad.**

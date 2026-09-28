@@ -185,6 +185,102 @@ describe('committing a circle by clicking', () => {
     expect(engine._draftLayers.get('circle')).toBeFalsy()
   })
 
+  it('a real drag then a click keeps the size shown on screen', () => {
+    // The whole flow, driven the way the shell drives it: a click for the
+    // centre, Leaflet mousemove events for the drag, then a click to keep it.
+    //
+    // The symptom this covers: the circle came out at a different size than
+    // the one the guide was showing, so the operator dragged carefully, read
+    // the number, clicked — and got something else.
+    const done = []
+    tools.handlers.onComplete = (payload) => done.push(payload)
+
+    tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 20 })
+    engine.map.fire('click', { latlng: CENTRE })
+
+    // The drag. `previewAt` is what the shell calls from its own mousemove
+    // handler; firing Leaflet's event here would need the shell mounted, and
+    // the shell's wiring is covered by active-tool.spec.js. What matters here
+    // is that the size on screen survives the click that keeps it.
+    tools.previewAt({ lat: -34.55, lng: -58.4 })
+    tools.previewAt({ lat: -34.50, lng: -58.4 })
+    tools.previewAt({ lat: -34.45, lng: -58.4 })
+    tools.previewAt(FURTHER)
+    const shown = tools.draft.radius
+    const shownM = tools.draft.radiusM
+
+    // The click to keep it.
+    engine.map.fire('click', { latlng: FURTHER })
+    expect(done.length, 'el clic no creo el circulo').toBe(1)
+    expect(done[0].radius_m).toBeCloseTo(shownM, 3)
+    expect(done[0].radius).toBeCloseTo(shown, 3)
+  })
+
+  it('the second click stores the size the pointer was showing', () => {
+    // The exact flow an operator uses: press circle, click the centre, extend
+    // the pointer until the readout shows the size they want, then click.
+    //
+    // The bug was that the shell sized and committed the circle, and then the
+    // tool's own click handler ran on the same event and started a *second*
+    // circle. The first was stored at the wrong size and the tool was left
+    // armed, so no other tool could be picked cleanly.
+    const done = []
+    tools.handlers.onComplete = (payload) => done.push(payload)
+
+    tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 20 })
+    engine.map.fire('click', { latlng: CENTRE })
+    // `previewAt` rather than a Leaflet mousemove event: jsdom does not
+    // deliver synthetic pointer moves, and this is the same call the shell
+    // makes on mousemove.
+    tools.previewAt(FURTHER)
+    // The operator reads this number and decides.
+    const shown = tools.draft.radius
+    const shownM = tools.draft.radiusM
+
+    engine.map.fire('click', { latlng: FURTHER })
+    expect(done.length, 'el segundo clic no creo el circulo').toBe(1)
+
+    // The stored radius is the one that was on screen, not a stale value.
+    expect(done[0].radius_m).toBeCloseTo(shownM, 3)
+    expect(done[0].radius).toBeCloseTo(shown, 3)
+  })
+
+  it('leaves the tool released, so another tool can be picked', () => {
+    // With two click handlers racing, the tool stayed armed after a commit,
+    // and the next tool could not take the click.
+    const done = []
+    tools.handlers.onComplete = (payload) => done.push(payload)
+
+    tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 20 })
+    engine.map.fire('click', { latlng: CENTRE })
+    engine.map.fire('mousemove', { latlng: FURTHER })
+    engine.map.fire('click', { latlng: FURTHER })
+
+    expect(done.length).toBe(1)
+    expect(tools.active, 'la herramienta quedo armada tras confirmar').toBeNull()
+    expect(tools.draft, 'quedo un borrador sin confirmar').toBeNull()
+
+    // And a different tool works right away, with no leftover state.
+    const other = []
+    tools.handlers.onComplete = (payload) => other.push(payload)
+    tools.activate(TOOLS.LINE, {})
+    engine.map.fire('click', { latlng: CENTRE })
+    expect(tools.draft?.points?.length, 'la linea no arranco limpia').toBe(1)
+  })
+
+  it('creates exactly one circle, not one per click', () => {
+    const done = []
+    tools.handlers.onComplete = (payload) => done.push(payload)
+    tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 20 })
+    engine.map.fire('click', { latlng: CENTRE })
+    engine.map.fire('mousemove', { latlng: FURTHER })
+    engine.map.fire('click', { latlng: FURTHER })
+    // A third click must not resurrect the tool into a new circle: the tool
+    // was released, so it is inert.
+    engine.map.fire('click', { latlng: { lat: -34.2, lng: -58.0 } })
+    expect(done.length, 'un clic creo mas de un circulo').toBe(1)
+  })
+
   it('the same holds for a radial', () => {
     const done = []
     tools.handlers.onComplete = (payload) => done.push(payload)
