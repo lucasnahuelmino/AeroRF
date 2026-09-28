@@ -790,13 +790,15 @@ function confirmDelete() {
   }
 }
 
-// Keep the measure readout in sync when the store replays.
-watch(
-  () => measure.value,
-  (value) => {
-    if (value) measure.value = { ...value }
-  },
-)
+// The measure readout needs no watcher: MeasureEngine already calls its
+// `onChange` handler, which assigns `measure.value` directly.
+//
+// There was a watcher here that did the opposite — it observed `measure.value`
+// and assigned a copy of it back. A reactive effect that mutates its own
+// dependency never converges: Vue stops after a hundred updates and throws
+// "Maximum recursive updates exceeded". It fired on the first click of any
+// tool, because `activate` emits a change, and the failure surfaced as a
+// broken toolbar rather than as a misbehaving watcher.
 
 // ─── Live aircraft on the map (spec §23) ────────────────────────────────────
 
@@ -961,11 +963,23 @@ watch(
   outline: 2px solid #3b82f6;
   outline-offset: -2px;
 }
+
+/*
+ * The armed tool.
+ *
+ * A filled background alone was not enough to read at a glance, so the state
+ * is carried by three signals that reinforce each other: a filled ground, a
+ * bright border, and a lit underline bar under the label. On a toolbar of ten
+ * tools that can be told apart at a glance is not a nicety — it is what tells
+ * the operator whether the next click will draw a circle or drop a point.
+ */
 .gis-tool.active {
   background: #1d4ed8;
-  border-color: #3b82f6;
+  border-color: #60a5fa;
   color: #fff;
+  box-shadow: inset 0 -2px 0 #7dd3fc;
 }
+.gis-tool.active .gis-tool-icon { transform: scale(1.08); }
 
 .gis-tool-icon {
   font-size: 0.9375rem;

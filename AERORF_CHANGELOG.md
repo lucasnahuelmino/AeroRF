@@ -1207,3 +1207,48 @@ del objeto seleccionado.
 version ejercitaba el `ToolManager` directamente y **no detecto** el bug del
 segundo clic, porque el shell es quien decide que significa un clic. Se
 reescribio para montar el shell y hacer clic en el mapa real, y ahi si cae.
+
+## [0.22.0] - 2026-09-27 - Los botones de herramienta no quedaban apretados
+
+### Causa raiz: un bucle reactivo infinito
+
+Un watcher en GisShell observaba `measure.value` y le asignaba una copia
+atras. Un efecto reactivo que muta su propia dependencia no converge: Vue
+aborta tras cien actualizaciones y lanza *Maximum recursive updates
+exceeded*.
+
+Disparaba con el primer clic de **cualquier** herramienta, porque `activate`
+emite un cambio. El sintoma no era un watcher portado mal: era la barra entera
+deja de responder, y el operador lo leia como "los botones no se quedan
+apretados".
+
+El watcher no hacia nada util: `MeasureEngine` ya llama a su handler
+`onChange`, que asigna `measure.value` directamente.
+
+### Estado visible de la herramienta activa
+
+El marcado y el CSS existian, pero el bucle los impedia llegar a pintar. Una vez
+eliminado, el estado se refuerzo con tres senales que se refuerzan entre si,
+porque un fondo relleno solo no se lee de un vistazo en una barra de diez
+herramientas:
+
+- fondo propio,
+- borde brillante,
+- una barra luminosa bajo la etiqueta.
+
+Y el estado activo **no cambia el tamano** del boton: solo pintura. Un boton
+que crece al apretarse mueve el puntero del operador y lo hace fallar el
+siguiente clic.
+
+### Pruebas
+
+`active-tool.spec.js` (8): exactamente un boton apretado, se mueve al cambiar de
+herramienta, **se mantiene apretado mientras se dibuja**, `aria-pressed`
+refleja el estado, y se suelta al apretarlo otra vez. Ademas dos comprobaciones
+sobre el CSS construido, porque una clase que no cambia nada no es un estado que
+un operador pueda ver.
+
+Verificado revirtiendo el watcher: los tests caen con *Maximum recursive
+updates*.
+
+**Totales: 357 + 7 Python, 204 frontend, 675 de paridad.**
