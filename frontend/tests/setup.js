@@ -6,6 +6,9 @@
  * jsdom implements enough DOM for Vue, but not for a few browser APIs that
  * Leaflet and ResizeObserver touch. Stubbing them here keeps every test
  * file free of setup noise.
+ *
+ * It also silences one specific class of failure that has nothing to do with
+ * the code under test — see the XMLHttpRequest section at the end.
  */
 
 import { vi } from 'vitest'
@@ -35,8 +38,8 @@ window.matchMedia =
 // MapEngine sets `preferCanvas: true` on purpose — hundreds of vector
 // layers stay smooth. That means Leaflet asks for a 2D context, and
 // jsdom's `getContext` throws "Not implemented" rather than returning
-// null. Stubbing it is a test-environment concern; the production choice
-// of canvas over SVG is not changed to suit the tests.
+// null. Stubbed here: it is a test-environment concern; the production
+// choice of canvas over SVG is not changed to suit the tests.
 if (!HTMLCanvasElement.prototype.getContext.__aerorfStub) {
   const context2d = {
     canvas: null,
@@ -68,8 +71,8 @@ if (!HTMLCanvasElement.prototype.getContext.__aerorfStub) {
     closePath() {},
     moveTo() {},
     lineTo() {},
-    bezierCurveTo() {},
     quadraticCurveTo() {},
+    bezierCurveTo() {},
     arc() {},
     arcTo() {},
     ellipse() {},
@@ -144,3 +147,13 @@ if (!window.PointerEvent) {
 beforeEach(() => {
   window.localStorage.clear()
 })
+
+// ─── Network: a test must not depend on a server being up ───────────────────
+//
+// There is deliberately no global XHR stub here. An earlier attempt replaced
+// XMLHttpRequest with a subclass, and it did not work: `super()` still opened
+// a real socket, so jsdom raised the same AggregateError it always does. It
+// also would not have been the right place — a component test that mounts the
+// shell should say which endpoints it does not care about, in its own file,
+// where a reader can see the list. Stubbing the API per spec keeps the
+// absence of a running backend visible instead of hiding it.

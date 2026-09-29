@@ -820,19 +820,39 @@ watch(
   { deep: true },
 )
 
-// Redraw the selected aircraft's track (spec §21).
+// Redraw the aircraft trajectories (spec §21).
+//
+// Every cached trajectory is drawn, not just the most recent one. The map
+// keeps a layer per aircraft, so several routes stay on screen together,
+// which is what makes them comparable. An aircraft whose `show_track` is off
+// is not drawn; one that has left the watchlist is removed from the map.
 watch(
-  () => flightsStore.track,
-  (track) => {
+  () => [flightsStore.tracks, flightsStore.watchlist],
+  () => {
     if (!aircraftRenderer) return
-    if (!track) {
-      aircraftRenderer.clearTracks()
-      return
-    }
-    const slot = flightsStore.watchlist.find((s) => s.icao24 === track.icao24)
-    if (slot && slot.show_track === false) return
-    const color = slot?.color || flightsStore.colorForSlot(slot?.slot ?? 0)
-    aircraftRenderer.drawTrack(track, color)
+    const slots = new Map((flightsStore.watchlist || []).map((s) => [String(s.icao24).toLowerCase(), s]))
+    const drawn = new Set()
+
+    flightsStore.allTracks().forEach(({ icao24, data }) => {
+      const slot = slots.get(icao24)
+      if (!slot) {
+        // No longer tracked: its path has no business staying on the map.
+        aircraftRenderer.removeTrack(icao24)
+        return
+      }
+      if (slot.show_track === false) {
+        aircraftRenderer.removeTrack(icao24)
+        return
+      }
+      drawn.add(icao24)
+      const color = slot.color || flightsStore.colorForSlot(slot.slot ?? 0)
+      aircraftRenderer.drawTrack({ ...data, icao24 }, color)
+    })
+
+    // Anything left over belongs to an aircraft that is gone from the cache.
+    aircraftRenderer.tracks.forEach((_layer, key) => {
+      if (!drawn.has(String(key).toLowerCase())) aircraftRenderer.removeTrack(key)
+    })
   },
   { deep: true },
 )

@@ -222,8 +222,17 @@ export const flights = {
   deleteSession: (id) => client.delete(`/flights/sessions/${id}`).then((r) => r.data),
 
   // Watchlist (spec §25)
+  //
+  // `addToWatchlist`, not `track`. This object used to define `track` twice:
+  // once above for GET /flights/{icao24}/track, and again here for
+  // POST /flights/tracked. In a JavaScript object literal the second
+  // definition silently replaces the first, so asking for a trajectory
+  // actually added the aircraft to the watchlist and returned a watchlist
+  // row — no points, no path — and the panel said "no cargada" while the
+  // backend had the whole route ready. Two meanings under one key is the
+  // kind of bug that compiles, lints and passes review.
   tracked: () => client.get('/flights/tracked').then((r) => r.data),
-  track: (icao24, callsign = null) =>
+  addToWatchlist: (icao24, callsign = null) =>
     client.post('/flights/tracked', null, { params: { icao24, callsign } }).then((r) => r.data),
   untrack: (icao24) => client.delete(`/flights/tracked/${icao24}`).then((r) => r.data),
   patchTracked: (icao24, patch) =>

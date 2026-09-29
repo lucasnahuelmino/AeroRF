@@ -203,9 +203,12 @@ if exist "%ROOT%frontend\node_modules" (
   if errorlevel 1 set "RC=1"
   popd
 )
-if exist "%ROOT%frontend\tests\geo_parity.mjs" (
+REM  El archivo vive en tests/ del proyecto, no en frontend/tests/. Con la
+REM  ruta equivocada el if no se cumplia y la paridad geodesica no se
+REM  ejecutaba nunca, en silencio.
+if exist "%ROOT%tests\geo_parity.mjs" (
   pushd "%ROOT%frontend"
-  node tests/geo_parity.mjs
+  node ..\tests\geo_parity.mjs
   if errorlevel 1 set "RC=1"
   popd
 )

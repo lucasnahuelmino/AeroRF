@@ -1378,3 +1378,91 @@ claro: el volcaba entero al entorno. Ahora solo se leen `PORT`, `VITE_PORT` y
 
 > Sigue pendiente **rotar `OPENSKY_CLIENT_SECRET`**: aparece en este historial
 > de conversacion y en el de la sesion anterior.
+
+## [0.24.0] - 2026-09-29 - La trayectoria no se cargaba nunca
+
+### Causa: una clave repetida en el cliente de la API
+
+`flights` definia `track` **dos veces** en el mismo objeto literal:
+
+- `GET /flights/{icao24}/track`, la trayectoria,
+- `POST /flights/tracked`, agregar una aeronave a la lista de seguimiento.
+
+En JavaScript la segunda definicion reemplaza a la primera sin avisar. Asi que
+`loadTrack` nunca pedia la ruta: **agregaba la aeronave a la lista** y
+guardaba esa fila en el lugar de la trayectoria. Una fila de la lista no tiene
+puntos ni recorrido, y el panel mostraba "Trayectoria: no cargada" mientras el
+backend tenia la ruta entera, lista para devolver.
+
+Comprobado contra el backend en ejecucion: `GET /api/v1/flights/e06491/track`
+devolvia 88 puntos, 1057 km, 83 historicos de OpenSky y 10 de la grabacion
+propia. El dato existia. La peticion nunca salia.
+
+El alta en la lista ahora se llama `addToWatchlist`. Un nombre para cada cosa.
+
+### Varias trayectorias a la vez
+
+Solo havia un lugar para la trayectoria, asi que la de un avion tapaba a la del
+anterior y no habia forma de ver dos vuelos juntos. Eso es justo lo que hace
+falta para comparar rutas, que es el uso que le da el operador.
+
+- El store guarda una trayectoria por aeronave, en `tracks`, con `trackFor`,
+  `allTracks` y `forgetTrack`.
+- El panel lee la de cada avion, y la cuenta es la de esa, no la de la ultima.
+- `drawTrack` ya no llama a `clearTracks()`: borra solo la de esa aeronave y
+  deja las demas en el mapa.
+- Un avion que sale de la lista se borra del mapa con su trayectoria.
+
+### El boton de trayectoria ahora trae los datos
+
+`toggleTrack` solo cambiaba una bandera y llamaba a `renderAll`. La capa no
+tenia nada que dibujar porque nadie habia pedido los datos, asi que el boton
+cambiaba de etiqueta y el mapa seguia vacio. Ahora, al activarlo, pide la
+trayectoria.
+
+Ademas, al **terminar una grabacion** la trayectoria se carga sola. La
+grabacion es lo que el operador pidio, y solo sirve si se puede ver; tener que
+pedirla aparte hacia que una grabacion terminada pareciera no haber producido
+nada.
+
+### Dos fallos mas, de paso
+
+- `time = 0` se descartaba por una comprobacion de verdad. Cero significa "el
+  vuelo en curso" y el backend lo lee para marcar los puntos como `live` en
+  lugar de `historical`; la peticion salia sin tiempo y volvia con el ultimo
+  track, mal etiquetado.
+- El cache se indexaba con el texto crudo de la peticion, mientras el backend
+  devuelve el ICAO24 en minusculas. Con distinta mayuscula la busqueda fallaba
+  y el panel caia a "no cargada" teniendo el dato. Ahora la clave se normaliza.
+
+### `start.bat test` nunca corria la paridad geodesica
+
+La ruta estaba mal: el archivo vive en `tests/` del proyecto, no en
+`frontend/tests/`. El `if` no se cumplia y los 675 casos se saltaban en
+silencio. Corregido.
+
+### La suite no dependia de un backend, pero decia lo contrario
+
+Montar el shell hacia peticiones contra un puerto sin nada escuchando, y jsdom
+soltaba un `AggregateError` por cada una. Vitest los imprimia como stderr
+atribuidos al test que este corriendo, y el ruido tapaba los resultados. Ahora
+`drawing-flow.spec.js` reemplaza el modulo de la API entero con `vi.mock`, que
+se levanta antes de cualquier import. Un intento con un stub global de
+`XMLHttpRequest` en `setup.js` **no funciono** y se elimino: `super()` igual
+abria un socket real. La ausencia de un backend corriendo tiene que verse en
+el archivo que monta el componente, no esconderse en un shim global.
+
+### Pruebas
+
+- 7 de contrato en Python: los dos endpoints son recursos distintos, la
+  respuesta trae lo que el panel lee, `time=0` llega al servicio, una
+  grabacion terminada forma parte de la trayectoria y no borra la ruta de
+  OpenSky, un avion sin datos devuelve una trayectoria vacia y no un error, y
+  un codigo mal formado no llega a OpenSky.
+- 7 de frontend: entre ellas una que **lee el fuente** y falla si el objeto
+  `flights` vuelve a tener una clave repetida. Un espia no serviria: se
+  instalaria sobre la clave que hubiera y pasaria igual.
+
+Cada una verificada revirtiendo el arreglo.
+
+**Totales: 364 + 7 Python, 216 frontend, 675 de paridad.**

@@ -37,6 +37,14 @@ export const useFlightsStore = defineStore('flights', () => {
   const selectedIcao24 = ref(null)
 
   // ─── Trajectories (spec §21, §22) ────────────────────────────────────────
+  // `tracks` holds one trajectory per aircraft, keyed by ICAO24. `track` is
+  // the one the operator last asked for, kept for the panel that reports
+  // "Trayectoria: ... puntos".
+  //
+  // A single value was not enough: comparing one route against another is
+  // the whole reason for drawing a trajectory, and with one slot the previous
+  // aircraft's path was overwritten as soon as another was requested.
+  const tracks = ref({})
   const track = ref(null)
   const trackLoading = ref(false)
   const liveTrack = ref(null)
@@ -136,15 +144,25 @@ export const useFlightsStore = defineStore('flights', () => {
 
   async function loadTrack(icao24, { time = null, includeLocal = true } = {}) {
     if (!icao24) return null
+    const key = String(icao24).trim().toLowerCase()
     trackLoading.value = true
     error.value = null
     try {
       const params = {}
-      if (time) params.time = time
+      // `!== null` and not a truthiness test: `time = 0` is a real value. It
+      // asks OpenSky for the flight in progress, and the backend reads it to
+      // label the points as live rather than historical. A truthiness check
+      // dropped it silently and asked for the latest track instead.
+      if (time !== null && time !== undefined) params.time = time
       params.include_local = includeLocal
-      const data = await flightsApi.track(icao24, params)
+      const data = await flightsApi.track(key, params)
+      // Cached per aircraft so several trajectories can be held at once. The
+      // key is normalised because the backend lower-cases the ICAO24, and a
+      // cache keyed on the raw string would miss whenever the caller used a
+      // different case than the watchlist.
+      if (data) tracks.value = { ...tracks.value, [key]: data }
       track.value = data
-      selectedIcao24.value = icao24
+      selectedIcao24.value = key
       return data
     } catch (e) {
       error.value = describeError(e)
@@ -152,6 +170,33 @@ export const useFlightsStore = defineStore('flights', () => {
     } finally {
       trackLoading.value = false
     }
+  }
+
+  /**
+   * The cached trajectory for one aircraft, or null.
+   *
+   * The panel and the map use this instead of `track`, which only holds the
+   * most recent one.
+   */
+  function trackFor(icao24) {
+    if (!icao24) return null
+    return tracks.value[String(icao24).trim().toLowerCase()] || null
+  }
+
+  /** Every trajectory currently held, for drawing them all at once. */
+  function allTracks() {
+    return Object.entries(tracks.value).map(([icao24, data]) => ({ icao24, data }))
+  }
+
+  /** Drop one aircraft's trajectory, e.g. when it leaves the watchlist. */
+  function forgetTrack(icao24) {
+    const key = String(icao24 || '').trim().toLowerCase()
+    if (!key || !(key in tracks.value)) return false
+    const next = { ...tracks.value }
+    delete next[key]
+    tracks.value = next
+    if (track.value?.icao24 === key) track.value = null
+    return true
   }
 
   async function loadLiveTrack(icao24) {
@@ -170,12 +215,19 @@ export const useFlightsStore = defineStore('flights', () => {
    * Leaflet polyline coordinates for the current track, plus its metadata.
    * Returns coordinates in `[lat, lon]` order.
    */
-  const trackLatLngs = computed(() => {
-    if (!track.value?.points?.length) return []
-    return track.value.points
+  const trackLatLngs = computed(() => toLatLngs(track.value))
+
+  /** The same coordinates for one specific aircraft's cached trajectory. */
+  function trackLatLngsFor(icao24) {
+    return toLatLngs(trackFor(icao24))
+  }
+
+  function toLatLngs(data) {
+    if (!data?.points?.length) return []
+    return data.points
       .filter((p) => p.latitude != null && p.longitude != null)
       .map((p) => [p.latitude, p.longitude])
-  })
+  }
 
   /** How many points came from each source (spec §56). */
   const trackProvenance = computed(() => track.value?.provenance_counts || {})
@@ -198,7 +250,7 @@ export const useFlightsStore = defineStore('flights', () => {
   async function trackAircraft(icao24, callsign = null) {
     error.value = null
     try {
-      const row = await flightsApi.track(icao24, callsign)
+      const row = await flightsApi.addToWatchlist(icao24, callsign)
       watchlist.value = [...watchlist.value, row].sort((a, b) => a.slot - b.slot)
       selectedIcao24.value = icao24
       notice.value = `Siguiendo ${callsign || icao24}`
@@ -213,10 +265,17 @@ export const useFlightsStore = defineStore('flights', () => {
   async function untrackAircraft(icao24) {
     try {
       await flightsApi.untrack(icao24)
-      watchlist.value = watchlist.value.filter((s) => s.icao24 !== icao24)
-      delete liveStates.value[icao24]
+      // Compared case-insensitively: the API lower-cases the code, so an
+      // upper-case argument would leave the entry behind and the list would
+      // still show an aircraft that is no longer followed.
+      const key = String(icao24).trim().toLowerCase()
+      watchlist.value = watchlist.value.filter((s) => String(s.icao24).toLowerCase() !== key)
+      delete liveStates.value[key]
       liveStates.value = { ...liveStates.value }
-      if (selectedIcao24.value === icao24) selectedIcao24.value = null
+      // Its trajectory goes too: the map watcher drops any track whose
+      // aircraft is no longer on the watchlist.
+      forgetTrack(key)
+      if (selectedIcao24.value === key) selectedIcao24.value = null
       subscribeSocket()
       notice.value = 'Aeronave quitada del seguimiento'
       return true
@@ -381,6 +440,11 @@ export const useFlightsStore = defineStore('flights', () => {
       activeSessions.value = next
       await loadSessions()
       notice.value = `Grabación detenida: ${stopped.sample_count} muestras`
+      // The recording is only useful once it can be seen. Fetch the
+      // trajectory now: the route just flown is the thing being recorded, and
+      // having to ask for it separately made a finished recording look like
+      // it had produced nothing.
+      await loadTrack(icao24, { time: 0 })
       return stopped
     } catch (e) {
       error.value = describeError(e)
@@ -469,6 +533,10 @@ export const useFlightsStore = defineStore('flights', () => {
   function reset() {
     clearSearch()
     track.value = null
+    // The per-aircraft cache goes too. Leaving it behind would keep drawing
+    // trajectories for aircraft that are no longer on the watchlist, and the
+    // next operator would see paths nobody asked for.
+    tracks.value = {}
     liveTrack.value = null
     aircraftDistances.value = []
     correlationDisclaimer.value = null
@@ -483,8 +551,8 @@ export const useFlightsStore = defineStore('flights', () => {
     // search
     query, searchResult, selectedIcao24, search, clearSearch,
     // tracks
-    track, trackLoading, trackLatLngs, trackProvenance, trackNote,
-    loadTrack, loadLiveTrack,
+    tracks, track, trackLoading, trackLatLngs, trackProvenance, trackNote,
+    loadTrack, loadLiveTrack, trackFor, allTracks, forgetTrack, trackLatLngsFor,
     // watchlist
     watchlist, watchlistWithState, trackedCount, canTrackMore, freeSlots,
     loadWatchlist, trackAircraft, untrackAircraft, patchTracked, colorForSlot,

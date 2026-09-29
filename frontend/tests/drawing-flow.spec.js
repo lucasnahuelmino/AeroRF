@@ -17,6 +17,53 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+// The API is replaced for this whole file. Mounting the shell makes it pull
+// the vocabulary, the layers, the objects, the counts and the live state, and
+// each of those against an origin with no backend behind it raises an
+// AggregateError inside jsdom. Vitest prints those as stderr tagged with
+// whichever test was running, which buries the real output — and it happened
+// for every shell-mounting test, not only the one below.
+//
+// `vi.mock` is hoisted to the top of the file, so this applies before any
+// import below. A spy inside the test body is too late: `onMounted` has
+// already fired by then.
+//
+// The real client unwraps `response.data` in an interceptor, so callers
+// receive the payload directly. Returning `{ data }` here would make every
+// store read off `undefined` and render empty panels — a bug in the stub, not
+// in the app.
+vi.mock('@/api/client', () => {
+  const RESP = (payload) => Promise.resolve(payload)
+  return {
+    API_PREFIX: '/api/v1',
+    describeError: (e) => String(e?.message || e),
+    client: {
+      get: () => RESP({}), post: () => RESP({}),
+      put: () => RESP({}), patch: () => RESP({}), delete: () => RESP({}),
+    },
+    default: { get: () => RESP({}), post: () => RESP({}), put: () => RESP({}), delete: () => RESP({}) },
+    system: { vocabulary: () => RESP({}) },
+    layers: { list: () => RESP({ layers: [] }) },
+    mapObjects: {
+      all: () => RESP({ objects: [] }),
+      stats: () => RESP({}),
+      create: () => RESP({}),
+      update: () => RESP({}),
+    },
+    flights: {
+      live: () => RESP({ states: {} }),
+      tracked: () => RESP({ slots: [] }),
+      track: () => RESP({}),
+      sessions: () => RESP({ sessions: [] }),
+    },
+    rf: {},
+    correlation: {},
+    expedientes: {},
+    exporter: {},
+  }
+})
+
 import { MapEngine } from '@/map/MapEngine'
 import { ToolManager, TOOLS } from '@/map/draw'
 import { MeasureEngine } from '@/map/measure'
@@ -315,8 +362,15 @@ describe('the shell wires the clicks the way the flow needs', () => {
    * what decides what a click means.
    *
    * So this one mounts the shell and clicks on the real map.
+   *
+   * The whole API module is mocked, per file and at the top level, because
+   * `vi.mock` is hoisted and a specifier can only replace the module for the
+   * file that asks. A method-by-method spy inside the test body came too
+   * late: the shell's `onMounted` had already issued its requests, and jsdom
+   * raised an AggregateError for each one against a port with nothing on it.
    */
   it('commits a circle on the second click, through the shell', async () => {
+
     const { mount, flushPromises } = await import('@vue/test-utils')
     const { createRouter, createMemoryHistory } = await import('vue-router')
     const { default: GisShell } = await import('@/views/GisShell.vue')

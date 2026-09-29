@@ -146,6 +146,13 @@ export class AircraftRenderer {
 
   /**
    * Draw a track, colour-coded by provenance.
+   *
+   * Each aircraft keeps its own track, so several trajectories can be on the
+   * map at once. That is the point of drawing them: comparing one route
+   * against another. It used to call `clearTracks()` first, which meant the
+   * previous aircraft's path vanished the moment a second one arrived, and
+   * there was no way to see two flights together.
+   *
    * @param {object} track  the `/flights/{icao24}/track` response
    * @param {string} color
    */
@@ -154,7 +161,8 @@ export class AircraftRenderer {
       this.clearTracks()
       return null
     }
-    this.clearTracks()
+    // Only this aircraft's own previous track goes; the others stay.
+    this.removeTrack(track.icao24 || 'current')
 
     const points = (track.points || []).filter(
       (p) => p.latitude != null && p.longitude != null,
@@ -245,6 +253,17 @@ export class AircraftRenderer {
     layer.addTo(this.trackGroup)
     this.tracks.set(track.icao24 || 'current', layer)
     return layer
+  }
+
+  /** Remove one aircraft's track, leaving every other one on the map. */
+  removeTrack(icao24) {
+    const key = icao24 || 'current'
+    const layer = this.tracks.get(key)
+    if (layer) {
+      layer.remove()
+      this.tracks.delete(key)
+    }
+    return Boolean(layer)
   }
 
   clearTracks() {

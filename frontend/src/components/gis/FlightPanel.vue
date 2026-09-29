@@ -209,14 +209,14 @@
             <!-- Track availability (spec §21) -->
             <div class="mt-1 text-[9px] text-slate-500">
               Trayectoria:
-              <span v-if="flightsStore.track?.icao24 === slot.icao24" class="text-slate-300">
-                {{ flightsStore.track.point_count }} puntos ·
-                {{ flightsStore.track.source }}
+              <span v-if="slotTrack(slot)" class="text-slate-300">
+                {{ slotTrack(slot).point_count }} puntos ·
+                {{ slotTrack(slot).source }}
               </span>
               <span v-else>no cargada</span>
             </div>
             <p
-              v-if="flightsStore.track?.icao24 === slot.icao24 && flightsStore.trackNote"
+              v-if="slotTrack(slot) && flightsStore.trackNote"
               class="mt-0.5 rounded bg-slate-950/60 p-1 text-[9px] leading-snug text-amber-300/80"
             >
               {{ flightsStore.trackNote }}
@@ -238,7 +238,13 @@
               >
                 {{ slot.isRecording ? '⏹ Detener' : '⏺ Grabar' }}
               </button>
-              <button class="gis-mini-btn" @click="loadTrackFor(slot.icao24)">↺ Trayectoria</button>
+              <button
+                class="gis-mini-btn"
+                :disabled="Boolean(flightsStore.trackLoading)"
+                @click="loadTrackFor(slot.icao24, slot.first_seen_ts)"
+              >
+                {{ flightsStore.trackLoading ? '… Cargando' : '↺ Cargar' }}
+              </button>
             </div>
           </li>
         </ul>
@@ -411,9 +417,27 @@ async function toggleMarker(slot) {
   mapStore.renderAll()
 }
 
+/**
+ * The trajectory held for one watchlist entry, or null.
+ *
+ * Per aircraft rather than a single shared value, so a list of five
+ * aircraft reports five trajectories and the map can draw them together.
+ */
+function slotTrack(slot) {
+  return flightsStore.trackFor(slot?.icao24)
+}
+
 async function toggleTrack(slot) {
-  await flightsStore.patchTracked(slot.icao24, { show_track: !slot.show_track })
-  mapStore.renderAll()
+  const next = !slot.show_track
+  await flightsStore.patchTracked(slot.icao24, { show_track: next })
+  // Turning it on has to fetch the path. It used to only flip the flag, so
+  // the button changed its label and the map stayed empty: the layer had
+  // nothing to draw because nobody had asked for the data.
+  if (next && !flightsStore.trackFor(slot.icao24)) {
+    await loadTrackFor(slot.icao24, slot.first_seen_ts)
+  } else {
+    mapStore.renderAll()
+  }
 }
 
 async function toggleRecording(slot) {
@@ -452,14 +476,19 @@ let liveTrackIcao24 = null
 function loadTrackFor(icao24, time = null) {
   stopLiveTrack()
 
-  flightsStore.loadTrack(icao24, { time }).then((data) => {
+  return flightsStore.loadTrack(icao24, { time }).then((data) => {
+    // Redraw first: the trajectory is already in the store, and the map
+    // watcher picks it up. Only then zoom, and only if there is a path.
+    mapStore.renderAll()
     if (data?.point_count) {
-      mapStore.engine?.fitBounds(flightsStore.trackLatLngs)
+      const latlngs = flightsStore.trackLatLngsFor(icao24)
+      if (latlngs.length) mapStore.engine?.fitBounds(latlngs)
     } else {
       flightsStore.notice =
         'Sin trayectoria disponible para ese vuelo. Los tracks de OpenSky cubren hasta 30 días.'
     }
     if (time === null && isAirborne(data)) startLiveTrack(icao24)
+    return data
   })
 }
 
