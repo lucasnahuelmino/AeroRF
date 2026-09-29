@@ -47,7 +47,10 @@ htmlcov/
 
 # Test output dumps written to the project root by tooling
 # (e.g. r1.txt, so1.txt, df8.txt). Several were committed by mistake; they are
-# regenerated on every run and are not source. Deliberately narrow: a blanket
-# *.txt would hide requirements.txt.
+# regenerated on every run and are not source.
+#
+# Narrow on purpose. A blanket *.txt would hide the two text files that are
+# part of the project: requirements.txt and the handoff note RETOMAR.md.
 /*.txt
 !/requirements.txt
+!/RETOMAR.md
