@@ -534,7 +534,17 @@ export class MapEngine {
 
   _addTooltip(layer, object) {
     const text = this.objectTooltip(object)
-    if (text) layer.bindTooltip(text, { sticky: true, direction: 'top' })
+    if (!text) return
+    // Bound to the children, because a group has no tooltip of its own and the
+    // name would never appear.
+    const targets = this._vectorLayers(layer)
+    if (targets.length) {
+      targets.forEach((child) =>
+        child.bindTooltip(text, { sticky: true, direction: 'top' }),
+      )
+    } else {
+      layer.bindTooltip?.(text, { sticky: true, direction: 'top' })
+    }
   }
 
   /** Short label shown on hover. */
@@ -641,21 +651,36 @@ export class MapEngine {
     layer.on('click', (e) => {
       L.DomEvent.stopPropagation(e)
       handler(objectId, e)
-      // A click on an existing object also counts as a click on the map, when a
-      // drawing tool is armed.
+      // A click on an object is also published as a click on the map, carrying
+      // the id of the object it landed on.
       //
-      // It used to be swallowed outright: `stopPropagation` above stops the
-      // event before it reaches the map, so the tool never saw it. An operator
-      // with the radial tool picked, clicking the middle of a circle to start a
-      // radial from its centre, got the circle selected instead and the tool
-      // did nothing — with no way to see why, since the tool is visibly armed.
+      // It used to be swallowed: `stopPropagation` above was assumed to stop
+      // the event before it reached the map, and it does not — the map draws
+      // with `preferCanvas`, so all objects share one canvas element and there
+      // is nothing for the propagation to stop at. Two consequences, both
+      // reported as "nothing selects":
       //
-      // So the position is forwarded explicitly. `stopPropagation` stays for
-      // the select tool, where selecting the object under the pointer is the
-      // whole point and the map's own handler would clear the selection.
-      if (this._clickSuppressed) {
-        this._emit('click', { latlng: e.latlng, overObject: objectId })
-      }
+      //   * a drawing tool never saw the click, so placing a radial at the
+      //     centre of a circle did nothing;
+      //   * the map's handler did see it, and with the select tool it cleared
+      //     the selection the object handler had just made.
+      //
+      // Forwarding the position with the id attached is what lets a caller
+      // tell "clicked an object" from "clicked empty ground".
+      // The position is forwarded with the object id attached, whatever the
+      // state of the tools.
+      //
+      // It used to be forwarded only while a drawing tool was armed, on the
+      // reasoning that the select tool wanted the click for itself. That was
+      // wrong in the other direction: this map draws with `preferCanvas`, so
+      // every object shares one canvas element and `stopPropagation` cannot
+      // stop the event at the object. The map's handler therefore runs for
+      // every click on an object, and with the select tool it cleared the
+      // selection the object handler had just made. Nothing was selectable.
+      //
+      // The id is what the shell needs in order to tell the two apart: a click
+      // on an object selects, a click on empty space clears.
+      this._emit('click', { latlng: e.latlng, overObject: objectId })
     })
     layer.on('dblclick', (e) => {
       L.DomEvent.stopPropagation(e)
@@ -669,6 +694,9 @@ export class MapEngine {
   /** Remove an object from the map (does not touch the database). */
   removeObject(objectId) {
     const key = String(objectId)
+    if (this._highlighted != null && String(this._highlighted) === key) {
+      this._highlighted = null
+    }
     const layer = this.featureLayers.get(key)
     if (!layer) return
     layer.remove()
@@ -687,25 +715,96 @@ export class MapEngine {
   }
 
   /** Visually emphasise the selected object. */
-  highlight(objectId, color = '#facc15') {
-    this.featureLayers.forEach((layer, key) => {
-      if (layer.setStyle) layer.setStyle({ weight: layer.options.weight || 3 })
-    })
-    const layer = this.featureLayers.get(String(objectId))
-    if (layer?.setStyle) {
-      const base = layer.options.weight || 3
-      layer.setStyle({ color, weight: base + 3, fillOpacity: 0.35 })
-      layer.bringToFront?.()
+  /**
+   * Every vector layer of a stored object, however it is grouped.
+   *
+   * A measured shape is a group — the ring or line plus its centre dot — and a
+   * group has no `setStyle` of its own. Styling has to reach the children, and
+   * doing it through `eachLayer` is what makes the highlight work on a circle
+   * as well as on a bare point.
+   *
+   * It is also what stops a selection from throwing. `select()` calls this
+   * before recording the id, so a layer whose `setStyle` was missing raised
+   * here and the id was never stored: the object was clicked, and nothing was
+   * selected. Every object was unselectable, not only the ones that had just
+   * become groups.
+   */
+  _vectorLayers(layer) {
+    if (!layer) return []
+    if (typeof layer.eachLayer === 'function') {
+      const out = []
+      layer.eachLayer((child) => {
+        if (typeof child.setStyle === 'function') out.push(child)
+      })
+      return out
     }
+    return typeof layer.setStyle === 'function' ? [layer] : []
+  }
+
+  /**
+   * The vector layers of a stored object, for callers outside the engine.
+   *
+   * Public because the store binds popups and double-click handlers, and it
+   * needs to reach the children of a grouped shape. Duplicating the descent
+   * there would be a second place to get it wrong.
+   */
+  vectorLayersFor(layer) {
+    return this._vectorLayers(layer)
+  }
+
+  /**
+   * The style a layer should return to.
+   *
+   * Captured once, the first time the object is styled, and kept on the layer.
+   * Reading it back from `options` does not work: `setStyle` writes through to
+   * `options`, so the first highlight overwrites the original weight and every
+   * later restore puts back the *highlighted* weight. The selection then
+   * compounded on each click, thickening the object a little more every time.
+   */
+  _baseStyle(layer) {
+    if (layer.__aerorfBaseStyle) return layer.__aerorfBaseStyle
+    const o = layer.options || {}
+    const style = {
+      color: o.color,
+      weight: o.weight ?? 3,
+      opacity: o.opacity ?? 1,
+      fillOpacity: o.fillOpacity ?? 0.15,
+    }
+    Object.defineProperty(layer, '__aerorfBaseStyle', {
+      value: style,
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    })
+    return style
+  }
+
+  highlight(objectId, color = '#facc15') {
+    // Only the previously highlighted one is restored. Rewriting every object's
+    // weight on every selection meant one extra write per object per click, and
+    // the weight it wrote came from `options`, which the last highlight had
+    // already changed.
+    if (this._highlighted != null && this._highlighted !== objectId) {
+      this._vectorLayers(this.featureLayers.get(String(this._highlighted))).forEach(
+        (child) => child.setStyle(this._baseStyle(child)),
+      )
+    }
+    const target = this.featureLayers.get(String(objectId))
+    this._vectorLayers(target).forEach((child) => {
+      const base = this._baseStyle(child)
+      child.setStyle({ color, weight: base.weight + 3, fillOpacity: 0.35 })
+    })
+    this._vectorLayers(target).forEach((child) => child.bringToFront?.())
+    this._highlighted = objectId
   }
 
   clearHighlight() {
-    this.featureLayers.forEach((layer) => {
-      if (layer.setStyle) {
-        const o = layer.options
-        layer.setStyle({ color: o.color, weight: o.weight, fillOpacity: o.fillOpacity })
-      }
+    if (this._highlighted == null) return
+    const layer = this.featureLayers.get(String(this._highlighted))
+    this._vectorLayers(layer).forEach((child) => {
+      child.setStyle(this._baseStyle(child))
     })
+    this._highlighted = null
   }
 
   // ─── Drafts: previews and in-progress drawings (spec §6) ──────────────────

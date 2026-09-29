@@ -220,8 +220,24 @@ export const useMapStore = defineStore('map', () => {
     const target = layer || e.featureLayers.get(String(obj.id))
     if (!target) return
     const fresh = byId.value.get(obj.id) || obj
-    target.bindPopup(e.objectPopup(fresh))
-    target.on('dblclick', () => select(fresh.id))
+    // A measured shape is a group — the ring or line plus its centre dot — and
+    // a group holds no popup and reports no double click of its own. Both are
+    // bound to the children instead, so opening the details and opening the
+    // inspector work on a circle as well as on a point.
+    //
+    // Without this the popup silently did nothing on a circle: `bindPopup` on
+    // a group stores a property nothing reads, and `on('dblclick')` on a group
+    // never fires, because no event is ever raised on the group from a child.
+    const targets = e.vectorLayersFor(target)
+    if (!targets.length) {
+      target.bindPopup?.(e.objectPopup(fresh))
+      target.on?.('dblclick', () => select(fresh.id))
+      return
+    }
+    targets.forEach((child) => {
+      child.bindPopup?.(e.objectPopup(fresh))
+      child.on?.('dblclick', () => select(fresh.id))
+    })
   }
 
   // ─── CRUD ────────────────────────────────────────────────────────────────

@@ -516,7 +516,7 @@ function bindEngineEvents() {
   )
 
   unsubscribers.push(
-    engine.on('click', ({ latlng }) => {
+    engine.on('click', ({ latlng, overObject = null }) => {
       mapStore.captureClick(latlng)
 
       // ── One owner per click ────────────────────────────────────────────
@@ -535,7 +535,22 @@ function bindEngineEvents() {
         clearAirportMeasure()
         return
       }
-      if (toolManager?.active === TOOLS.SELECT) {
+      // Clicking empty space with the select tool clears the selection.
+      //
+      // A click that landed on an object is excluded. The object's own handler
+      // has already selected it, and this map draws with `preferCanvas`, so
+      // every object shares one canvas element and there is no per-object DOM
+      // node to stop the event at: the map's handler runs for that click too.
+      // Clearing here undid the selection a moment after it was made, and
+      // nothing stayed selected — no point, no circle, no radial.
+      //
+      // The test is "no drawing tool armed" rather than "the select tool
+      // active". `ToolManager.active` is null until a tool is picked, and the
+      // select tool is only ever activated from the airport measurement, so
+      // comparing against TOOLS.SELECT meant this never ran at all: the
+      // selection could be made and could never be taken back.
+      const drawing = toolManager?.isDrawing
+      if (!drawing && overObject == null) {
         mapStore.clearSelection()
       }
       // Every other tool, including measurement, is the manager's business.

@@ -112,10 +112,16 @@ describe('a click on an object reaches the armed tool', () => {
     expect(seen[0].latlng.lng).toBeCloseTo(target.lng, 5)
   })
 
-  it('the select tool still does not get it, because selecting is the point', () => {
-    // With the select tool, a click on an object selects it. Forwarding the
-    // position too would fight that: the map's handler clears the selection
-    // on any click.
+  it('a click on an object is published with its id, whichever tool is armed', () => {
+    // This test used to assert the opposite — that with the select tool the
+    // map sees nothing — on the reasoning that selecting is the whole point
+    // and the map's handler would clear the selection.
+    //
+    // That reasoning was wrong on two counts. The map draws with
+    // `preferCanvas`, so there is no per-object DOM node and `stopPropagation`
+    // has nothing to stop: the map's handler runs for a click on an object
+    // whatever anyone wishes. And the id is exactly what lets the shell tell
+    // the two apart, so publishing it is what makes selection work.
     const seen = []
     engine.on('click', (p) => seen.push(p))
     engine.onObjectClick(6, () => {})
@@ -123,9 +129,11 @@ describe('a click on an object reaches the armed tool', () => {
     engine.onObjectClick(6, () => {})
     engine.suppressClicks(false)
 
-    circle.fire('click', { latlng: L.latLng(CENTRE) })
+    circle.fire('click', { latlng: L.latLng(CENTRE) }, true)
 
-    expect(seen.length, 'con la herramienta seleccionar no debe llegar al mapa').toBe(0)
+    expect(seen.length, 'el mapa no vio el clic del objeto').toBe(1)
+    expect(String(seen[0].overObject), 'el clic no dice sobre que objeto fue')
+      .toBe('6')
   })
 })
 

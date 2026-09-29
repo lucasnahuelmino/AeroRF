@@ -1766,3 +1766,80 @@ hijos en esta version de Leaflet.
 Verificadas revirtiendo el arreglo: volver a `layerGroup` deja 2 tests en rojo.
 
 **Totales: 376 + 7 Python, 284 frontend, 675 de paridad.**
+
+## [0.27.2] - 2026-09-29 - follow-up: la seleccion seguia rota por otra razon
+
+### Mi primera explicacion estaba mal
+
+En 0.27.1 atribuí el problema a que un `LayerGroup` no reenvía clics y cambié a
+`FeatureGroup`. Era **una causa real pero no la que rompía la selección**, y lo
+dije como si lo fuera. El `LayerGroup`，确实 impedía seleccionar en su momento,
+pero el síntoma que reportaste — que **nada** se selecciona, ni siquiera un
+punto simple — no lo explicaba.
+
+### Las dos causas, juntas
+
+**1. El clic en un objeto también lo ve el mapa, y el shell borraba la
+selección justo después de fijarla.**
+
+Este mapa dibuja con `preferCanvas`: todos los objetos vectoriales se pintan
+sobre **un mismo elemento canvas**. No hay un nodo DOM por objeto, así que
+`stopPropagation` no tiene nada donde actuar. El handler del mapa se ejecutaba
+también para un clic sobre un objeto, y con la herramienta de selección
+llamaba a `clearSelection()`.
+
+El orden era: el handler del objeto selecciona, el del mapa borra. El operador
+no veía ningún efecto. Por eso no seleccionaba **nada**, y por eso el arreglo
+del `FeatureGroup` no lo cambió.
+
+Lo que faltaba era distinguir los dos casos, y para eso está el id del objeto en
+el evento: `overObject` presente es clic sobre un objeto, ausente es clic en el
+vacío.
+
+**2. La condición que deselecciona nunca se cumplía.**
+
+Era `toolManager?.active === TOOLS.SELECT`. Pero `ToolManager.active` es `null`
+hasta que se elige una herramienta, y la herramienta de selección **solo** se
+activa desde la medición de aeropuerto. Al cargar la página, `active` es `null`
+para siempre: la condición no se cumplía nunca.
+
+Ahora la condición es "no hay herramienta de dibujo armada", que es lo que el
+shell realmente quiere expresar.
+
+### Sobre el resaltado y los textos
+
+Al revisar, el mismo grupo sin `setStyle` rompía también el resaltado de la
+selección y el nombre del objeto: `setStyle`, `bindTooltip` y `bindPopup` se
+llamaban sobre el grupo, donde no hacen nada. Ahora atraviesan a las capas
+hijas.
+
+También apareció un bug de acumulación: `setStyle` escribe sobre `options`, así
+que restaurar el estilo desde `options` devolvía el estilo **resaltado** y el
+grosor de cada objeto crecía tres puntos con cada clic. El estilo base se
+captura una vez y se guarda aparte.
+
+### Una suposición mía que era falsa
+
+`suppressClicks()` tiene valor por defecto `true` y el handler del mapa empieza
+con `if (this._clickSuppressed) return`. Sospeché que eso silenciaba todos los
+clics. **No era así**: el flag nunca se inicializa, queda `undefined`, y eso es
+falsy. Hay un test que lo fija, para que la suposición no vuelva.
+
+### Pruebas
+
+22 nuevas. La que importa monta **el shell completo**, con un objeto real en el
+mapa y un clic real sobre él: es el único nivel donde se ven las dos mitades de
+este bug, porque ni el motor ni el store borran nada — lo hace el shell.
+
+También 5 que fijan el orden y la presencia del id, 4 sobre la bandera de
+supresión, 10 sobre el resaltado atravesando el grupo, y 3 sobre la propagación
+de eventos.
+
+Un test viejo afirmaba lo contrario de lo correcto: que con la herramienta de
+selección el mapa no debía ver el clic. Estaba escrito sobre la suposición de
+que `stopPropagation` funcionaba, así que se actualizó junto con el código.
+
+Verificadas revirtiendo el arreglo: con las dos causas de vuelta, los tests del
+shell fallan.
+
+**Totales: 376 + 7 Python, 306 frontend, 675 de paridad.**

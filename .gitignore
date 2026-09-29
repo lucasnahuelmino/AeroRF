@@ -44,3 +44,10 @@ Thumbs.db
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+# Test output dumps written to the project root by tooling
+# (e.g. r1.txt, so1.txt, df8.txt). Several were committed by mistake; they are
+# regenerated on every run and are not source. Deliberately narrow: a blanket
+# *.txt would hide requirements.txt.
+/*.txt
+!/requirements.txt
