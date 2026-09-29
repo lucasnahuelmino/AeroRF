@@ -47,6 +47,19 @@
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Radio del círculo
       </h3>
+      <!--
+        The circle is drawn on the map at this radius as soon as the tool is
+        picked, so the number can be judged against the ground it will cover.
+        The live figure is what the pointer is measuring, which is a different
+        value from the configured one as soon as the shape is sized.
+      -->
+      <p
+        v-if="liveCircle"
+        class="mb-2 rounded bg-blue-950/50 px-2 py-1 font-mono text-[11px] leading-snug text-blue-200"
+      >
+        {{ liveCircle.ghost ? 'En el mapa' : 'Midiendo' }}:
+        {{ liveCircle.value }}<span v-if="!liveCircle.ghost" class="text-blue-300/70"> · soltar para commitear</span>
+      </p>
       <div class="mb-2 flex items-center gap-2">
         <input
           v-model.number="radius"
@@ -83,6 +96,19 @@
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Radial
       </h3>
+      <!--
+        The live azimuth, in degrees and in compass points, measured against
+        the north reference drawn on the map. An azimuth is a bare number
+        until the operator can see what it is measured from.
+      -->
+      <p
+        v-if="liveRadial"
+        class="mb-2 rounded bg-purple-950/50 px-2 py-1 font-mono text-[11px] leading-snug text-purple-200"
+      >
+        {{ liveRadial.ghost ? 'En el mapa' : 'Midiendo' }}:
+        {{ liveRadial.azimuth.toFixed(1) }}° {{ liveRadial.compass }} ·
+        {{ liveRadial.value }}
+      </p>
       <label class="mb-1 block text-[10px] text-slate-500">Azimut (° desde el norte)</label>
       <div class="mb-2 flex items-center gap-2">
         <input
@@ -247,6 +273,42 @@ const equivalent = (value) => {
 }
 
 const radiusValue = computed(() => (Number(radius.value) || 0).toFixed(2))
+
+/**
+ * The live circle reading: the radius on the map right now.
+ *
+ * Two things share this field and the operator has to be able to tell them
+ * apart, because they are different numbers. The configured radius is what
+ * they typed; the live one is what the pointer is measuring, which only
+ * becomes different once the centre is placed and the shape is sized. Labelled
+ * rather than left to be inferred from the position of a number.
+ */
+const liveCircle = computed(() => {
+  const d = mapStore.draft
+  if (d?.type !== 'circle') return null
+  const unit = String(d.unit || mapStore.toolOptions.unit).toUpperCase()
+  const value = `${Number(d.radius ?? 0).toFixed(2)} ${unit}`
+  return { value, ghost: false }
+})
+
+/** The live radial reading: degrees and compass point, plus the length. */
+const liveRadial = computed(() => {
+  const d = mapStore.draft
+  if (d?.type !== 'radial') return null
+  const azimuth = Number(d.azimuth ?? 0)
+  const unit = String(d.unit || mapStore.toolOptions.unit).toUpperCase()
+  return {
+    azimuth,
+    compass: compassFor(azimuth),
+    value: `${Number(d.length ?? 0).toFixed(2)} ${unit}`,
+    ghost: false,
+  }
+})
+
+function compassFor(azimuth) {
+  const index = Math.floor(((((azimuth % 360) + 360) % 360) + 11.25) % 360 / 22.5) % 16
+  return COMPASS[index]
+}
 
 function setUnit(unit) {
   // Keep the physical size sensible when switching units: convert the

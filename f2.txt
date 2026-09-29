@@ -1,0 +1,24 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [32mÔ£ô[39m tests/brandbar.spec.js [2m ([22m[2m16 tests[22m[2m)[22m[33m 3081[2mms[22m[39m
+ [32mÔ£ô[39m tests/drawing-flow.spec.js [2m ([22m[2m22 tests[22m[2m)[22m[33m 3888[2mms[22m[39m
+ [32mÔ£ô[39m tests/components.spec.js [2m ([22m[2m44 tests[22m[2m)[22m[33m 5335[2mms[22m[39m
+ [32mÔ£ô[39m tests/airports.spec.js [2m ([22m[2m31 tests[22m[2m)[22m[33m 2176[2mms[22m[39m
+ [32mÔ£ô[39m tests/flight-picker.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[33m 1317[2mms[22m[39m
+ [32mÔ£ô[39m tests/active-tool.spec.js [2m ([22m[2m9 tests[22m[2m)[22m[33m 4514[2mms[22m[39m
+ [32mÔ£ô[39m tests/layout.spec.js [2m ([22m[2m15 tests[22m[2m)[22m[90m 57[2mms[22m[39m
+ [32mÔ£ô[39m tests/geo.spec.js [2m ([22m[2m36 tests[22m[2m)[22m[90m 80[2mms[22m[39m
+ [32mÔ£ô[39m tests/shape-preview.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[33m 1753[2mms[22m[39m
+ [32mÔ£ô[39m tests/flight-history.spec.js [2m ([22m[2m8 tests[22m[2m)[22m[33m 799[2mms[22m[39m
+ [32mÔ£ô[39m tests/objects.spec.js [2m ([22m[2m11 tests[22m[2m)[22m[90m 134[2mms[22m[39m
+ [32mÔ£ô[39m tests/trajectory.spec.js [2m ([22m[2m7 tests[22m[2m)[22m[33m 612[2mms[22m[39m
+ [32mÔ£ô[39m tests/toolbar.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[90m 59[2mms[22m[39m
+ [32mÔ£ô[39m tests/theme.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32mÔ£ô[39m tests/chart-loading.spec.js [2m ([22m[2m9 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m15 passed[39m[22m[90m (15)[39m
+[2m      Tests [22m [1m[32m240 passed[39m[22m[90m (240)[39m
+[2m   Start at [22m 14:36:52
+[2m   Duration [22m 40.14s[2m (transform 5.32s, setup 1.86s, collect 12.12s, tests 23.88s, environment 51.49s, prepare 14.39s)[22m
+

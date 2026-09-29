@@ -121,6 +121,24 @@ export function radialPoints(origin, azimuth, distanceM, steps = 24) {
 }
 
 /** Circle approximated as a polygon ring (for export and hit-testing). */
+/**
+ * An arc between two bearings, centred on a point.
+ *
+ * Used to draw the angle a radial makes with north. It is the arc and not the
+ * straight chord: a chord reads as a different angle from the one the operator
+ * is being shown, which is the only reason to draw it at all.
+ */
+export function arcPoints(origin, radiusM, fromAzimuth, toAzimuth, steps = 24) {
+  if (!radiusM) return [origin]
+  // The short way round, so a sweep past 360 does not draw a 350-degree arc
+  // backwards through every bearing.
+  let span = (((toAzimuth - fromAzimuth) % 360) + 360) % 360
+  if (span > 180) span -= 360
+  return Array.from({ length: steps + 1 }, (_, i) =>
+    destination(origin[0], origin[1], fromAzimuth + (span * i) / steps, radiusM),
+  )
+}
+
 export function circlePoints(lat, lon, radiusM, steps = 72) {
   const count = Math.max(8, steps)
   if (!radiusM) return [[Number(lat), Number(lon)]]

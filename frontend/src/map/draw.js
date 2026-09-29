@@ -17,6 +17,7 @@
 import L from 'leaflet'
 
 import {
+  arcPoints,
   bearing as bearingBetween,
   destination,
   formatRadius,
@@ -26,6 +27,14 @@ import {
   round,
   toMetres,
 } from './geo'
+
+/** The 16-point compass label for an azimuth, for the label on the map. */
+function compassPoint(azimuth) {
+  const NAMES = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+    'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+  const index = Math.floor(((((azimuth % 360) + 360) % 360) + 11.25) % 360 / 22.5) % 16
+  return NAMES[index]
+}
 
 export const TOOLS = {
   SELECT: 'select',
@@ -100,7 +109,10 @@ export class ToolManager {
 
     if (name === TOOLS.SELECT) {
       this._restoreCursor()
-      this._emitChange()
+      // Show the shape at its configured size straight away, so choosing a radius
+    // is a decision made against the map rather than against a number.
+    this._renderGhost()
+    this._emitChange()
       return
     }
 
@@ -114,7 +126,22 @@ export class ToolManager {
     window.addEventListener('keydown', onKey)
     this._keyHandler = onKey
 
+    // Show the shape at its configured size straight away, so choosing a radius
+    // is a decision made against the map rather than against a number.
+    this._renderGhost()
     this._emitChange()
+  }
+
+  /**
+   * Report the current shape to the panel.
+   *
+   * Separate from `_emitChange`, which carries the draft to the store. The
+   * panel needs the measured values as the pointer moves — the degrees of a
+   * radial, the radius of a circle — and the store's draft is not what the
+   * operator reads.
+   */
+  _emitPreview(payload) {
+    this.handlers.onPreview?.(payload)
   }
 
   /**
@@ -132,7 +159,96 @@ export class ToolManager {
    */
   setOptions(options = {}) {
     this.options = { ...this.options, ...options }
-    if (!this.draft) this._emitChange()
+    // Re-paint the ghost preview. It is the operator's answer to "what does
+    // 5 NM actually look like here?", and it is the only thing on screen when
+    // the tool is picked but nothing has been clicked yet.
+    if (!this.draft) {
+      this._renderGhost()
+      this._emitChange()
+    }
+  }
+
+  /**
+   * The shape at its configured size, drawn before the operator clicks.
+   *
+   * Selecting the circle tool with a radius of 5 NM used to show nothing at
+   * all: the ring only appeared once the centre was placed, so the number in
+   * the panel could not be judged against the map. Choosing a radius without
+   * seeing what it covers is choosing it blind, which defeats the point of
+   * setting one.
+   *
+   * Drawn faintly and without any fill, so it reads as a guide rather than as
+   * the object. The real shape, once the centre is placed, is drawn solid.
+   */
+  _renderGhost() {
+    const center = this._ghostCenter()
+    if (!center) {
+      this.engine.removeDraft('ghost')
+      return
+    }
+    if (this.active === TOOLS.CIRCLE) {
+      const unit = this.options.unit
+      const radius = this.options.radius ?? 5
+      this.engine.setDraft(
+        'ghost',
+        L.circle(center, {
+          radius: toMetres(radius, unit),
+          color: '#3b82f6',
+          weight: 1.5,
+          fillOpacity: 0,
+          opacity: 0.55,
+          dashArray: '2,6',
+          interactive: false,
+        }),
+      )
+      this._emitPreview({
+        type: 'circle',
+        ghost: true,
+        latitude: center[0],
+        longitude: center[1],
+        radius,
+        radius_m: toMetres(radius, unit),
+        unit,
+      })
+      return
+    }
+    if (this.active === TOOLS.RADIAL) {
+      const unit = this.options.unit
+      const length = this.options.length ?? 10
+      const azimuth = this.options.azimuth ?? 0
+      this.engine.setDraft(
+        'ghost',
+        L.polyline(radialPoints(center, azimuth, toMetres(length, unit), 24), {
+          color: '#a855f7',
+          weight: 1.5,
+          opacity: 0.55,
+          dashArray: '2,6',
+          interactive: false,
+        }),
+      )
+      this._emitPreview({
+        type: 'radial',
+        ghost: true,
+        latitude: center[0],
+        longitude: center[1],
+        azimuth,
+        length,
+        length_m: toMetres(length, unit),
+        unit,
+      })
+    }
+  }
+
+  /**
+   * Where the ghost is drawn: where the pointer last was, else the view centre.
+   *
+   * The view centre is the better default of the two, because it is where the
+   * operator is looking, and it is known before any click happens.
+   */
+  _ghostCenter() {
+    if (this._pointer) return this._pointer
+    const c = this.engine.getCenter?.()
+    return c ? [c.lat, c.lng] : null
   }
 
   /** Finish the current drawing and clean up. */
@@ -294,7 +410,7 @@ export class ToolManager {
         L.polyline(points, { color: '#facc15', weight: 2, dashArray: '5,5' }),
       )
       this._renderVertices(points, '#facc15')
-      this.handlers.onPreview?.({ type: 'measure', points: [...points] })
+      this._emitPreview({ type: 'measure', points: [...points] })
       return
     }
 
@@ -370,7 +486,7 @@ export class ToolManager {
       L.circleMarker(center, { radius: 5, color: '#3b82f6', fillOpacity: 1, weight: 2 }),
     )
     this._renderEdge(this.draft.radius, this.draft.unit, '#3b82f6')
-    this.handlers.onPreview?.({ type: 'circle', ...this.draft })
+    this._emitPreview({ type: 'circle', ...this.draft })
   }
 
   /**
@@ -450,9 +566,59 @@ export class ToolManager {
     this._renderRadial()
   }
 
+  /**
+   * The reference line the degrees are measured from: due north.
+   *
+   * An azimuth means nothing on its own. 045° is a number until the operator
+   * can see what it is measured from, so the radial is drawn over its
+   * reference: a dashed line from the origin towards north, with the true
+   * bearing between the two shown at the origin. Sweeping the pointer and
+   * watching the gap close is what makes the reading legible.
+   */
+  _renderRadialReference() {
+    const { origin, lengthM } = this.draft
+    // The reference is as long as the radial itself, so the angle it makes is
+    // the angle on screen. A fixed-length reference would distort the reading
+    // when the radial is short.
+    const reach = Math.max(lengthM, 1000)
+    const north = radialPoints(origin, 0, reach, 2)
+
+    const reference = L.polyline(north, {
+      color: '#64748b',
+      weight: 1,
+      opacity: 0.7,
+      dashArray: '1,5',
+      interactive: false,
+    })
+    reference.bindTooltip('Referencia 000° (norte)', {
+      permanent: true,
+      direction: 'right',
+      className: 'aerorf-draft-label aerorf-draft-label--muted',
+    })
+
+    // The arc between the reference and the radial, at the origin.
+    const arc = L.polyline(
+      arcPoints(origin, reach * 0.35, 0, this.draft.azimuth, 24),
+      {
+        color: '#a855f7',
+        weight: 1.5,
+        opacity: 0.8,
+        interactive: false,
+      },
+    )
+    arc.bindTooltip(`${this.draft.azimuth.toFixed(1)}°`, {
+      permanent: true,
+      direction: 'top',
+      className: 'aerorf-draft-label',
+    })
+
+    this.engine.setDraft('radial-ref', L.layerGroup([reference, arc]))
+  }
+
   /** Paint the current draft. Pure rendering: no measurement, no state change. */
   _renderRadial() {
     const { origin, azimuth, lengthM, length, unit } = this.draft
+    this._renderRadialReference()
     this.engine.setDraft(
       'radial',
       L.polyline(radialPoints(origin, azimuth, lengthM, 24), {
@@ -467,7 +633,23 @@ export class ToolManager {
       'origin',
       L.circleMarker(origin, { radius: 5, color: '#a855f7', fillOpacity: 1, weight: 2 }),
     )
-    this.handlers.onPreview?.({ type: 'radial', ...this.draft })
+    // The degrees at the far end, permanently. The tooltip on the line needs a
+    // hover; this one is always there, which is what lets the operator read the
+    // value while sweeping without moving the pointer off the shape.
+    this.engine.setDraft(
+      'radial-end',
+      L.circleMarker(radialPoints(origin, azimuth, lengthM, 1)[1], {
+        radius: 3,
+        color: '#a855f7',
+        fillOpacity: 1,
+        weight: 1,
+        interactive: false,
+      }).bindTooltip(
+        `${azimuth.toFixed(1)}\xb0 ${compassPoint(azimuth)} \xb7 ${formatRadius(length, unit)}`,
+        { permanent: true, direction: 'right', className: 'aerorf-draft-label' },
+      ),
+    )
+    this._emitPreview({ type: 'radial', ...this.draft })
   }
 
   commitRadial() {

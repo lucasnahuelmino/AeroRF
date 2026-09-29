@@ -1537,3 +1537,69 @@ eligiendo `null` en vez del instante— el test del panel falla, que es lo unico
 que lo hacia util.
 
 **Totales: 376 + 7 Python, 228 frontend, 675 de paridad.**
+
+## [0.26.0] - 2026-09-29 - Grados en vivo y el circulo a la vista
+
+### El radial mostraba un numero sin referencia
+
+Un azimut no significa nada solo. 045° es una cifra hasta que se puede ver
+**respecto de que** esta medido, y la herramienta no dibujaba nada de
+referencia: solo la linea y un tooltip que exigia pasar el puntero por encima.
+
+Ahora, al dimensionar un radial:
+
+- una linea discontinua hacia el **norte (000°)**, de la misma longitud que el
+  radial, para que el angulo sea el de la pantalla y no una deformacion por
+  escala,
+- el **arco del angulo** entre la referencia y la linea, con los grados
+  rotulados en el origen,
+- una **etiqueta permanente en el extremo** de la linea, con grados, rumbo y
+  longitud, que se lee sin hacer hover,
+- y el panel muestra el valor en vivo: `Midiendo: 90.0° E · 24.31 KM`.
+
+El arco se dibuja por el camino corto: 045° son 45°, no 315°. Y al pasar de
+360° no barre 350° al reves.
+
+### El circulo no se veia hasta el primer clic
+
+Elegir la herramienta de circulo con 5 NM configurados **no mostraba nada**. El
+anillo solo aparecia al colocar el centro, de modo que el numero del panel no
+se podia juzgar contra el terreno que ibia a cubrir. Fijar un radio sin ver que
+abarca es fijarlo a ciegas, que es justamente lo contrario de lo que sirve
+configurarlo.
+
+Ahora la figura se dibuja al elegir la herramienta, en el centro de la vista, y
+**se redibuja al cambiar el radio o la unidad** — tambien sin hacer clic. Se
+dibuja tenue y sin relleno, para que se lea como guia y no como el objeto.
+
+La guia desaparece al soltar la herramienta: una vista previa que sobrevive
+dejaria un circulo en el mapa que nada va a guardar.
+
+### El panel distingue lo configurado de lo medido
+
+Son dos numeros distintos y el operador tiene que poder separarlos: lo
+configurado es lo que escribio, y lo medido es lo que esta midiendo el
+puntero, que cambia en cuanto se coloca el centro. El panel rotula
+`En el mapa` y `Midiendo` en vez de dejar que se deduzca de la posicion de una
+cifra.
+
+### Pruebas
+
+12 nuevas de comportamiento y 4 de estilos.
+
+Las de comportamiento cubren lo que el operador pidio: que el circulo aparezca
+al elegir la herramienta, que 5 NM sean 9 260 m, que cambiar el radio o la
+unidad lo redibuje, que 5 NM y 9,26 km sigan siendo la misma distancia, que los
+grados se reporten en cada movimiento, que la etiqueta del extremo sea legible
+sin hover, y que el radial se guarde con el azimut que se leyo.
+
+Las de estilos comprueban que la etiqueta de referencia exista y que se aplique
+a la referencia y no al valor: una referencia tenue con un arco brillante
+diria lo contrario de lo que son. Son estaticas a proposito, porque jsdom no
+maqueta nada y una asercion de estilo calculado pasaria contra una regla que
+nunca se aplico.
+
+Cada arreglo verificado revirtiendolo: quitar el preview de `activate` deja 3
+tests en rojo, y quitar el redibujado de `setOptions` deja 5.
+
+**Totales: 376 + 7 Python, 244 frontend, 675 de paridad.**

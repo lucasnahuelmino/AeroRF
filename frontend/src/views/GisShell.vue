@@ -1241,6 +1241,21 @@ watch(
 }
 .aerorf-draft-label::before { display: none; }
 
+/*
+ * The reference markers a radial is read against: the due-north line and the
+ * angle arc. Deliberately dimmer than the measured value — they are the frame
+ * the number is read in, not the number itself, and matching their weight
+ * would compete with the value it exists to give meaning to.
+ */
+.aerorf-draft-label--muted {
+  background: #1e293b;
+  border-color: #475569;
+  color: #cbd5e1;
+  font-weight: 500;
+  font-size: 10px;
+  padding: 1px 4px;
+}
+
 .aerorf-popup { min-width: 210px; font-size: 12px; }
 .aerorf-popup-title { font-weight: 600; color: #0f172a; margin-bottom: 2px; }
 .aerorf-popup-desc { color: #475569; margin-bottom: 4px; font-style: italic; }
