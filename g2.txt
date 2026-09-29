@@ -1,0 +1,70 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [33mÔØ»[39m tests/group-events.spec.js [2m ([22m[2m3 tests[22m [2m|[22m [31m3 failed[39m[2m)[22m[33m 429[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > [22ma FeatureGroup forwards a click from its child[39m
+[31m     ÔåÆ Cannot use 'in' operator to search for '_leaflet_id' in null[39m
+[31m     ÔåÆ Cannot read properties of undefined (reading '_removePath')[39m
+[31m   [33mÔØ»[31m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > [22ma LayerGroup does not forward it[39m
+[31m     ÔåÆ Cannot use 'in' operator to search for '_leaflet_id' in null[39m
+[31m     ÔåÆ Cannot read properties of undefined (reading '_removePath')[39m
+[31m   [33mÔØ»[31m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > [22ma non-interactive child does not swallow the click[39m
+[31m     ÔåÆ Cannot use 'in' operator to search for '_leaflet_id' in null[39m
+[31m     ÔåÆ Cannot read properties of undefined (reading '_removePath')[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 3 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > 
+[22ma FeatureGroup forwards a click from its child
+[31m[1m[7m FAIL [27m[22m[39m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > 
+[22ma LayerGroup does not forward it
+[31m[1m[7m FAIL [27m[22m[39m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > 
+[22ma non-interactive child does not swallow the click
+[31m[1mTypeError[22m: Cannot use 'in' operator to search for '_leaflet_id' in null[39m
+[90m [2mÔØ»[22m Util.stamp node_modules/leaflet/src/core/Util.js:[2m55:21[22m[39m
+[90m [2mÔØ»[22m NewClass.hasLayer node_modules/leaflet/src/layer/Layer.js:[2m203:10[22m[39m
+[90m [2mÔØ»[22m NewClass.getRenderer 
+node_modules/leaflet/src/layer/vector/Renderer.getRenderer.js:[2m20:13[22m[39m
+[90m [2mÔØ»[22m NewClass.beforeAdd node_modules/leaflet/src/layer/vector/Path.js:[2m80:24[22m[39m
+[90m [2mÔØ»[22m NewClass.addLayer node_modules/leaflet/src/layer/Layer.js:[2m169:10[22m[39m
+[90m [2mÔØ»[22m NewClass.eachLayer node_modules/leaflet/src/layer/LayerGroup.js:[2m122:11[22m[39m
+[90m [2mÔØ»[22m NewClass.onAdd node_modules/leaflet/src/layer/LayerGroup.js:[2m106:8[22m[39m
+[90m [2mÔØ»[22m NewClass._layerAdd node_modules/leaflet/src/layer/Layer.js:[2m114:8[22m[39m
+[90m [2mÔØ»[22m NewClass.whenReady node_modules/leaflet/src/map/Map.js:[2m1477:13[22m[39m
+[90m [2mÔØ»[22m NewClass.addLayer node_modules/leaflet/src/layer/Layer.js:[2m172:8[22m[39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/6]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > 
+[22ma FeatureGroup forwards a click from its child
+[31m[1m[7m FAIL [27m[22m[39m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > 
+[22ma LayerGroup does not forward it
+[31m[1m[7m FAIL [27m[22m[39m tests/group-events.spec.js[2m > [22mevent propagation through a group[2m > 
+[22ma non-interactive child does not swallow the click
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '_removePath')[39m
+[90m [2mÔØ»[22m NewClass.onRemove node_modules/leaflet/src/layer/vector/Path.js:[2m90:18[22m[39m
+[90m [2mÔØ»[22m NewClass.removeLayer node_modules/leaflet/src/layer/Layer.js:[2m185:10[22m[39m
+[90m [2mÔØ»[22m NewClass.removeFrom node_modules/leaflet/src/layer/Layer.js:[2m70:8[22m[39m
+[90m [2mÔØ»[22m NewClass.remove node_modules/leaflet/src/layer/Layer.js:[2m59:15[22m[39m
+[90m [2mÔØ»[22m NewClass.remove node_modules/leaflet/src/map/Map.js:[2m788:20[22m[39m
+[36m [2mÔØ»[22m tests/group-events.spec.js:[2m26:8[22m[39m
+    [90m 24| [39m
+    [90m 25| [39m[34mafterEach[39m(() [33m=>[39m {
+    [90m 26| [39m  map[33m?.[39m[34mremove[39m()
+    [90m   | [39m       [31m^[39m
+    [90m 27| [39m  container[33m?.[39m[34mremove[39m()
+    [90m 28| [39m})
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/6]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[90m (3)[39m
+[2m   Start at [22m 15:35:51
+[2m   Duration [22m 4.99s[2m (transform 147ms, setup 129ms, collect 114ms, tests 429ms, environment 2.15s, prepare 1.19s)[22m
+

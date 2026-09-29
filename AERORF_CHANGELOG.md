@@ -1708,3 +1708,61 @@ Verificadas revirtiendo el arreglo: quitar el reenvio del clic deja 2 tests en
 rojo, y volver a dibujar por `geometry_type` deja 8.
 
 **Totales: 376 + 7 Python, 277 frontend, 675 de paridad.**
+
+## [0.27.1] - 2026-09-29 - No se podia seleccionar nada (lo rompí yo)
+
+### Que pasó
+
+En 0.27.0 el circulo paso a ser un grupo de capas para poder llevar el punto
+central, y se creo con `L.layerGroup`. **Un `LayerGroup` no reenvia los eventos
+de sus hijos**; un `FeatureGroup` si.
+
+El clic lo manejaba el store, que escucha en la capa del objeto. Con un
+`LayerGroup` el clic en el anillo no llegaba ahi, la seleccion nunca se
+producia, y sin seleccion no se puede borrar, anotar, mover ni medir desde el
+objeto. Todo lo que se hace despues de seleccionar, dejo de funcionar.
+
+Un `FeatureGroup` propaga los eventos de sus capas hijas, que es justo lo que
+hacia falta. Ese es el arreglo.
+
+### Por que la suite estaba en verde
+
+Todos los tests de formas guardadas leian la geometria de la capa, y un grupo
+responde eso perfectamente. **Ninguno hacia clic.** El unico test que hace clic
+es el nuevo, y es el que fallo.
+
+Es la misma trampa de siempre, y ya la tercera vez en este trabajo: "compila" y
+"responde lo que se le pregunta" no es "funciona". Un objeto puede tener la
+forma correcta y ser intocable.
+
+### El punto central y los clics
+
+El punto central es `interactive: false`, y eso es lo que se verifica. Con esa
+bandera, Leaflet no lo considera objetivo de puntero, de modo que el clic pasa
+al anillo de atras: el centro del circulo, que es justo donde el operador
+queria hacer clic, sigue funcionando.
+
+Un test que le dispara un evento sintetico al punto central|reportaria que si
+selecciona, porque un `FeatureGroup` reenvia cualquier evento. Seria cierto del
+evento e irrelevante: una capa no interactiva nunca recibe un evento de puntero
+real. La asercion va sobre la bandera, que es lo que Leaflet mira de verdad.
+
+### Un detalle sobre como se dispara el clic
+
+Leaflet propaga un evento hacia arriba **solo si `fire` recibe `propagate`**. Un
+`fire` a secas se queda en la capa donde se llamo y no llega al grupo.
+
+Mis primeros tests de esto usaban `fire` sin la bandera, y reportaban que
+**ningun** grupo reenvia nada — lo que habria hecho concluir que la solucion no
+era posible. El mecanismo real es el bubbling que Leaflet hace al despachar al
+objeto bajo el puntero, y los tests ahora lo reproducen con la bandera.
+
+### Pruebas
+
+7 nuevas: 4 de seleccion (circulo, radial, punto normal, y el punto central que
+no captura clics) y 3 que documentan la propagacion de eventos entre grupo e
+hijos en esta version de Leaflet.
+
+Verificadas revirtiendo el arreglo: volver a `layerGroup` deja 2 tests en rojo.
+
+**Totales: 376 + 7 Python, 284 frontend, 675 de paridad.**

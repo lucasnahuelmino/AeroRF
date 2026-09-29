@@ -235,6 +235,79 @@ describe('a measurement the data does not carry', () => {
   })
 })
 
+describe('a stored shape is selectable', () => {
+  /**
+   * The regression, and the reason it survived a green suite.
+   *
+   * The circle became a group to carry its centre dot, and a plain
+   * `L.layerGroup` does not pass on the events its children receive. Clicking
+   * the ring raised nothing on the group, so the store never selected it — and
+   * with nothing selected there is no way to delete an object or annotate it.
+   *
+   * Every other test here reads geometry off the layer, which a group answers
+   * perfectly well. Only this one clicks, which is why the suite was green on
+   * an object the operator could not touch.
+   */
+  function selectAndReport(object) {
+    const engine = new MapEngine({ container: 'select-box' })
+    const box = document.createElement('div')
+    box.id = 'select-box'
+    document.body.appendChild(box)
+    engine.init()
+
+    const chosen = []
+    const layer = engine.renderObject(object)
+    engine.onObjectClick(object.id, (id) => chosen.push(id))
+
+    // The shape itself, dispatched the way Leaflet dispatches to the layer
+    // under the pointer — with `propagate`, so the event climbs to the group
+    // the handler is bound to. Without it nothing reaches the handler, and the
+    // test would report an object as unselectable for a reason that does not
+    // exist on screen.
+    const shape = ring(layer) || line(layer) || layer
+    shape.fire('click', { latlng: L.latLng(object.latlng) }, true)
+
+    engine.destroy()
+    box.remove()
+    return chosen
+  }
+
+  it('a circle can be selected by clicking it', () => {
+    const chosen = selectAndReport(STORED_CIRCLE)
+    expect(chosen, 'el circulo no se puede seleccionar').toEqual([STORED_CIRCLE.id])
+  })
+
+  it('a radial can be selected by clicking it', () => {
+    const chosen = selectAndReport(STORED_RADIAL)
+    expect(chosen, 'el radial no se puede seleccionar').toEqual([STORED_RADIAL.id])
+  })
+
+  it('a plain point can be selected', () => {
+    const chosen = selectAndReport({
+      id: 1, type: 'point', geometry_type: 'Point',
+      latlng: [-34.6, -58.4], visible: true, properties: {},
+    })
+    expect(chosen, 'un punto normal no se puede seleccionar').toEqual([1])
+  })
+
+  it('the centre dot is not a click target, so it cannot swallow a click', () => {
+    // Deliberate, and the reason is the middle of the circle: that is the one
+    // place an operator would click, and a 4-pixel target on top of it would
+    // make the most natural click in the object do nothing.
+    //
+    // The flag is what Leaflet's own hit-testing consults, so that is what is
+    // asserted. Firing a synthetic click at the dot instead would report that
+    // it selects the shape — which is true of the event and irrelevant, because
+    // a non-interactive layer never receives a real pointer event to begin with.
+    const layer = engine.renderObject(STORED_CIRCLE)
+    const dot = layer.getLayers().find((l) => l.getRadius?.() < 100)
+
+    expect(dot, 'no hay punto central').toBeTruthy()
+    expect(dot.options.interactive, 'el punto central no debe ser interactivo')
+      .toBe(false)
+  })
+})
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 // The geometry helpers are imported at the top, under the names the module
 // exports: `bearing` is the bearing between two points, and the test needed it

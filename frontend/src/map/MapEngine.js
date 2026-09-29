@@ -437,7 +437,12 @@ export class MapEngine {
       const radiusM = this._radiusMetres(object)
       if (!radiusM) return null
       const { color, weight, opacity, fillOpacity } = base
-      const circle = L.layerGroup([
+      // A FeatureGroup, not a LayerGroup: the group has to pass on the clicks
+      // its children receive. A plain LayerGroup does not, so making the circle
+      // a group to carry the centre dot silently made it unselectable — no
+      // click reached the store, and with no selection there was no way to
+      // delete it or annotate it.
+      const circle = L.featureGroup([
         L.circle(latlng, { radius: radiusM, color, weight, opacity, fillOpacity }),
         centreDot(latlng, color),
       ])
@@ -457,7 +462,9 @@ export class MapEngine {
       // Straight from the centre outward. A radial is a bearing and a
       // distance, not a curve: drawing it as an arc would be a different
       // object from the one stored.
-      const line = L.layerGroup([
+      // A FeatureGroup for the same reason as the circle: the line and its
+      // origin dot have to be clickable as one object.
+      const line = L.featureGroup([
         L.polyline(radialPoints(latlng, azimuth, lengthM, 24), {
           color,
           weight,
