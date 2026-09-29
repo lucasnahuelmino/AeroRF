@@ -5,14 +5,18 @@ import path from 'path'
 /**
  * Vite configuration.
  *
- * The API target is read from `VITE_API_TARGET` so the proxy is not
- * hard-coded to port 8000 — which on this machine belongs to another
- * project (audit P7). Default 8000; override per environment:
+ * The API target comes from `VITE_API_TARGET`. The fallback is 8010, not 8000:
+ * on this machine 8000 belongs to the sibling project `rni-app-4.0`, and a
+ * frontend that proxies to it would talk to another application and look
+ * merely "broken" rather than obviously misconfigured.
  *
  *   PowerShell:  $env:VITE_API_TARGET='http://127.0.0.1:8010'; npm run dev
  *   bash:        VITE_API_TARGET=http://127.0.0.1:8010 npm run dev
+ *
+ * `start.bat` sets this automatically; you only need it when running
+ * `npm run dev` by hand.
  */
-const API_TARGET = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000'
+const API_TARGET = process.env.VITE_API_TARGET || 'http://127.0.0.1:8010'
 
 export default defineConfig({
   plugins: [vue()],
@@ -22,8 +26,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: Number(process.env.VITE_PORT) || 5173,
-    strictPort: false,
+    port: Number(process.env.VITE_PORT) || 5199,
+    // True, not false. With `strictPort: false` Vite silently moves to the
+    // next free port, so the URL printed in the terminal is not the URL
+    // being served, and the launcher waits on a port nothing is listening on.
+    // Failing loudly is the better behaviour: the operator finds out at once.
+    strictPort: true,
     proxy: {
       '/api': {
         target: API_TARGET,

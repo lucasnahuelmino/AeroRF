@@ -1291,3 +1291,90 @@ Cuatro nuevos, y uno que solo podía fallar asi:
   guardado tiene el radio que se veia y que la herramienta se suelta.
 
 **Totales: 357 + 7 Python, 209 frontend, 675 de paridad.**
+
+## [0.23.0] - 2026-09-29 - Raiz limpia y un solo lanzador
+
+### Limpieza de la raiz
+
+Se borro lo que no servia para nada:
+
+- `package.json` y `package-lock.json` de la raiz: vacios, `"packages": {}`,
+  sin dependencias. El proyecto real es `frontend/package.json`.
+- `upload.sh`: un ayudante de una sola vez para agregar el remoto de GitHub.
+  El remoto ya esta.
+- `rf-interference-system.rar`: 94 KB de un `.rar` del SIARI original que
+  nunca estuvo en el arbol de trabajo, solo en el indice de git.
+- `siari.db`: 44 KB, cuatro tablas, **cero filas**, y ninguna referencia en el
+  codigo. `.env` apunta a `aerorf.db`.
+- `start.sh`: duplicaba la logica del lanzador en otro lenguaje.
+- Los cuatro `.log` sueltos de la raiz y los cuatro de `frontend/`.
+- `RETOMAR.md` y `TODO.md`, ya obsoletos.
+
+`AERORF_AUDIT.md` se movio a `docs/archive/`: es el registro de por que se
+quito cada parte del SIARI, y conviene conservarlo, pero no en la raiz.
+
+Quedan cuatro documentos en la raiz: `README.md`, `MANUAL.md`,
+`AERORF_ARCHITECTURE.md` y `AERORF_CHANGELOG.md`.
+
+### Un solo lanzador
+
+`start.bat` arranca backend y frontend, y hace de los dos modos internos
+`_backend` y `_frontend` que cada uno corre en su propia ventana. Se borra
+`start.sh` justamente para que no haya dos copias de la misma logica que
+deriven: las dos ya habian divergido, una ponia `8000` y la otra `5173`.
+
+Modos: `dev` (por defecto), `test`, `build`, `stop`.
+
+Espera de verdad a que cada servidor responda antes de dar por bueno el
+arranque, y si uno no responde muestra las ultimas lineas de su log.
+
+### Puertos: ya no es posible caer en 8000 por accidente
+
+El backend nunca debe caer en 8000, que en esta maquina pertenece al proyecto
+hermano `rni-app-4.0`. Con el valor por defecto en 8000, un `.env` ausente
+mandaba el frontend aSpeaking con otra aplicacion, y eso se ve como "esta
+roto" en lugar de "esta mal configurado".
+
+- El valor por defecto pasa a 8010, en `start.bat` y en `vite.config.js`.
+- `VITE_PORT` pasa a 5199, y se documento en `.env.example` y `.env`.
+- `CORS_ORIGINS` se actualizo a los origenes nuevos, con `::1` incluido
+  porque Vite puede escuchar en IPv6.
+- `strictPort: true` en Vite. Con `false` Vite se corria solo al siguiente
+  puerto libre, asi que la URL que se imprime no era la que se servia, y el
+  lanzador esperaba un puerto donde nadie escuchaba.
+
+### Si el puerto esta ocupado, no arranca
+
+Antes el lanzador avisaba y seguia. La comprobacion de `/health` la
+respondia el proceso que ya estaba escuchando, y el script anunciaba "listo"
+mientras la ventana nueva habia fallado al tomar el puerto. Ahora se niega a
+arrancar y lo dice.
+
+### Cuatro fallos del lanzador, encontrados probandolo
+
+- **El archivo estaba con finales de linea LF.** `cmd.exe` lo leia como una
+  sola linea y cada instruccion quedaba cortada: `echo` se converia en `cho`,
+  `if` en `f`. Ahora se escribe con CRLF.
+- **`echo Backend -> http://...`**: el `>` se interpretaba como redireccion, y
+  cmd intentaba crear un archivo llamado `http://127.0.0.1:8010`, que no es un
+  nombre valido. Eso era el error de "sintaxis de etiqueta del volumen" que
+  salia al final, y hacia que las lineas de Backend y Frontend no se
+  imprimieran nunca. La flecha va escapada.
+- **`isbusy` leia al reves los codigos de `findstr`.** `findstr` devuelve 0
+  cuando encuentra la linea, y ese 0 es el que significa "el puerto esta
+  ocupado". La routine daba los puertos libres por ocupados y al reves, asi
+  que la comprobacion no servia para nada.
+- **`stop` no paraba el backend.** Con `--reload`, uvicorn lanza un supervisor
+  y un hijo, y el hijo hereda el socket de escucha. Matar el PID que muestra
+  `netstat` dejaba a los dos python vivos y el puerto ocupado. Ahora se mata
+  por puerto **y** por linea de comandos.
+
+### El secreto de OpenSky ya no se imprime
+
+Al trazar el lanzador con `@echo on` aparecio el `OPENSKY_CLIENT_SECRET` en
+claro: el volcaba entero al entorno. Ahora solo se leen `PORT`, `VITE_PORT` y
+`HOST` del `.env`, que es todo lo que el lanzador necesita; uvicorn lee el
+`.env` por su cuenta. Una lista blanca no puede filtrar lo que no nombra.
+
+> Sigue pendiente **rotar `OPENSKY_CLIENT_SECRET`**: aparece en este historial
+> de conversacion y en el de la sesion anterior.
