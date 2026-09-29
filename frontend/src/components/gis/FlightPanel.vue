@@ -240,12 +240,72 @@
               </button>
               <button
                 class="gis-mini-btn"
-                :disabled="Boolean(flightsStore.trackLoading)"
-                @click="loadTrackFor(slot.icao24, slot.first_seen_ts)"
+                :disabled="flightsStore.flightsLoading === slot.icao24"
+                @click="toggleFlightList(slot)"
               >
-                {{ flightsStore.trackLoading ? '… Cargando' : '↺ Cargar' }}
+                {{ flightsStore.flightsLoading === slot.icao24 ? '… Buscando' : '☰ Vuelos' }}
               </button>
             </div>
+
+            <!-- Choosing the flight, for reports that name an aircraft which
+                 has already landed. -->
+            <div
+              v-if="flightsStore.flightListFor === slot.icao24"
+              class="mt-1.5 rounded border border-slate-700 bg-slate-950/70 p-1.5"
+            >
+              <p class="mb-1 text-[9px] text-slate-400">
+                {{ flightsStore.flightListMessage || 'Vuelos de esta aeronave:' }}
+              </p>
+              <ul
+                v-if="flightsStore.flightsFor(slot.icao24).length"
+                class="max-h-44 space-y-0.5 overflow-y-auto"
+              >
+                <li v-for="(f, i) in flightsStore.flightsFor(slot.icao24)" :key="`${f.start_time}-${i}`">
+                  <button
+                    class="gis-mini-btn w-full justify-start text-left"
+                    :class="{ '!bg-blue-600 !text-white': isLoadedSlot(slot, f) }"
+                    :disabled="Boolean(flightsStore.trackLoading)"
+                    @click="loadTrackFor(slot.icao24, f.track_time)"
+                  >
+                    <span class="font-mono">{{ flightWhen(f.start_time) }}</span>
+                    <span class="truncate">{{ flightRoute(f) }}</span>
+                    <span class="ml-auto flex-none text-[9px] opacity-70">{{ flightDur(f) }}</span>
+                  </button>
+                </li>
+              </ul>
+              <p v-else class="text-[9px] text-slate-500">
+                No hay vuelos registrados para esta aeronave en el período consultado.
+              </p>
+              <label class="mt-1.5 flex items-center gap-1 text-[9px] text-slate-500">
+                <span class="flex-none">Buscar</span>
+                <input
+                  v-model.number="historyDays"
+                  type="number"
+                  min="1"
+                  max="30"
+                  class="w-14 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[9px] text-slate-200"
+                  @keyup.enter="reloadFlightList(slot)"
+                />
+                <span>días atrás</span>
+                <button class="gis-mini-btn ml-auto" @click="reloadFlightList(slot)">↻</button>
+              </label>
+              <p v-if="flightsStore.flightListNote" class="mt-1 text-[9px] leading-snug text-amber-300/80">
+                {{ flightsStore.flightListNote }}
+              </p>
+            </div>
+
+            <!-- When the answer covers a different flight than the one asked
+                 for, the points are real but they are the wrong route. Saying
+                 so is the only thing that keeps them from being compared as
+                 if they were the right ones. -->
+            <p
+              v-if="slotTrackMismatch(slot)"
+              class="mt-1 rounded bg-amber-950/50 px-1.5 py-1 text-[9px] leading-snug text-amber-200"
+            >
+              ⚠ La trayectoria devuelta corresponde a otro vuelo
+              ({{ flightWhen(slotTrack(slot).covered_window?.start) }}), no al
+              seleccionado. Elegí el vuelo correcto en “Vuelos”.
+            </p>
           </li>
         </ul>
       </section>
@@ -349,7 +409,7 @@
  * and controls (spec §26), recording (spec §24) and distances to
  * references (spec §30).
  */
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { MAX_TRACKED, useFlightsStore } from '@/stores/flights'
 import { useMapStore, typeName } from '@/stores/map'
@@ -425,6 +485,79 @@ async function toggleMarker(slot) {
  */
 function slotTrack(slot) {
   return flightsStore.trackFor(slot?.icao24)
+}
+
+/**
+ * True when the trajectory on screen belongs to a different flight than the
+ * one that was chosen.
+ *
+ * OpenSky answers a track request for an instant with the flight near it, and
+ * answers one with no instant with the most recent flight. Either can be the
+ * wrong flight, and the points are real when it happens — which is why this
+ * cannot be left to the operator to notice.
+ */
+function slotTrackMismatch(slot) {
+  return flightsStore.trackMismatch(slot?.icao24)
+}
+
+/** How many days back the flight list searches. */
+const historyDays = ref(2)
+
+/** Open the flight list for an aircraft, fetching it the first time. */
+function toggleFlightList(slot) {
+  const code = slot?.icao24
+  if (!code) return
+  if (flightsStore.flightListFor === code) {
+    flightsStore.closeFlightList()
+    return
+  }
+  flightsStore.loadFlightsOf(code, { days: historyDays.value })
+}
+
+/** Re-run the list with a different look-back. */
+function reloadFlightList(slot) {
+  if (!slot?.icao24) return
+  const days = Math.min(30, Math.max(1, Number(historyDays.value) || 2))
+  historyDays.value = days
+  flightsStore.loadFlightsOf(slot.icao24, { days })
+}
+
+/** True when the trajectory on screen is the one for this candidate flight. */
+function isLoadedSlot(slot, flight) {
+  const data = slotTrack(slot)
+  if (!data?.covered_window) return false
+  // Within a couple of minutes counts as the same flight: OpenSky's first and
+  // last contacts are not the same instants the flight list reports.
+  return Math.abs(data.covered_window.start - flight.start_time) < 300
+}
+
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+/** A flight instant as local date and time, to the minute. */
+function flightWhen(ts) {
+  if (!ts) return '?'
+  const d = new Date(ts * 1000)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${hh}:${mm}`
+}
+
+/** The route, or a dash when OpenSky has no airports for the flight. */
+function flightRoute(flight) {
+  const dep = flight.departure_airport
+  const arr = flight.arrival_airport
+  if (dep && arr) return `${dep} → ${arr}`
+  if (dep) return `${dep} → ???`
+  if (arr) return `??? → ${arr}`
+  return 'ruta desconocida'
+}
+
+/** Flight duration in hours and minutes. */
+function flightDur(flight) {
+  if (!flight?.duration_s) return '—'
+  const total = Math.round(flight.duration_s / 60)
+  return `${Math.floor(total / 60)}h${String(total % 60).padStart(2, '0')}`
 }
 
 async function toggleTrack(slot) {

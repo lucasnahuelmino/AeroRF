@@ -172,6 +172,89 @@ export const useFlightsStore = defineStore('flights', () => {
     }
   }
 
+  // ─── Flight history (spec §22) ───────────────────────────────────────────
+  //
+  // The flights each aircraft flew, so a trajectory can be asked for by flight
+  // and not by accident. Keyed by ICAO24, one list per aircraft.
+  const flightLists = ref({})
+  const flightsLoading = ref(null)
+  const flightListFor = ref(null)
+  const flightListMessage = ref('')
+  const flightListNote = ref('')
+
+  /** The candidate flights for one aircraft, newest first. */
+  function flightsFor(icao24) {
+    if (!icao24) return []
+    return flightLists.value[String(icao24).trim().toLowerCase()] || []
+  }
+
+  /**
+   * Fetch the flights an aircraft flew, so one can be chosen.
+   *
+   * Every day back is a metered request, so the note carries what it cost and
+   * whether the search was cut short: a short list then cannot be mistaken for
+   * "this aircraft did not fly".
+   */
+  async function loadFlightsOf(icao24, { days = 2, begin = null, end = null } = {}) {
+    const key = String(icao24 || '').trim().toLowerCase()
+    if (!key) return []
+    flightsLoading.value = key
+    flightListFor.value = key
+    error.value = null
+    try {
+      const params = { days }
+      if (begin != null) params.begin = begin
+      if (end != null) params.end = end
+      const data = await flightsApi.flightsOf(key, params)
+      const rows = data?.flights || []
+      flightLists.value = { ...flightLists.value, [key]: rows }
+
+      const label = (data?.icao24 || key).toUpperCase()
+      flightListMessage.value = rows.length
+        ? `${rows.length} vuelo${rows.length === 1 ? '' : 's'} de ${label} (${rows.length} distintas, más reciente primero)`
+        : `${label}: sin vuelos en el período`
+
+      const notes = []
+      if (data?.search_truncated) {
+        notes.push(
+          `La búsqueda se cortó: solo se revisaron los últimos ${data.windows_queried?.length ?? '?'} días.`,
+        )
+      }
+      if (data?.estimated_credits) {
+        notes.push(`Costo aprox.: ${data.estimated_credits} créditos de OpenSky.`)
+      }
+      flightListNote.value = notes.join(' ')
+      return rows
+    } catch (e) {
+      error.value = describeError(e)
+      flightLists.value = { ...flightLists.value, [key]: [] }
+      flightListMessage.value = 'No se pudo consultar el historial de vuelos.'
+      flightListNote.value = describeError(e)
+      return []
+    } finally {
+      if (flightsLoading.value === key) flightsLoading.value = null
+    }
+  }
+
+  function closeFlightList() {
+    flightListFor.value = null
+    flightListMessage.value = ''
+    flightListNote.value = ''
+  }
+
+  /**
+   * True when a trajectory was returned for a different flight than the one
+   * asked for.
+   *
+   * The points are real and correctly labelled; they are simply the route of
+   * another flight. Treating them as the requested one would put a wrong route
+   * into a comparison, so the panel shows this instead.
+   */
+  function trackMismatch(icao24) {
+    const data = trackFor(icao24)
+    return Boolean(data && data.matches_request === false)
+  }
+
   /**
    * The cached trajectory for one aircraft, or null.
    *
@@ -191,12 +274,25 @@ export const useFlightsStore = defineStore('flights', () => {
   /** Drop one aircraft's trajectory, e.g. when it leaves the watchlist. */
   function forgetTrack(icao24) {
     const key = String(icao24 || '').trim().toLowerCase()
-    if (!key || !(key in tracks.value)) return false
-    const next = { ...tracks.value }
-    delete next[key]
-    tracks.value = next
-    if (track.value?.icao24 === key) track.value = null
-    return true
+    if (!key) return false
+    let dropped = false
+    if (key in tracks.value) {
+      const next = { ...tracks.value }
+      delete next[key]
+      tracks.value = next
+      if (track.value?.icao24 === key) track.value = null
+      dropped = true
+    }
+    // The flight list goes too: nothing about an aircraft that is no longer
+    // followed should stay on screen.
+    if (key in flightLists.value) {
+      const lists = { ...flightLists.value }
+      delete lists[key]
+      flightLists.value = lists
+      if (flightListFor.value === key) closeFlightList()
+      dropped = true
+    }
+    return dropped
   }
 
   async function loadLiveTrack(icao24) {
@@ -537,6 +633,9 @@ export const useFlightsStore = defineStore('flights', () => {
     // trajectories for aircraft that are no longer on the watchlist, and the
     // next operator would see paths nobody asked for.
     tracks.value = {}
+    // And the flight lists, for the same reason.
+    flightLists.value = {}
+    closeFlightList()
     liveTrack.value = null
     aircraftDistances.value = []
     correlationDisclaimer.value = null
@@ -553,6 +652,10 @@ export const useFlightsStore = defineStore('flights', () => {
     // tracks
     tracks, track, trackLoading, trackLatLngs, trackProvenance, trackNote,
     loadTrack, loadLiveTrack, trackFor, allTracks, forgetTrack, trackLatLngsFor,
+    trackMismatch,
+    // flight history
+    flightLists, flightsLoading, flightListFor, flightListMessage, flightListNote,
+    flightsFor, loadFlightsOf, closeFlightList,
     // watchlist
     watchlist, watchlistWithState, trackedCount, canTrackMore, freeSlots,
     loadWatchlist, trackAircraft, untrackAircraft, patchTracked, colorForSlot,

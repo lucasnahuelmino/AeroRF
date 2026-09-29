@@ -180,6 +180,11 @@ def _valid_icao24(code: str) -> bool:
     )
 
 
+#: Public alias. The flight-list endpoint validates the same way, and a route
+#: that has to reach through a private name is a sign the check belongs here.
+valid_icao24 = _valid_icao24
+
+
 def _window(
     date: Optional[str], time_hint: Optional[str], window_hours: int
 ) -> tuple[int, int]:
@@ -377,7 +382,43 @@ async def build_track(
         "end_time": points[-1]["timestamp"] if points else None,
         "source": _merge_source(provenance),
         "warnings": warnings,
+        "requested_time": time_,
     }
+
+    # Which flight did the returned points actually belong to?
+    #
+    # OpenSky's `/tracks/all` answers "the flight near this instant" when given
+    # one, and the *most recent* flight when not. For an aircraft that flew
+    # several times that week, a request with no instant therefore returns a
+    # different flight from the one asked about, and the caller has no way to
+    # tell: the points are real, the provenance is right, and the route is
+    # simply the wrong one.
+    #
+    # So the response states the window it covers and whether the requested
+    # instant falls inside it. A caller comparing routes can then refuse to
+    # treat a mismatched route as the one in the report.
+    if points:
+        first_ts, last_ts = points[0]["timestamp"], points[-1]["timestamp"]
+        payload["covered_window"] = {
+            "start": first_ts,
+            "end": last_ts,
+            "duration_s": (last_ts - first_ts) if None not in (first_ts, last_ts) else None,
+        }
+        if time_ is not None and time_ != 0:
+            if first_ts is not None and not (first_ts - 300 <= time_ <= last_ts + 300):
+                warnings.append(
+                    f"OpenSky devolvió el vuelo de "
+                    f"{first_ts}–{last_ts}, no el del instante solicitado "
+                    f"({time_}). Es el vuelo más reciente de esta aeronave, "
+                    f"no el del reporte. Elija el vuelo en la lista."
+                )
+                payload["matches_request"] = False
+            else:
+                payload["matches_request"] = True
+    else:
+        payload["covered_window"] = None
+        if time_ is not None and time_ != 0:
+            payload["matches_request"] = None
 
     if points:
         summary = path_summary([[p["latitude"], p["longitude"]] for p in points])

@@ -1466,3 +1466,74 @@ el archivo que monta el componente, no esconderse en un shim global.
 Cada una verificada revirtiendo el arreglo.
 
 **Totales: 364 + 7 Python, 216 frontend, 675 de paridad.**
+
+## [0.25.0] - 2026-09-29 - Elegir el vuelo, no solo la aeronave
+
+### El problema: sin instante, OpenSky devuelve otro vuelo
+
+Un reporte nombra un vuelo que **ya aterrizo**, a veces de dias anteriores. El
+boton pedia la trayectoria sin indicar momento, y OpenSky responde entonces con
+el vuelo **mas reciente** de esa aeronave.
+
+Medido contra la API, no contra documentacion:
+
+- mismo avion `a101c3`, vuelo del reporte AAL3139 del 09-28 10:10,
+- sin instante: 129 puntos, del 09-29 13:14 al 15:48, 225 km — **otro vuelo**,
+- con el instante del vuelo: 308 puntos, del 09-28 10:10 al 11:20, 812 km.
+
+Los puntos son reales, la procedencia es correcta y la ruta es la equivocada.
+Nada aguas abajo puede distinguirlo. Para un operador que compara rutas, eso es
+peor que no tener dato: contaminaba comparaciones.
+
+Verificado ademas que el historico existe: hoy, ayer, 3 dias y 7 dias devuelven
+trayectorias; 15 dias ya no. El limite de 30 dias es real.
+
+### Que se implemento
+
+**`GET /api/v1/flights/{icao24}/flights`** lista los vuelos de una aeronave, del
+mas reciente al mas antiguo, con lo que identifica un vuelo: hora, duracion,
+aeropuerto de salida y llegada, y el instante para pedir la trayectoria.
+
+**El panel** tiene un boton **Vuelos** que abre la lista. Cada fila trae fecha,
+hora, ruta y duracion; al elegir una, se pide la trayectoria **de ese vuelo**.
+
+Cada dia hacia atras es una consulta con costo a OpenSky, asi que la respuesta
+dice cuanto costaba y si la busqueda se corto. Una lista corta no se confunde
+con "esta aeronave no volo".
+
+**La trayectoria declara su ventana.** Cada respuesta trae `covered_window` y
+`matches_request`. Cuando lo devuelto pertenece a otro vuelo, el panel lo
+avisa en vez de mostrarlo como si fuera el correcto.
+
+### Un limite mal medido, de paso
+
+`MAX_FLIGHTS_AIRCRAFT_WINDOW_S` valia 48 h, con un comentario que decia "2 dias".
+OpenSky **rechaza** desde 47 h y responde bien hasta 25 h. Medido: 1, 6, 12, 23,
+24 y 25 h funcionan; 47, 48, 49, 50 y 72 h devuelven 400. Ahora es 24 h, con la
+medida anotada.
+
+El recorte a 48 h no era conservador, estaba fuera de rango: la salia, OpenSky
+la rechazaba, y la lista de vuelos de ayer no se podia construir.
+
+Ademas, las ventanas se armaban mal: con `begin`/`end` explicitos, el limite
+`days` cortaba por el extremo equivocado y los dias mas antiguos se perdian en
+silencio. Ahora cubren todo el rango pedido, sin huecos, con tope de 30 ventanas
+y `search_truncated` avisando.
+
+### Pruebas
+
+19 de Python y 12 de frontend nuevas, entre ellas:
+
+- el instante del vuelo elegido llega a la peticion, y **no** es el del vuelo
+  mas reciente,
+- una trayectoria de otro vuelo se marca como desajuste, y una vacia no,
+- las ventanas cubren el rango pedido sin huecos ni desbordes,
+- una busqueda truncada lo dice,
+- y una que monta el panel y hace clic en la fila, porque la decision de que
+  instante se manda vive en la plantilla y una prueba del store no la alcanza.
+
+Cada una verificada revirtiendo el arreglo. Al reponer el fallo real —la fila
+eligiendo `null` en vez del instante— el test del panel falla, que es lo unico
+que lo hacia util.
+
+**Totales: 376 + 7 Python, 228 frontend, 675 de paridad.**

@@ -98,7 +98,19 @@ AIRCRAFT_CATEGORIES = {
 
 #: OpenSky hard limits on request windows.
 MAX_FLIGHTS_ALL_WINDOW_S = 2 * 3600        # 2 hours
-MAX_FLIGHTS_AIRCRAFT_WINDOW_S = 2 * 86400  # 2 days
+#: Widest window `/flights/aircraft` accepts, measured rather than assumed.
+#:
+#: The comment used to say "2 days" and the value said 48 h, but OpenSky
+#: rejects anything from 47 h upward and answers 25 h without complaint. Probed
+#: against the live API: 1, 6, 12, 23, 24 and 25 h succeed; 47, 48, 49, 50 and
+#: 72 h return 400. The endpoint's real ceiling sits between 25 and 47 h, so a
+#: window of 24 h is used: it works, and it keeps every request inside a single
+#: UTC day for all but a few hours, which keeps the credit estimate low.
+#:
+#: Clamping to 48 h was not conservative, it was out of range: the request went
+#: out and OpenSky rejected it, and a flight list for yesterday could not be
+#: built at all.
+MAX_FLIGHTS_AIRCRAFT_WINDOW_S = 24 * 3600  # 24 h — see the probe above
 MAX_TRACK_AGE_S = 30 * 86400               # tracks beyond 30 days unavailable
 
 #: OpenSky "live" is within this window.

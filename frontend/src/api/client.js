@@ -207,6 +207,21 @@ export const flights = {
   all: (params = {}) => client.get('/flights/all', { params }).then((r) => r.data),
   byAircraft: (icao24, params = {}) =>
     client.get('/flights/aircraft', { params: { icao24, ...params } }).then((r) => r.data),
+
+  /**
+   * The flights an aircraft flew, newest first, for choosing a trajectory.
+   *
+   * A report names a flight that has already landed. Asking for "the track"
+   * with no instant returns whichever flight flew most recently, which is
+   * often a different one and looks entirely plausible — real points, correct
+   * provenance, wrong route. So the list of candidates is fetched first and
+   * the trajectory is requested for the one the operator picks.
+   *
+   * Each day back is a metered request to OpenSky, so the response reports
+   * what it cost.
+   */
+  flightsOf: (icao24, params = {}) =>
+    client.get(`/flights/${icao24}/flights`, { params }).then((r) => r.data),
   arrivals: (airport, params = {}) =>
     client.get('/flights/arrival', { params: { airport, ...params } }).then((r) => r.data),
   departures: (airport, params = {}) =>

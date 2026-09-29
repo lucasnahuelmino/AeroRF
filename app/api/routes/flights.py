@@ -45,12 +45,23 @@ from app.models.schemas_gis import FlightSessionCreate
 from app.services import flight_service as fsvc
 from app.services.cache import RateLimitedError
 from app.services.opensky_service import (
+    MAX_FLIGHTS_AIRCRAFT_WINDOW_S,
+    MAX_TRACK_AGE_S,
     OpenSkyError,
     OpenSkyNotConfigured,
+    estimate_track_credits,
     get_opensky_service,
 )
 
 router = APIRouter(prefix="/flights", tags=["Flights"])
+
+#: Most windows one flight-list search will query.
+#:
+#: Each window is a metered request to OpenSky, so an unbounded search would
+#: be able to spend the operator's daily allowance in a single call. Thirty
+#: windows is 30 days, which matches the history OpenSky actually keeps, and is
+#: the point at which the caller is told the search was cut short.
+MAX_FLIGHT_SEARCH_WINDOWS = 30
 
 
 # ─── Error translation ───────────────────────────────────────────────────────
@@ -221,6 +232,170 @@ async def flights_by_aircraft(
         }
     except Exception as exc:
         raise _handle(exc)
+
+
+@router.get("/{icao24}/flights")
+async def flights_of_aircraft(
+    icao24: str,
+    begin: Optional[int] = Query(
+        None, description="Default: the start of the day before, UTC"
+    ),
+    end: Optional[int] = Query(None, description="Default: now"),
+    days: int = Query(
+        2, ge=1, le=30, description="How many days back to search, if no window"
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    The flights an aircraft flew, newest first, for picking a trajectory.
+
+    An interference report names a flight that has already landed, sometimes
+    days earlier. The trajectory is then requested for an instant inside that
+    flight, and the operator has to be able to choose it: an aircraft on a busy
+    sector flies several times a week, and asking for "the track" with no
+    instant returns whichever flight flew most recently, which is often the
+    wrong one and looks entirely plausible.
+
+    So the list of candidate flights is the data, and the trajectory is fetched
+    for whichever one is chosen.
+
+    OpenSky's `/flights/aircraft` accepts a window of up to 24 h, so a wider
+    search is split into consecutive windows. The response says how many
+    windows were queried and what they cost, because each one spends credits
+    and the operator should be able to see what a wide search is worth before
+    running it rather than after.
+    """
+    service = get_opensky_service()
+    if not service.configured:
+        raise _credentials_required()
+
+    code = str(icao24).strip().lower()
+    if not fsvc.valid_icao24(code):
+        raise HTTPException(
+            422, f"Invalid ICAO24 {icao24!r}: expected 6 hex characters."
+        )
+
+    now = int(datetime.now(timezone.utc).timestamp())
+    if begin is None and end is None:
+        # `days` back from now, not a single window. Asking for the last two
+        # days regardless of `days` made a wider search return the same rows
+        # twice over: `windows_queried` said 8, the list said 8 flights, and
+        # every one of them was inside the final two windows.
+        end = now
+        begin = now - days * 86400
+    else:
+        if end is None:
+            end = min(now, (begin or now) + days * 86400)
+        if begin is None:
+            begin = end - days * 86400
+    begin, end = int(begin), int(end)
+    if end <= begin:
+        raise HTTPException(400, "`end` must be greater than `begin`")
+    if begin > now + 300:
+        raise HTTPException(400, "OpenSky does not accept future timestamps.")
+
+    # Cover the whole range with consecutive windows, oldest first so they come
+    # out in order, each at most as wide as the endpoint accepts.
+    #
+    # The loop used to stop at `days`, which for an explicit `begin`/`end` is
+    # the wrong bound: a 4-day range asked for as `days=2` produced two windows
+    # ending at `end` and left the earliest two days unqueried, silently. The
+    # cap on requests is separate, and it is below.
+    window = MAX_FLIGHTS_AIRCRAFT_WINDOW_S
+    spans: list[tuple[int, int]] = []
+    cursor = begin
+    while cursor < end:
+        high = min(end, cursor + window)
+        spans.append((cursor, high))
+        cursor = high
+
+    # A wide search is bounded, because each window is a metered request, and
+    # the bound is reported rather than applied silently.
+    #
+    # When an explicit `begin`/`end` is given, that range is the caller's
+    # decision and the budget does not override it: the `days` parameter
+    # describes a search *back from now*, so applying it to an explicit range
+    # silently dropped the oldest days. The cap still applies, and
+    # `search_truncated` says so.
+    budget = MAX_FLIGHT_SEARCH_WINDOWS
+    truncated = len(spans) > budget
+    if truncated:
+        # Keep the most recent windows: a report is worked from the latest
+        # event, and an operator who needs further back can narrow the range.
+        spans = spans[-budget:]
+    requested_begin = spans[0][0] if spans else begin
+
+    flights: list[dict] = []
+    queried: list[dict] = []
+    try:
+        for low, high in spans:
+            rows = await service.get_flights_by_aircraft(code, low, high)
+            queried.append({"begin": low, "end": high, "count": len(rows)})
+            flights.extend(rows or [])
+    except Exception as exc:
+        raise _handle(exc)
+
+    # The same aircraft flies several times, and two windows can report a flight
+    # that straddles their boundary. One row per flight.
+    seen_first: set = set()
+    unique: list[dict] = []
+    for row in flights:
+        key = (row.get("firstSeen"), row.get("lastSeen"), (row.get("callsign") or "").strip())
+        if key in seen_first:
+            continue
+        seen_first.add(key)
+        unique.append(row)
+    flights = unique
+
+    # Newest first: the report usually concerns a recent flight, and the most
+    # recent is the one an operator reaches for first.
+    flights.sort(key=lambda f: f.get("firstSeen") or 0, reverse=True)
+
+    return {
+        "icao24": code,
+        "count": len(flights),
+        "flights": [_flight_candidate(f) for f in flights],
+        "begin": begin,
+        "end": end,
+        "windows_queried": queried,
+        # What a search this wide would have cost, so it is visible before it
+        # is spent rather than after.
+        "estimated_credits": sum(
+            estimate_track_credits(w["begin"], w["end"]) for w in queried
+        ),
+        "history_limit_days": MAX_TRACK_AGE_S // 86400,
+        # Set when the requested range was wider than the budget allowed, so a
+        # short list is not mistaken for "this aircraft did not fly then".
+        "search_truncated": truncated,
+        "searched_from": requested_begin,
+    }
+
+
+def _flight_candidate(row: dict) -> dict:
+    """
+    One flight, reduced to what the operator needs to recognise it.
+
+    OpenSky returns a wide row of candidates and distances. What identifies a
+    flight in a report is the moment and the route, so those are surfaced and
+    the rest is left in `raw` for anything that needs it.
+    """
+    first = row.get("firstSeen")
+    last = row.get("lastSeen")
+    return {
+        "icao24": (row.get("icao24") or "").lower(),
+        "callsign": (row.get("callsign") or "").strip() or None,
+        "start_time": first,
+        "end_time": last,
+        "duration_s": (last - first) if None not in (first, last) else None,
+        # The instant to request the trajectory for: the first contact, which
+        # is inside the flight.
+        "track_time": first,
+        "departure_airport": (row.get("estDepartureAirport") or "").strip() or None,
+        "arrival_airport": (row.get("estArrivalAirport") or "").strip() or None,
+        "departure_candidates": row.get("departureAirportCandidatesCount"),
+        "arrival_candidates": row.get("arrivalAirportCandidatesCount"),
+        "raw": row,
+    }
 
 
 @router.get("/arrival")
