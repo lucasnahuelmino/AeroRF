@@ -1,0 +1,52 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [33mÔØ»[39m tests/stored-shapes.spec.js [2m ([22m[2m14 tests[22m [2m|[22m [31m2 failed[39m[2m)[22m[33m 493[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/stored-shapes.spec.js[2m > [22mobjects that are not measured shapes still draw as before[2m > [22ma plain point is still a dot[39m
+[31m     ÔåÆ layer.getLayers is not a function[39m
+[31m   [33mÔØ»[31m tests/stored-shapes.spec.js[2m > [22mobjects that are not measured shapes still draw as before[2m > [22ma coverage polygon is still drawn as a real circle[39m
+[31m     ÔåÆ layer.getLayers is not a function[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 2 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/stored-shapes.spec.js[2m > [22mobjects that are not measured shapes still 
+draw as before[2m > [22ma plain point is still a dot
+[31m[1mTypeError[22m: layer.getLayers is not a function[39m
+[36m [2mÔØ»[22m ring tests/stored-shapes.spec.js:[2m85:16[22m[39m
+    [90m 83| [39m */[39m
+    [90m 84| [39m[35mfunction[39m [34mring[39m(layer) {
+    [90m 85| [39m  [35mreturn[39m layer[33m.[39m[34mgetLayers[39m()[33m.[39m[34mfind[39m((l) [33m=>[39m 
+[35mtypeof[39m l[33m.[39mgetRadius [33m===[39m [32m'functio[39mÔÇª
+    [90m   | [39m               [31m^[39m
+    [90m 86| [39m}
+    [90m 87| [39m
+[90m [2mÔØ»[22m tests/stored-shapes.spec.js:[2m183:12[22m[39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/2]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/stored-shapes.spec.js[2m > [22mobjects that are not measured shapes still 
+draw as before[2m > [22ma coverage polygon is still drawn as a real circle
+[31m[1mTypeError[22m: layer.getLayers is not a function[39m
+[36m [2mÔØ»[22m ring tests/stored-shapes.spec.js:[2m85:16[22m[39m
+    [90m 83| [39m */[39m
+    [90m 84| [39m[35mfunction[39m [34mring[39m(layer) {
+    [90m 85| [39m  [35mreturn[39m layer[33m.[39m[34mgetLayers[39m()[33m.[39m[34mfind[39m((l) [33m=>[39m 
+[35mtypeof[39m l[33m.[39mgetRadius [33m===[39m [32m'functio[39mÔÇª
+    [90m   | [39m               [31m^[39m
+    [90m 86| [39m}
+    [90m 87| [39m
+[90m [2mÔØ»[22m tests/stored-shapes.spec.js:[2m200:12[22m[39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/2]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 15:24:07
+[2m   Duration [22m 3.31s[2m (transform 468ms, setup 67ms, collect 484ms, tests 493ms, environment 1.08s, prepare 650ms)[22m
+

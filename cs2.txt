@@ -1,0 +1,165 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [33mÔØ»[39m tests/centre-snap.spec.js [2m ([22m[2m12 tests[22m [2m|[22m [31m7 failed[39m[2m)[22m[33m 1248[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22ma click on an object reaches the armed tool[2m > [22mthe tool receives a click that landed on a circle[39m
+[31m     ÔåÆ no se sabe sobre que objeto se hizo clic: expected 6 to be '6' // Object.is equality[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22ma click on an object reaches the armed tool[2m > [22mthe position is the one the operator pointed at[39m
+[31m     ÔåÆ Cannot read properties of undefined (reading 'latlng')[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a measured shape[2m > [22ma radial placed near the centre is stored at the centre[39m
+[31m     ÔåÆ expected [] to have a length of 1 but got +0[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a measured shape[2m > [22ma point placed near the centre is stored at the centre[39m
+[31m     ÔåÆ expected -58.397817345437936 to be close to -58.4, received difference is 0.0021826545620626803, but expected 5e-7[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a measured shape[2m > [22mthe centre of a radial is a snap target too[39m
+[31m     ÔåÆ expected -58.39836300907845 to be close to -58.4, received difference is 0.0016369909215470102, but expected 5e-7[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a measured shape[2m > [22ma circle placed near another circle centres on the first[39m
+[31m     ÔåÆ Cannot read properties of undefined (reading 'latitude')[39m
+[31m   [33mÔØ»[31m tests/centre-snap.spec.js[2m > [22mthe centre is visible on the map[2m > [22ma circle shows a dot at its centre[39m
+[31m     ÔåÆ el circulo no muestra su centro: expected 2 to be 1 // Object.is equality[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 7 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22ma click on an object reaches the armed 
+tool[2m > [22mthe tool receives a click that landed on a circle
+[31m[1mAssertionError[22m: no se sabe sobre que objeto se hizo clic: expected 6 to be '6' // Object.is equality[39m
+
+[32m- Expected:[39m 
+"6"
+
+[31m+ Received:[39m 
+6
+
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m93:76[22m[39m
+    [90m 91| [39m
+    [90m 92| [39m    [34mexpect[39m(seen[33m.[39mlength[33m,[39m [32m'el clic sobre el objeto no llego a la 
+herrami[39mÔÇª
+    [90m 93| [39m    [34mexpect[39m(seen[[34m0[39m][33m.[39moverObject[33m,[39m [32m'no se sabe sobre que 
+objeto se hizo cl[39mÔÇª
+    [90m   | [39m                                                                           [31m^[39m
+    [90m 94| [39m  })
+    [90m 95| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/7]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22ma click on an object reaches the armed 
+tool[2m > [22mthe position is the one the operator pointed at
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'latlng')[39m
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m105:20[22m[39m
+    [90m103| [39m    circle[33m.[39m[34mfire[39m([32m'click'[39m[33m,[39m { latlng[33m:[39m 
+[33mL[39m[33m.[39m[34mlatLng[39m(target) })
+    [90m104| [39m
+    [90m105| [39m    [34mexpect[39m(seen[[34m0[39m][33m.[39mlatlng[33m.[39mlat)[33m.[39m[34mtoBeCloseTo[3
+9m(target[33m.[39mlat[33m,[39m [34m5[39m)
+    [90m   | [39m                   [31m^[39m
+    [90m106| [39m    [34mexpect[39m(seen[[34m0[39m][33m.[39mlatlng[33m.[39mlng)[33m.[39m[34mtoBeCloseTo[3
+9m(target[33m.[39mlng[33m,[39m [34m5[39m)
+    [90m107| [39m  })
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/7]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a 
+measured shape[2m > [22ma radial placed near the centre is stored at the centre
+[31m[1mAssertionError[22m: expected [] to have a length of 1 but got +0[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m135:18[22m[39m
+    [90m133| [39m    engine[33m.[39mmap[33m.[39m[34mfire[39m([32m'click'[39m[33m,[39m { latlng[33m:[39m 
+[34meastOf[39m([33mCENTRE[39m[33m,[39m [34m300[39m) })
+    [90m134| [39m
+    [90m135| [39m    [34mexpect[39m(done)[33m.[39m[34mtoHaveLength[39m([34m1[39m)
+    [90m   | [39m                 [31m^[39m
+    [90m136| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mtype)[33m.[39m[34mtoBe[39m([32m'radial'[39m)
+    [90m137| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlatitude[33m,[39m [32m'el radial no quedo en el 
+centro del circ[39mÔÇª
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[3/7]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a 
+measured shape[2m > [22ma point placed near the centre is stored at the centre
+[31m[1mAssertionError[22m: expected -58.397817345437936 to be close to -58.4, received difference is 
+0.0021826545620626803, but expected 5e-7[39m
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m152:31[22m[39m
+    [90m150| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mtype)[33m.[39m[34mtoBe[39m([32m'point'[39m)
+    [90m151| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlatitude)[33m.[39m[34mtoBeCloseTo[39m([33mCENT
+RE[39m[[34m0[39m][33m,[39m [34m6[39m)
+    [90m152| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlongitude)[33m.[39m[34mtoBeCloseTo[39m([33mCEN
+TRE[39m[[34m1[39m][33m,[39m [34m6[39m)
+    [90m   | [39m                              [31m^[39m
+    [90m153| [39m  })
+    [90m154| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[4/7]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a 
+measured shape[2m > [22mthe centre of a radial is a snap target too
+[31m[1mAssertionError[22m: expected -58.39836300907845 to be close to -58.4, received difference is 
+0.0016369909215470102, but expected 5e-7[39m
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m186:31[22m[39m
+    [90m184| [39m
+    [90m185| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlatitude)[33m.[39m[34mtoBeCloseTo[39m([33mCENT
+RE[39m[[34m0[39m][33m,[39m [34m6[39m)
+    [90m186| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlongitude)[33m.[39m[34mtoBeCloseTo[39m([33mCEN
+TRE[39m[[34m1[39m][33m,[39m [34m6[39m)
+    [90m   | [39m                              [31m^[39m
+    [90m187| [39m  })
+    [90m188| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[5/7]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22ma placement snaps onto the centre of a 
+measured shape[2m > [22ma circle placed near another circle centres on the first
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'latitude')[39m
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m197:20[22m[39m
+    [90m195| [39m    engine[33m.[39mmap[33m.[39m[34mfire[39m([32m'click'[39m[33m,[39m { latlng[33m:[39m 
+[34meastOf[39m([33mCENTRE[39m[33m,[39m [34m250[39m) })
+    [90m196| [39m
+    [90m197| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlatitude)[33m.[39m[34mtoBeCloseTo[39m([33mCENT
+RE[39m[[34m0[39m][33m,[39m [34m6[39m)
+    [90m   | [39m                   [31m^[39m
+    [90m198| [39m    [34mexpect[39m(done[[34m0[39m][33m.[39mlongitude)[33m.[39m[34mtoBeCloseTo[39m([33mCEN
+TRE[39m[[34m1[39m][33m,[39m [34m6[39m)
+    [90m199| [39m  })
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[6/7]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/centre-snap.spec.js[2m > [22mthe centre is visible on the map[2m > [22ma 
+circle shows a dot at its centre
+[31m[1mAssertionError[22m: el circulo no muestra su centro: expected 2 to be 1 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 2[39m
+
+[36m [2mÔØ»[22m tests/centre-snap.spec.js:[2m219:60[22m[39m
+    [90m217| [39m    [90m// it reaches the circle rather than being swallowed by a small ta[39mÔÇª
+    [90m218| [39m    [35mconst[39m dots [33m=[39m 
+layer[33m.[39m[34mgetLayers[39m()[33m.[39m[34mfilter[39m((l) [33m=>[39m l [35minstanceof[39m 
+[33mL[39m[33m.[39m[33mCircle[39mÔÇª
+    [90m219| [39m    [34mexpect[39m(dots[33m.[39mlength[33m,[39m [32m'el circulo no muestra su 
+centro'[39m)[33m.[39m[34mtoBe[39m([34m1[39m)
+    [90m   | [39m                                                           [31m^[39m
+    [90m220| [39m    [34mexpect[39m(dots[[34m0[39m][33m.[39m[34mgetLatLng[39m()[33m.[39mlat)[33m.[39m[34
+mtoBeCloseTo[39m([33mCENTRE[39m[[34m0[39m][33m,[39m [34m6[39m)
+    [90m221| [39m    [34mexpect[39m(dots[[34m0[39m][33m.[39moptions[33m.[39minteractive[33m,[39m [32m'el 
+punto central no debe capt[39mÔÇª
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[7/7]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m7 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 15:13:40
+[2m   Duration [22m 6.56s[2m (transform 847ms, setup 119ms, collect 871ms, tests 1.25s, environment 2.13s, prepare 1.26s)[22m
+

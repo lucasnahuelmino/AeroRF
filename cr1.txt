@@ -1,0 +1,57 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [31m├ù[39m tests/crs.spec.js[2m > [22mthe projection interface[2m > [22mwhat groundResolution returns is recorded, not assumed[33m 366[2mms[22m[39m
+[31m   ÔåÆ crs.groundResolution is not a function[39m
+ [31m├ù[39m tests/crs.spec.js[2m > [22mthe projection interface[2m > [22mscale is constant across zooms, which is why it is not the answer
+[31m   ÔåÆ expected 1048576 to deeply equal NaN[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 2 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/crs.spec.js[2m > [22mthe projection interface[2m > [22mwhat 
+groundResolution returns is recorded, not assumed
+[31m[1mTypeError[22m: crs.groundResolution is not a function[39m
+[36m [2mÔØ»[22m tests/crs.spec.js:[2m33:21[22m[39m
+    [90m 31| [39m  [34mit[39m([32m'what groundResolution returns is recorded, not assumed'[39m[33m,[39m () 
+[33m=>[39m {
+    [90m 32| [39m    [35mconst[39m crs [33m=[39m engine[33m.[39mmap[33m.[39moptions[33m.[39mcrs
+    [90m 33| [39m    [35mconst[39m out [33m=[39m 
+crs[33m.[39m[34mgroundResolution[39m(engine[33m.[39mmap[33m.[39m[34mgetZoom[39m()[33m,[39m 
+engine[33m.[39mmap[33m.[39mÔÇª
+    [90m   | [39m                    [31m^[39m
+    [90m 34| [39m    [90m// Printed through an assertion so the shape is visible in the rep[39mÔÇª
+    [90m 35| [39m    [90m// Leaflet is upgraded and this changes again.[39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/2]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/crs.spec.js[2m > [22mthe projection interface[2m > [22mscale is constant 
+across zooms, which is why it is not the answer
+[31m[1mAssertionError[22m: expected 1048576 to deeply equal NaN[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- NaN[39m
+[31m+ 1048576[39m
+
+[36m [2mÔØ»[22m tests/crs.spec.js:[2m46:15[22m[39m
+    [90m 44| [39m    [90m// Leaflet's Projection.Scale.scale() ignores its argument entirel[39mÔÇª
+    [90m 45| [39m    [90m// is the assertion that documents why the first attempt failed.[39m
+    [90m 46| [39m    [34mexpect[39m(b)[33m.[39m[34mtoEqual[39m(a)
+    [90m   | [39m              [31m^[39m
+    [90m 47| [39m  })
+    [90m 48| [39m})
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/2]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m   Start at [22m 15:17:22
+[2m   Duration [22m 6.12s[2m (transform 871ms, setup 109ms, collect 926ms, tests 491ms, environment 2.13s, prepare 1.52s)[22m
+

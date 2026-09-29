@@ -1603,3 +1603,108 @@ Cada arreglo verificado revirtiendolo: quitar el preview de `activate` deja 3
 tests en rojo, y quitar el redibujado de `setOptions` deja 5.
 
 **Totales: 376 + 7 Python, 244 frontend, 675 de paridad.**
+
+## [0.27.0] - 2026-09-29 - El punto central, y colocar un objeto en el centro de otro
+
+### El circulo guardado era un punto
+
+Al confirmar un circulo se veia completo, y al seleccionarlo de la lista
+aparecia **solo el punto central**, con los valores correctos en el panel. Un
+radial guardado era lo mismo: la linea no existia.
+
+La causa, en la base y no en la teoria. Circulo y radial se guardan como un
+centro mas una medida, y su `geometry_type` es `Point`, porque eso es el centro.
+El dibujo despachaba solo sobre `geometry_type`, asi que **todo** circulo y
+radial guardado caia en la rama del punto. Los valores estaban bien y por eso
+el panel los mostraba; la figura nunca se dibujo.
+
+Ahora el tipo se consulta antes que la geometria. El circulo se dibuja con
+`L.circle` a partir de `radius_m`, y el radial como polilinea desde el centro
+con el azimut y la longitud guardados. Se prefiere `radius_m`; si no esta, se
+convierte desde `radius` **usando su unidad**, porque 5 NM y 5 km no son el
+mismo circulo y usar el numero sin unidad seria dibujar uno de los dos veinte
+veces mas chico.
+
+El azimut se normaliza al leer: un valor redondeado puede quedar en 360.0 o en
+un negativo pequeno del cruce de 0, y un rumbo fuera de rango produce una linea
+en una direccion que el operador no pidio.
+
+### El centro visible
+
+Un anillo no dice de donde sale, y una linea tampoco. Sin una marca en el
+origen no se puede leer el rumbo de un radial, ni colocar otra cosa en el
+centro de un circulo, que es lo mas probable que se quiera hacer despues.
+
+Circulo y radial llevan ahora un punto pequeno en su centro u origen. No
+captura clics: el punto no debe Difficulty el centro, debe volverlo alcanzable.
+
+### El clic sobre un objeto no llegaba a la herramienta
+
+Este era el que reportaste: hiciste un circulo de 10 NM, agarraste el radial,
+quisiste poner el origen en el medio, y selecciono el circulo.
+
+El handler de clic de cada objeto llama `stopPropagation`, que frena el evento
+**antes** de que llegue al mapa. La herramienta no lo veia nunca. Con la
+herramienta visible y armada, no habia ninguna pista de por que no pasaba nada.
+
+Ahora, con una herramienta de dibujo armada, la posicion se reenvia
+explicitamente. `stopPropagation` se mantiene para la herramienta de
+seleccionar, donde seleccionar el objeto bajo el puntero es justamente lo que
+se quiere, y el handler del mapa limpiaria la seleccion.
+
+### El enganche al centro
+
+Una mano no es una coordenada. El radial quedaria guardado a unos metros del
+centro del circulo, una distancia invisible en pantalla y equivocada en los
+datos, y los dos objetos no coincidirian en nada que se pueda ver.
+
+Un clic a menos de **10 pixeles** del centro de una figura medida se pega a ese
+centro. En pixeles, no en metros, y convertidos a la latitud actual: una
+tolerancia fija en metros seria inalcanzable alejada y inevitable acercarse. En
+Argentina, que va de 22 a 55 de latitud sur, la escala Mercator varia lo
+suficiente como para que la diferencia se note.
+
+El radio de 10 pixeles es amplio para ser deliberado y chico para pelearse con
+el operador: un punto en terreno abierto, lejos de cualquier figura, no se
+mueve.
+
+### Dos medidas por pixel, y por que
+
+La tolerancia se convierte usando `metresPerPixel` del motor, y eso salio mal
+**dos veces** antes de estar bien:
+
+1. Proyectar el centro en dos zooms y medir el hueco daba 9,5 m por pixel
+   donde corresponden ~62. La tolerancia quedaba diez veces mas ajustada de lo
+   debido, y el enganche no disparaba nunca: la funcion estaba inerte sin decir
+   nada.
+2. `crs.groundResolution` **no existe** en esta version de Leaflet, y
+   `crs.scale` no acepta zoom y devuelve un valor constante.
+
+La tercera, medir una pantalla de alto sobre la proyeccion del propio mapa y
+dividir, acierta. Y hay tests que lo fijan por propiedades — se reduce a la
+mitad al acercar, es menor en el ecuador, y coincide con la formula cerrada de
+EPSG:3857 dentro del 1 %—, mas uno que documenta que las dos APIs que no
+funcionan no existen, para que una actualizacion de Leaflet se note aca y no
+como un cambio silencioso.
+
+### De paso: un bloque duplicado
+
+El manejador de clic del shell tenia dos copias identicas de la medicion de
+aeropuerto, una dead desde antes de la otra. La segunda no se ejecutaba nunca.
+
+### Pruebas
+
+33 nuevas: 12 de enganche y centro, 4 de la conversion de pixeles, 3 de la
+interfaz de proyeccion, y 14 actualizadas para el grupo de capas.
+
+Los 14 de formas guardadas necesitaba ajuste: el circulo y el radial ahora son
+grupos — la figura y su punto central — y las aserciones apuntaban a la capa
+directa. Se reescribieron para leer a traves del grupo, que es lo que describe
+el objeto en el mapa y no una de sus partes. El helper distingue el anillo del
+punto por el radio en metros, porque `L.circle` **tambien** es un
+`CircleMarker` en Leaflet.
+
+Verificadas revirtiendo el arreglo: quitar el reenvio del clic deja 2 tests en
+rojo, y volver a dibujar por `geometry_type` deja 8.
+
+**Totales: 376 + 7 Python, 277 frontend, 675 de paridad.**

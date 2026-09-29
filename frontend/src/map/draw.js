@@ -25,6 +25,7 @@ import {
   haversine,
   radialPoints,
   round,
+  snapToleranceM,
   toMetres,
 } from './geo'
 
@@ -35,6 +36,19 @@ function compassPoint(azimuth) {
   const index = Math.floor(((((azimuth % 360) + 360) % 360) + 11.25) % 360 / 22.5) % 16
   return NAMES[index]
 }
+
+/**
+ * How close, in screen pixels, a click must be to a shape's centre to snap
+ * onto it.
+ *
+ * Ten pixels is enough to be deliberate and small enough not to fight the
+ * operator. Large enough to be reachable on a trackpad, small enough that
+ * placing a point in open ground well away from any shape is unaffected.
+ */
+const SNAP_PIXELS = 10
+
+/** Used only before the map exists; a mid-zoom Web Mercator pixel. */
+const SNAP_METRES_PER_PIXEL_FALLBACK = 100
 
 export const TOOLS = {
   SELECT: 'select',
@@ -322,8 +336,13 @@ export class ToolManager {
 
   // ─── Click handling ───────────────────────────────────────────────────────
 
-  _onClick({ latlng }) {
-    const point = [latlng.lat, latlng.lng]
+  _onClick({ latlng, overObject = null } = {}) {
+    if (!latlng) return undefined
+    const raw = [latlng.lat, latlng.lng]
+    // The centres of the measured shapes on the map, read before the snap: a
+    // click that lands on one of them is asking to use its centre.
+    this._objectCentres = this._collectCentres()
+    const point = this._snapToCentre(raw)
     switch (this.active) {
       case TOOLS.POINT:
         return this._emitComplete({ type: 'point', latitude: point[0], longitude: point[1] })
@@ -517,6 +536,63 @@ export class ToolManager {
       className: 'aerorf-draft-label',
     })
     this.engine.setDraft('edge', L.layerGroup([line]))
+  }
+
+  /**
+   * Centres of the measured shapes on the map, keyed by object id.
+   *
+   * Read from the engine's own layers, which already know where every centre
+   * is, rather than from a second copy of the data. A duplicate list would be
+   * one more thing to keep in step.
+   */
+  _collectCentres() {
+    const out = new Map()
+    this.engine.featureLayers?.forEach?.((layer, id) => {
+      const centre = layer?.centreLatLng
+      if (centre) out.set(String(id), centre)
+    })
+    return out
+  }
+
+  /**
+   * Pull a click onto the centre of a measured shape.
+   *
+   * Putting a radial at the centre of a circle expresses a relationship
+   * between the two objects, and a few pixels of hand tremor is not part of
+   * that relationship. The stored radial would be centred on the operator's
+   * hand rather than on the object it is measured from, and the two would
+   * disagree by an amount nobody can see.
+   *
+   * The tolerance is in screen pixels, converted to metres at the current
+   * latitude. A fixed number of metres would be out of reach when zoomed out
+   * and unavoidable when zoomed in.
+   */
+  _snapToCentre(point) {
+    if (!this._objectCentres?.size) return point
+    const toleranceM = this._snapTolerance()
+    if (!Number.isFinite(toleranceM) || toleranceM <= 0) return point
+
+    let best = null
+    let bestD = toleranceM
+    this._objectCentres.forEach((centre) => {
+      const d = haversine(point[0], point[1], centre[0], centre[1])
+      if (d <= bestD) {
+        bestD = d
+        best = centre
+      }
+    })
+    if (best) this._snappedTo = best
+    else this._snappedTo = null
+    return best || point
+  }
+
+  /** The snap tolerance in metres, from the engine's own projection. */
+  _snapTolerance() {
+    const mpp = this.engine.metresPerPixel?.()
+    if (Number.isFinite(mpp) && mpp > 0) return mpp * SNAP_PIXELS
+    // No engine yet: fall back to the formula, at the equator, which is the
+    // conservative case since the tolerance is smallest there.
+    return snapToleranceM(0, SNAP_METRES_PER_PIXEL_FALLBACK)
   }
 
   /** Confirm the current circle. */

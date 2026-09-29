@@ -1,0 +1,26 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [32mÔ£ô[39m tests/brandbar.spec.js [2m ([22m[2m16 tests[22m[2m)[22m[33m 3222[2mms[22m[39m
+ [32mÔ£ô[39m tests/drawing-flow.spec.js [2m ([22m[2m22 tests[22m[2m)[22m[33m 4100[2mms[22m[39m
+ [32mÔ£ô[39m tests/components.spec.js [2m ([22m[2m44 tests[22m[2m)[22m[33m 5807[2mms[22m[39m
+ [32mÔ£ô[39m tests/airports.spec.js [2m ([22m[2m31 tests[22m[2m)[22m[33m 2399[2mms[22m[39m
+ [32mÔ£ô[39m tests/active-tool.spec.js [2m ([22m[2m9 tests[22m[2m)[22m[33m 5657[2mms[22m[39m
+ [32mÔ£ô[39m tests/flight-picker.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[33m 1737[2mms[22m[39m
+ [32mÔ£ô[39m tests/layout.spec.js [2m ([22m[2m15 tests[22m[2m)[22m[90m 69[2mms[22m[39m
+ [32mÔ£ô[39m tests/geo.spec.js [2m ([22m[2m36 tests[22m[2m)[22m[90m 102[2mms[22m[39m
+ [32mÔ£ô[39m tests/shape-preview.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[33m 2309[2mms[22m[39m
+ [32mÔ£ô[39m tests/flight-history.spec.js [2m ([22m[2m8 tests[22m[2m)[22m[33m 1017[2mms[22m[39m
+ [32mÔ£ô[39m tests/stored-shapes.spec.js [2m ([22m[2m14 tests[22m[2m)[22m[33m 2054[2mms[22m[39m
+ [32mÔ£ô[39m tests/objects.spec.js [2m ([22m[2m11 tests[22m[2m)[22m[90m 200[2mms[22m[39m
+ [32mÔ£ô[39m tests/trajectory.spec.js [2m ([22m[2m7 tests[22m[2m)[22m[33m 845[2mms[22m[39m
+ [32mÔ£ô[39m tests/toolbar.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[90m 70[2mms[22m[39m
+ [32mÔ£ô[39m tests/theme.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[90m 99[2mms[22m[39m
+ [32mÔ£ô[39m tests/chart-loading.spec.js [2m ([22m[2m9 tests[22m[2m)[22m[90m 68[2mms[22m[39m
+ [32mÔ£ô[39m tests/preview-styles.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m17 passed[39m[22m[90m (17)[39m
+[2m      Tests [22m [1m[32m258 passed[39m[22m[90m (258)[39m
+[2m   Start at [22m 15:04:34
+[2m   Duration [22m 53.10s[2m (transform 5.63s, setup 2.38s, collect 14.44s, tests 29.77s, environment 69.12s, prepare 19.35s)[22m
+

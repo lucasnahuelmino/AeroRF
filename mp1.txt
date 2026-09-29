@@ -1,0 +1,67 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [33mÔØ»[39m tests/mpp.spec.js [2m ([22m[2m4 tests[22m [2m|[22m [31m3 failed[39m[2m)[22m[33m 621[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22mhalves when the zoom doubles[39m
+[31m     ÔåÆ expected 9.546918089533309 to be close to 9.583292320778583, received difference is 0.03637423124527395, but expected 0.0005[39m
+[31m   [33mÔØ»[31m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22mis smaller near the equator than at high latitude[39m
+[31m     ÔåÆ expected 8.93847640373368 to be greater than 36.280908649428405[39m
+[31m   [33mÔØ»[31m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22magrees with the distance between two pixels[39m
+[31m     ÔåÆ expected 31.423930591228842 to be close to 4.764168379386715, received difference is 26.65976221184213, but expected 0.0005[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 3 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22mhalves when the zoom doubles
+[31m[1mAssertionError[22m: expected 9.546918089533309 to be close to 9.583292320778583, received difference is 
+0.03637423124527395, but expected 0.0005[39m
+[36m [2mÔØ»[22m tests/mpp.spec.js:[2m44:18[22m[39m
+    [90m 42| [39m    [35mconst[39m near [33m=[39m engine[33m.[39m[34mmetresPerPixel[39m()
+    [90m 43| [39m
+    [90m 44| [39m    [34mexpect[39m(near)[33m.[39m[34mtoBeCloseTo[39m(wide [33m/[39m [34m2[39m[33m,[39m 
+[34m3[39m)
+    [90m   | [39m                 [31m^[39m
+    [90m 45| [39m  })
+    [90m 46| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/3]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22mis smaller near the equator 
+than at high latitude
+[31m[1mAssertionError[22m: expected 8.93847640373368 to be greater than 36.280908649428405[39m
+[36m [2mÔØ»[22m tests/mpp.spec.js:[2m56:19[22m[39m
+    [90m 54| [39m    [35mconst[39m south [33m=[39m engine[33m.[39m[34mmetresPerPixel[39m()
+    [90m 55| [39m
+    [90m 56| [39m    [34mexpect[39m(south)[33m.[39m[34mtoBeGreaterThan[39m(equator)
+    [90m   | [39m                  [31m^[39m
+    [90m 57| [39m  })
+    [90m 58| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/3]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22magrees with the distance 
+between two pixels
+[31m[1mAssertionError[22m: expected 31.423930591228842 to be close to 4.764168379386715, received difference is 
+26.65976221184213, but expected 0.0005[39m
+[36m [2mÔØ»[22m tests/mpp.spec.js:[2m80:29[22m[39m
+    [90m 78| [39m    [35mconst[39m ground [33m=[39m [34m2[39m [33m*[39m [33mR[39m [33m*[39m 
+[33mMath[39m[33m.[39m[34masin[39m([33mMath[39m[33m.[39m[34msqrt[39m(a))
+    [90m 79| [39m
+    [90m 80| [39m    [34mexpect[39m(ground [33m/[39m 
+size[33m.[39my)[33m.[39m[34mtoBeCloseTo[39m(mpp[33m,[39m [34m3[39m)
+    [90m   | [39m                            [31m^[39m
+    [90m 81| [39m  })
+    [90m 82| [39m})
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[3/3]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 15:15:46
+[2m   Duration [22m 6.28s[2m (transform 1.07s, setup 116ms, collect 1.18s, tests 621ms, environment 2.13s, prepare 1.28s)[22m
+

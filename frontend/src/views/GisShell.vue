@@ -519,14 +519,6 @@ function bindEngineEvents() {
     engine.on('click', ({ latlng }) => {
       mapStore.captureClick(latlng)
 
-      // A pending airport measurement takes priority over any active tool:
-      // the operator asked for a distance, not for a shape.
-      if (airportMeasureArmed.value) {
-        airportMeasureResult.value = measureFromAirport(airportMeasureCode.value, latlng)
-        clearAirportMeasure()
-        return
-      }
-
       // ── One owner per click ────────────────────────────────────────────
       // The ToolManager subscribes to the map's click event itself, so it
       // already handles the tools. The shell used to handle them too, and

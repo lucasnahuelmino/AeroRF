@@ -1,0 +1,52 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [33mÔØ»[39m tests/mpp.spec.js [2m ([22m[2m4 tests[22m [2m|[22m [31m2 failed[39m[2m)[22m[33m 760[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22mhalves when the zoom doubles[39m
+[31m     ÔåÆ expected 636939.4185965464 to be close to 159242.13472174297, received difference is 477697.28387480346, but expected 0.0005[39m
+[31m   [33mÔØ»[31m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22magrees with the distance between two pixels[39m
+[31m     ÔåÆ expected 31.423930591228842 to be close to 1273878.8371930928, received difference is 1273847.4132625016, but expected 0.0005[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 2 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22mhalves when the zoom doubles
+[31m[1mAssertionError[22m: expected 636939.4185965464 to be close to 159242.13472174297, received difference is 
+477697.28387480346, but expected 0.0005[39m
+[36m [2mÔØ»[22m tests/mpp.spec.js:[2m44:18[22m[39m
+    [90m 42| [39m    [35mconst[39m near [33m=[39m engine[33m.[39m[34mmetresPerPixel[39m()
+    [90m 43| [39m
+    [90m 44| [39m    [34mexpect[39m(near)[33m.[39m[34mtoBeCloseTo[39m(wide [33m/[39m [34m2[39m[33m,[39m 
+[34m3[39m)
+    [90m   | [39m                 [31m^[39m
+    [90m 45| [39m  })
+    [90m 46| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/2]ÔÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22magrees with the distance 
+between two pixels
+[31m[1mAssertionError[22m: expected 31.423930591228842 to be close to 1273878.8371930928, received difference is 
+1273847.4132625016, but expected 0.0005[39m
+[36m [2mÔØ»[22m tests/mpp.spec.js:[2m80:29[22m[39m
+    [90m 78| [39m    [35mconst[39m ground [33m=[39m [34m2[39m [33m*[39m [33mR[39m [33m*[39m 
+[33mMath[39m[33m.[39m[34masin[39m([33mMath[39m[33m.[39m[34msqrt[39m(a))
+    [90m 79| [39m
+    [90m 80| [39m    [34mexpect[39m(ground [33m/[39m 
+size[33m.[39my)[33m.[39m[34mtoBeCloseTo[39m(mpp[33m,[39m [34m3[39m)
+    [90m   | [39m                            [31m^[39m
+    [90m 81| [39m  })
+    [90m 82| [39m})
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/2]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 15:16:15
+[2m   Duration [22m 6.54s[2m (transform 973ms, setup 133ms, collect 1.03s, tests 760ms, environment 2.26s, prepare 1.32s)[22m
+

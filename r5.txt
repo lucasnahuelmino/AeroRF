@@ -1,0 +1,29 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [32mÔ£ô[39m tests/brandbar.spec.js [2m ([22m[2m16 tests[22m[2m)[22m[33m 2120[2mms[22m[39m
+ [32mÔ£ô[39m tests/drawing-flow.spec.js [2m ([22m[2m22 tests[22m[2m)[22m[33m 2699[2mms[22m[39m
+ [32mÔ£ô[39m tests/components.spec.js [2m ([22m[2m44 tests[22m[2m)[22m[33m 3701[2mms[22m[39m
+ [32mÔ£ô[39m tests/airports.spec.js [2m ([22m[2m31 tests[22m[2m)[22m[33m 1416[2mms[22m[39m
+ [32mÔ£ô[39m tests/active-tool.spec.js [2m ([22m[2m9 tests[22m[2m)[22m[33m 3106[2mms[22m[39m
+ [32mÔ£ô[39m tests/centre-snap.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[33m 1359[2mms[22m[39m
+ [32mÔ£ô[39m tests/stored-shapes.spec.js [2m ([22m[2m14 tests[22m[2m)[22m[33m 1197[2mms[22m[39m
+ [32mÔ£ô[39m tests/layout.spec.js [2m ([22m[2m15 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32mÔ£ô[39m tests/flight-picker.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[33m 853[2mms[22m[39m
+ [32mÔ£ô[39m tests/shape-preview.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[33m 1180[2mms[22m[39m
+ [32mÔ£ô[39m tests/geo.spec.js [2m ([22m[2m36 tests[22m[2m)[22m[90m 61[2mms[22m[39m
+ [32mÔ£ô[39m tests/flight-history.spec.js [2m ([22m[2m8 tests[22m[2m)[22m[33m 546[2mms[22m[39m
+ [32mÔ£ô[39m tests/objects.spec.js [2m ([22m[2m11 tests[22m[2m)[22m[90m 88[2mms[22m[39m
+ [32mÔ£ô[39m tests/trajectory.spec.js [2m ([22m[2m7 tests[22m[2m)[22m[33m 455[2mms[22m[39m
+ [32mÔ£ô[39m tests/toolbar.spec.js [2m ([22m[2m12 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32mÔ£ô[39m tests/theme.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32mÔ£ô[39m tests/chart-loading.spec.js [2m ([22m[2m9 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32mÔ£ô[39m tests/mpp.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[33m 656[2mms[22m[39m
+ [32mÔ£ô[39m tests/preview-styles.spec.js [2m ([22m[2m4 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32mÔ£ô[39m tests/crs.spec.js [2m ([22m[2m3 tests[22m[2m)[22m[33m 446[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m20 passed[39m[22m[90m (20)[39m
+[2m      Tests [22m [1m[32m277 passed[39m[22m[90m (277)[39m
+[2m   Start at [22m 15:24:46
+[2m   Duration [22m 33.28s[2m (transform 3.22s, setup 1.48s, collect 8.36s, tests 20.06s, environment 46.74s, prepare 11.35s)[22m
+

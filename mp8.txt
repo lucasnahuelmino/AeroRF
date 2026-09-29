@@ -1,0 +1,37 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.0[39m [90mC:/Users/lucas/OneDrive/Escritorio/VSCODE/AeroRF/frontend[39m
+
+ [32mÔ£ô[39m tests/crs.spec.js [2m ([22m[2m3 tests[22m[2m)[22m[33m 668[2mms[22m[39m
+ [33mÔØ»[39m tests/mpp.spec.js [2m ([22m[2m4 tests[22m [2m|[22m [31m1 failed[39m[2m)[22m[33m 860[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22magrees with the distance between two pixels[39m
+[31m     ÔåÆ expected 31.423930591228842 to be close to 31.363674013253384, received difference is 0.06025657797545847, but expected 0.0005[39m
+
+node.exe : [31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m Failed Tests 1 [27m[22mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([31mÔÄ»ÔÄ»ÔÄ»Ô...»ÔÄ»ÔÄ»ÔÄ»[39m:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m tests/mpp.spec.js[2m > [22mmetresPerPixel[2m > [22magrees with the distance 
+between two pixels
+[31m[1mAssertionError[22m: expected 31.423930591228842 to be close to 31.363674013253384, received difference is 
+0.06025657797545847, but expected 0.0005[39m
+[36m [2mÔØ»[22m tests/mpp.spec.js:[2m93:29[22m[39m
+    [90m 91| [39m    [35mconst[39m ground [33m=[39m [34m2[39m [33m*[39m [33mR[39m [33m*[39m 
+[33mMath[39m[33m.[39m[34masin[39m([33mMath[39m[33m.[39m[34msqrt[39m(a))
+    [90m 92| [39m
+    [90m 93| [39m    [34mexpect[39m(ground [33m/[39m 
+size[33m.[39my)[33m.[39m[34mtoBeCloseTo[39m(mpp[33m,[39m [34m3[39m)
+    [90m   | [39m                            [31m^[39m
+    [90m 94| [39m  })
+    [90m 95| [39m})
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/1]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (7)[39m
+[2m   Start at [22m 15:20:36
+[2m   Duration [22m 7.13s[2m (transform 858ms, setup 257ms, collect 1.79s, tests 1.53s, environment 5.76s, prepare 2.64s)[22m
+

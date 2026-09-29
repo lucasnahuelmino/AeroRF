@@ -128,6 +128,21 @@ export function radialPoints(origin, azimuth, distanceM, steps = 24) {
  * straight chord: a chord reads as a different angle from the one the operator
  * is being shown, which is the only reason to draw it at all.
  */
+/**
+ * How far, in metres, a click may sit from a snap target and still be pulled
+ * onto it — expressed in screen pixels and converted at the current latitude.
+ *
+ * Leaflet already computes this for its own snapping, and duplicating the
+ * formula here would be a second place for the Web Mercator constants to drift.
+ * So the engine is asked; this is the fallback for a caller that has none.
+ */
+export function snapToleranceM(latitude, metresPerPixel) {
+  const R = 6371008.8
+  const lat = Math.abs(Number(latitude) || 0)
+  const cos = Math.max(0.01, Math.cos((lat * Math.PI) / 180))
+  return Number(metresPerPixel) * 2 * Math.PI * R * cos
+}
+
 export function arcPoints(origin, radiusM, fromAzimuth, toAzimuth, steps = 24) {
   if (!radiusM) return [origin]
   // The short way round, so a sweep past 360 does not draw a 350-degree arc

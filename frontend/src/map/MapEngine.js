@@ -19,12 +19,37 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
+import { haversine, radialPoints, toMetres } from './geo'
+
 /** Buenos Aires / EZE — the initial view. */
 export const DEFAULT_CENTER = [-34.603722, -58.381592]
 export const DEFAULT_ZOOM = 10
 
 const OSM_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+/**
+ * A small dot at the origin of a measured shape.
+ *
+ * A circle is a ring and a radial is a line, and neither says where it starts.
+ * Without the dot the operator cannot tell what a radial's bearing is measured
+ * from, or place a second object at the centre of a circle — the two things
+ * they are most likely to want to do next.
+ *
+ * Not interactive: the shape around it is what gets clicked, and a dot that
+ * swallowed clicks would make the centre unusable rather than reachable.
+ */
+function centreDot(latlng, color) {
+  return L.circleMarker(latlng, {
+    radius: 4,
+    color: '#0f172a',
+    weight: 1.5,
+    fillColor: color,
+    fillOpacity: 1,
+    interactive: false,
+    pane: 'markerPane',
+  })
+}
 
 export class MapEngine {
   /**
@@ -200,6 +225,36 @@ export class MapEngine {
     return this.map ? this.map.getZoom() : null
   }
 
+  /**
+   * Ground metres per screen pixel at the current view.
+   *
+   * Taken from Leaflet's own `CRS.EPSG3857`, which is the projection the map is
+   * actually drawn in. An earlier version re-derived it by projecting the
+   * centre at two zoom levels and measuring the gap, and got a value roughly
+   * five times too small — which made the snap tolerance ten times too tight,
+   * so a click two metres from a circle's centre did not snap and the whole
+   * feature silently did nothing.
+   *
+   * Asking the projection is also the only way to be sure the two agree.
+   */
+  metresPerPixel() {
+    if (!this.map) return null
+    const size = this.map.getSize()
+    if (!size?.y) return null
+    // Measured off the map's own projection: one screen height, converted
+    // back to a position and then to a ground distance.
+    //
+    // The two shortcuts through Leaflet's CRS were both wrong. There is no
+    // `crs.groundResolution` in this version, and `crs.scale` is the
+    // projection's scale factor with no zoom in it — the same number at every
+    // level, which made the snap tolerance wrong by a factor of the zoom and
+    // the feature silently inert.
+    const centre = this.map.getCenter()
+    const point = this.map.latLngToContainerPoint(centre)
+    const south = this.map.containerPointToLatLng([point.x, point.y + size.y])
+    return haversine(centre.lat, centre.lng, south.lat, south.lng) / size.y
+  }
+
   setView(lat, lon, zoom = this.getZoom()) {
     this.map?.setView([lat, lon], zoom)
   }
@@ -324,6 +379,18 @@ export class MapEngine {
       ...(style.dashed ? { dashArray: style.dashArray || '6,6' } : {}),
     }
 
+    // A circle and a radial are stored as a centre plus a measurement: the
+    // radius in metres, or the azimuth and length. Their `geometry_type` is
+    // `Point`, because that is what the centre is — and dispatching on
+    // `geometry_type` alone drew a dot for both. The saved values were right
+    // and the panel showed them, but the shape itself was never on the map.
+    //
+    // So the type is checked first. A stored ring would be correct but is not
+    // what gets written, and a circle drawn from 72 polygon vertices would be
+    // visibly wrong at low zoom.
+    const shape = this._buildMeasured(object, base)
+    if (shape) return shape
+
     switch (object.geometry_type) {
       case 'Point':
         return L.circleMarker(object.latlng, { ...base, radius: style.radius || 8 })
@@ -332,9 +399,9 @@ export class MapEngine {
         return L.polyline(object.latlngs, base)
 
       case 'Polygon':
-        if (object.type === 'circle' || object.type === 'coverage') {
+        if (object.type === 'coverage') {
           // A true circle: exact at every zoom level.
-          const radiusM = object.radius_m ?? style.radiusM
+          const radiusM = this._radiusMetres(object, style)
           if (radiusM) {
             const circle = L.circle(object.latlng, {
               radius: radiusM,
@@ -352,6 +419,110 @@ export class MapEngine {
       default:
         return null
     }
+  }
+
+  /**
+   * The drawn form of a shape stored as a centre plus a measurement.
+   *
+   * Returns null for anything else, so the caller falls through to the
+   * geometry-based drawing.
+   */
+  _buildMeasured(object, base) {
+    const latlng = object.latlng
+    if (!latlng) return null
+
+    if (object.type === 'circle' || object.type === 'reference') {
+      // A reference point may carry a coverage ring rather than a radius; it
+      // is only drawn as a circle when it has one.
+      const radiusM = this._radiusMetres(object)
+      if (!radiusM) return null
+      const { color, weight, opacity, fillOpacity } = base
+      const circle = L.layerGroup([
+        L.circle(latlng, { radius: radiusM, color, weight, opacity, fillOpacity }),
+        centreDot(latlng, color),
+      ])
+      circle.radiusM = radiusM
+      // The origin, published for the drawing tool's snapping: a click near
+      // this point is pulled onto it, so a radial placed at the centre of a
+      // circle is stored at the circle's centre rather than at the hand.
+      circle.centreLatLng = latlng
+      return circle
+    }
+
+    if (object.type === 'radial') {
+      const lengthM = this._lengthMetres(object)
+      const azimuth = this._azimuthOf(object)
+      if (!lengthM || azimuth === null) return null
+      const { color, weight, opacity } = base
+      // Straight from the centre outward. A radial is a bearing and a
+      // distance, not a curve: drawing it as an arc would be a different
+      // object from the one stored.
+      const line = L.layerGroup([
+        L.polyline(radialPoints(latlng, azimuth, lengthM, 24), {
+          color,
+          weight,
+          opacity,
+          // Solid, to match the committed drawing. The live preview is dashed to
+          // read as provisional; once stored it is an object like any other.
+        }),
+        centreDot(latlng, color),
+      ])
+      line.azimuth = azimuth
+      line.lengthM = lengthM
+      // Same reason as the circle: a second radial from the same origin should
+      // share it exactly.
+      line.centreLatLng = latlng
+      return line
+    }
+
+    return null
+  }
+
+  /**
+   * A circle's radius in metres.
+   *
+   * `radius_m` is preferred because it is unambiguous, but it is not always
+   * present on a read-back row, and the stored value is in the object's own
+   * unit — 5 NM and 5 km are not the same circle. Falling back to a raw
+   * `radius` without its unit would draw one of them at the wrong size.
+   */
+  _radiusMetres(object, style) {
+    const direct = object.radius_m ?? object.metrics?.radius_m ?? style?.radiusM
+    if (Number.isFinite(direct) && direct > 0) return Number(direct)
+
+    const value = object.radius ?? object.properties?.circle?.radius
+    const unit = object.radius_unit || object.properties?.circle?.radius_unit || 'nm'
+    if (Number.isFinite(Number(value)) && Number(value) > 0) {
+      return toMetres(Number(value), unit)
+    }
+    return null
+  }
+
+  /**
+   * A radial's azimuth in degrees, normalised to [0, 360).
+   *
+   * A stored value can land just outside the range after rounding — 360.0, or
+   * a small negative from a wrap — and a bearing outside it produces a line in
+   * a direction the operator did not ask for. Normalised on read rather than on
+   * write, because rows already in the database carry both.
+   */
+  _azimuthOf(object) {
+    const value = Number(object.azimuth ?? object.properties?.radial?.azimuth)
+    if (!Number.isFinite(value)) return null
+    return ((value % 360) + 360) % 360
+  }
+
+  /** A radial's length in metres, for the same reason. */
+  _lengthMetres(object) {
+    const direct = object.length_m ?? object.metrics?.length_m
+    if (Number.isFinite(direct) && direct > 0) return Number(direct)
+
+    const value = object.length_value ?? object.length ?? object.properties?.radial?.length
+    const unit = object.length_unit || object.properties?.radial?.length_unit || 'nm'
+    if (Number.isFinite(Number(value)) && Number(value) > 0) {
+      return toMetres(Number(value), unit)
+    }
+    return null
   }
 
   _addTooltip(layer, object) {
@@ -463,6 +634,21 @@ export class MapEngine {
     layer.on('click', (e) => {
       L.DomEvent.stopPropagation(e)
       handler(objectId, e)
+      // A click on an existing object also counts as a click on the map, when a
+      // drawing tool is armed.
+      //
+      // It used to be swallowed outright: `stopPropagation` above stops the
+      // event before it reaches the map, so the tool never saw it. An operator
+      // with the radial tool picked, clicking the middle of a circle to start a
+      // radial from its centre, got the circle selected instead and the tool
+      // did nothing — with no way to see why, since the tool is visibly armed.
+      //
+      // So the position is forwarded explicitly. `stopPropagation` stays for
+      // the select tool, where selecting the object under the pointer is the
+      // whole point and the map's own handler would clear the selection.
+      if (this._clickSuppressed) {
+        this._emit('click', { latlng: e.latlng, overObject: objectId })
+      }
     })
     layer.on('dblclick', (e) => {
       L.DomEvent.stopPropagation(e)
