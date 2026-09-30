@@ -426,8 +426,9 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/airports.spec.js` (31) | Unicidad de los datos, capa conmutable, filtro, medicion desde aeropuerto | `npm run test:airports` |
 | `frontend/tests/layout.spec.js` (15) | **Proporciones del shell**, leidas del CSS construido: mapa flexible, paneles plegables, area de las herramientas, logo acotado | `npm run test:layout` |
 | `frontend/tests/components.spec.js` (43) | **Montaje real en jsdom**: el shell completo, los 8 paneles, `MapEngine`, `ToolManager`, `MeasureEngine`, `AircraftRenderer` | `npm run test:components` |
+| `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
 
-**Total: 357 unitarias + 7 integracion + 675 de paridad + 136 de frontend + 78 E2E + 43 recorrido real.**
+**Total: 357 unitarias + 7 integracion + 675 de paridad + 314 de frontend + 78 E2E + 43 recorrido real.**
 
 ### 7.1 Segunda capa: montar los componentes de verdad
 
@@ -524,9 +525,10 @@ Registrada sin adornos, con el motivo:
 | Sin autenticación de usuarios | El spec no la pide. `object_notes.user` y `object_history.user` ya la soportan cuando se añada |
 | `Chart.vue` sigue usando plotly | Aislado en un *lazy chunk* de 4,6 MB. Se puede sustituir por un SVG cuando se quiera |
 | `Vistas` de expediente no son GIS | Son pantallas de gestión de casos. La vista geográfica es `GisShell.vue` |
-| `start.bat` / `start.sh` sin verificar | Requieren revisión manual tras los cambios de puerto |
+| `start.bat` sin verificar | Requiere revision manual tras los cambios de puerto. `start.sh` se elimino en 0.23.0 porque se habia separado del `.bat` sin que nadie lo notara (8000 contra 5173) |
 | Suite de frontend con jsdom | Monta los componentes, no los pixels. jsdom no renderiza Leaflet de verdad: la geometria, el layout y el aspecto siguen sin verificar visualmente |
 | Sin prueba end-to-end de navegador | Vitest + jsdom detectan fallos de ejecucion, no de apariencia. Un panel que se solapa o un texto que se sale sigue sin detector |
+| **jsdom no puede verificar la interaccion del mapa** | `layer.fire('click')` se salta el hit-testing y el apilado de CSS, que es justo donde estuvo el bug de 0.27.3. Un test en jsdom **no puede** detectar que un elemento invisible se come los clics. Para eso hace falta un navegador de verdad, y las guardas se escriben sobre las propiedades que el navegador tiene, no sobre un clic simulado |
 
 ---
 

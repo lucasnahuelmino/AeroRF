@@ -212,6 +212,11 @@ export const useMapStore = defineStore('map', () => {
         bindPopup(obj, layer)
       }
     })
+    // The draw order is what decides who receives a click, so it is set here
+    // rather than left to whichever category happened to be created first. A
+    // circle added before a radial would otherwise cover the radial's whole
+    // length, and the operator could only select the circle.
+    e.restack()
   }
 
   function bindPopup(obj, layer = null) {

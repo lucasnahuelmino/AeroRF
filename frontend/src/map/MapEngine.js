@@ -29,6 +29,30 @@ const OSM_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 /**
+ * Where a category sits in the canvas draw order, when the order the layers
+ * arrived in is not the one that should be used.
+ *
+ * A circle's hit area is its whole disc and a radial's is its line, so the two
+ * are not comparable targets: the disc is a 16 km area, the line is 3 pixels
+ * wide. Drawing the circle above the radial means that wherever the two cross,
+ * the click belongs to the circle and the radial cannot be picked up there —
+ * the operator clicks the line they can see and get the area they did not aim
+ * at. The rule every drawing tool applies is the opposite one: the broad target
+ * goes underneath the precise one.
+ *
+ * Only the conflict is listed. The sort is stable, so every category that is
+ * not named here keeps the order the API gave it, which already puts the
+ * discrete objects — points, events, sources, antennas — above both measured
+ * shapes.
+ */
+const CATEGORY_DRAW_RANK = { circles: -1 }
+
+/** Draw rank of a category; anything unlisted sits at 0, in arrival order. */
+function drawRank(key) {
+  return CATEGORY_DRAW_RANK[key] ?? 0
+}
+
+/**
  * A small dot at the origin of a measured shape.
  *
  * A circle is a ring and a radial is a line, and neither says where it starts.
@@ -40,6 +64,23 @@ const OSM_ATTRIBUTION =
  * swallowed clicks would make the centre unusable rather than reachable.
  */
 function centreDot(latlng, color) {
+  // No `pane: 'markerPane'`. That was the cause of nothing on the map being
+  // selectable, and it was invisible to every test.
+  //
+  // This map renders with `preferCanvas`, so a vector layer in a non-overlay
+  // pane gets its **own full-size canvas**, and Leaflet gives every canvas
+  // `pointer-events: auto` by default. The markerPane sits above the
+  // overlayPane (z-index 600 against 400), so that canvas covered the whole map,
+  // in front of everything, and swallowed every click — including the ones
+  // meant for the objects and the ones meant for the ground.
+  //
+  // Measured in the browser: with the canvas present, `elementFromPoint` over a
+  // circle returned the markerPane canvas; with it hidden, the overlayPane
+  // canvas. Nothing was ever selectable, and no amount of fixing the click
+  // handlers could change that, because no click was arriving at any of them.
+  //
+  // The dot therefore shares the overlayPane with the shape it marks, which is
+  // where it belongs: it is part of that object, not a floating marker.
   return L.circleMarker(latlng, {
     radius: 4,
     color: '#0f172a',
@@ -47,7 +88,6 @@ function centreDot(latlng, color) {
     fillColor: color,
     fillOpacity: 1,
     interactive: false,
-    pane: 'markerPane',
   })
 }
 
@@ -288,9 +328,20 @@ export class MapEngine {
 
   /**
    * Ensure a named Leaflet layer group exists and is on the map.
+   *
+   * There is no `order` option. The draw position of a category is decided by
+   * `restack()`, from `CATEGORY_DRAW_RANK` and the order the layers arrived in.
+   *
+   * The option used to exist, and it took a `aboveKey` and reordered *panes* to
+   * fake an insert-at-position. Nothing ever passed it, and it was the wrong
+   * mechanism: this map is `preferCanvas`, so every category is painted on one
+   * canvas and the pane order has nothing to say about what is drawn on top of
+   * what. Worse, it moved the overlayPane element itself into the markerPane,
+   * which is the same family of mistake as the centre dot's own pane — the
+   * outage where an invisible full-map element swallowed every click.
    * @returns {L.LayerGroup}
    */
-  ensureCategory(key, { visible = true, opacity = 1, order = null } = {}) {
+  ensureCategory(key, { visible = true, opacity = 1 } = {}) {
     if (this.categoryLayers.has(key)) {
       const existing = this.categoryLayers.get(key)
       if (visible && !this.map.hasLayer(existing)) existing.addTo(this.map)
@@ -300,7 +351,6 @@ export class MapEngine {
     const group = L.layerGroup()
     if (visible) group.addTo(this.map)
     this.categoryLayers.set(key, group)
-    if (order !== null) this.setCategoryOrder(key, order)
     return group
   }
 
@@ -309,6 +359,43 @@ export class MapEngine {
     if (!group) return
     if (visible) group.addTo(this.map)
     else this.map.removeLayer(group)
+    // Re-showing a layer must not leave it stuck on top. Leaflet has no
+    // "insert at position": a group that was removed and added back becomes
+    // the most recently added, which is the front of the shared canvas. For a
+    // circle — whose whole disc is a hit area — that is enough to lock every
+    // object inside it out of reach, so the order is rebuilt here.
+    if (visible) this.restack()
+  }
+
+  /**
+   * Rebuild the canvas draw order from the category insertion order.
+   *
+   * With `preferCanvas` the draw list is global, and selection depends on it:
+   * Leaflet fires a click on the topmost layer that contains the point. A
+   * deterministic order is therefore not cosmetic — without it, whether an
+   * object can be clicked at all depends on the order the operator happened to
+   * toggle layers in.
+   *
+   * The order is the one the layers arrived in, with the two measured shapes
+   * resolved by `CATEGORY_DRAW_RANK`: a circle's disc underneath, a radial's
+   * line above it, and both underneath the discrete objects. Nothing here
+   * invents a policy beyond that; it only makes the order reproducible instead
+   * of dependent on which layer the operator happened to toggle last.
+   */
+  restack() {
+    if (!this.map) return
+    const onMap = []
+    this.categoryLayers.forEach((group, key) => {
+      if (this.map.hasLayer(group)) onMap.push({ group, key })
+    })
+    onMap.sort((a, b) => drawRank(a.key) - drawRank(b.key))
+    onMap.forEach(({ group }) => this.map.removeLayer(group))
+    onMap.forEach(({ group }) => group.addTo(this.map))
+    // Drafts are previews of what the operator is drawing right now. They were
+    // on top before the restack; put them back there.
+    this._draftLayers.forEach((layer) => {
+      if (!this.map.hasLayer(layer)) layer.addTo(this.map)
+    })
   }
 
   setCategoryOpacity(key, opacity) {
@@ -322,19 +409,10 @@ export class MapEngine {
   }
 
   /** Place a category group above/below another. */
-  setCategoryOrder(key, aboveKey) {
-    const group = this.categoryLayers.get(key)
-    const reference = this.categoryLayers.get(aboveKey)
-    if (!group || !reference || !this.map.hasLayer(group)) return
-    if (aboveKey in this.categoryLayers) {
-      // Leaflet has no "insert after", so toggle both panes.
-      const target = reference.getPane()
-      if (target) {
-        const markerPane = this.map.getPane('markerPane')
-        markerPane?.appendChild(target)
-      }
-    }
-  }
+  // Intentionally absent: `setCategoryOrder` used to reorder panes for this and
+  // is gone. It never worked with `preferCanvas` — one canvas, one draw list —
+  // and no caller ever passed an order. `restack()` is the mechanism now, and
+  // it moves the draw list rather than the DOM.
 
   // ─── Object rendering ─────────────────────────────────────────────────────
 
@@ -794,7 +872,20 @@ export class MapEngine {
       const base = this._baseStyle(child)
       child.setStyle({ color, weight: base.weight + 3, fillOpacity: 0.35 })
     })
-    this._vectorLayers(target).forEach((child) => child.bringToFront?.())
+    // No `bringToFront()` here. The map renders with `preferCanvas`, so every
+    // vector layer shares one canvas and one draw list: "bring to front" is a
+    // *global* reorder, not a per-object one, and it sticks.
+    //
+    // A circle's hit area is its whole disc, not its ring — Leaflet's
+    // `CircleMarker._containsPoint` is `distance <= radius` — and Leaflet's
+    // canvas only fires the click on the topmost layer whose disc contains the
+    // point. So selecting a 16 km circle once promoted it to the top of the
+    // list for the rest of the session, and from then on every click inside it
+    // was answered by that circle. The points, radials and events inside it
+    // became unselectable until the page was reloaded.
+    //
+    // The highlight is made visible with weight and colour instead, which
+    // cannot change who receives a click.
     this._highlighted = objectId
   }
 

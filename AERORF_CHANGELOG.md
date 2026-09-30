@@ -1843,3 +1843,130 @@ Verificadas revirtiendo el arreglo: con las dos causas de vuelta, los tests del
 shell fallan.
 
 **Totales: 376 + 7 Python, 306 frontend, 675 de paridad.**
+
+---
+
+## 0.27.3 — La selección de objetos en el mapa
+
+**Síntoma:** ningún objeto del mapa se seleccionaba. Ni puntos, ni círculos, ni
+radiales. Como consecuencia no se podía borrar, anotar, mover ni medir desde un
+objeto. Tres intentos anteriores habían «arreglado» algo y el operador siguió
+reportando lo mismo.
+
+### Por qué los 306 tests no lo veían
+
+Porque usan `layer.fire('click', …)`, que entrega el evento directamente a la
+capa y se salta todo lo que el navegador hace antes. El bug vivía en los pasos
+**anteriores** al evento: dónde se pintaban las capas y en qué orden. `fire()`
+empieza después de todos ellos.
+
+Consecuencia metódica: **ningún test en jsdom podía detectarlo**, y tres
+intentos seguidos encontraron *una* causa plausible y la presentaron como *la*
+causa. El dato más informativo — que tampoco fallaban los puntos simples, lo que
+descartaba de entrada toda explicación sobre grupos de capas — se pasó por alto.
+
+### Causa 1 — un lienzo invisible encima de todo el mapa
+
+`centreDot()`, el punto central de un círculo o un radial, llevaba
+`pane: 'markerPane'`. El mapa dibuja con `preferCanvas`, así que una capa
+vectorial en un panel que no es el de overlay recibe **su propio lienzo de
+tamaño completo**, y Leaflet pone `pointer-events: auto` en cada lienzo. El
+markerPane está por encima del overlayPane (z-index 600 contra 400): ese lienzo
+tapaba el mapa entero, por delante de todo, y se comía cada clic, incluidos los
+dirigidos al suelo.
+
+Medido en el navegador, con la app real:
+
+- `document.elementFromPoint` sobre un círculo devolvía el lienzo del
+  markerPane; con ese lienzo oculto, devolvía el del overlayPane.
+- El lienzo estaba **completamente vacío** — cero píxeles pintados.
+
+`interactive: false` en el punto no era ninguna protección, y por eso conviene
+fijarlo: con lienzo compartido el elemento que recibe el puntero es el lienzo, no
+la forma, así que el flag de la forma no dice nada sobre si estorba.
+
+**Arreglo:** el punto central comparte el overlayPane con la forma que marca. No
+hay ningún `pane:` en todo el código de la aplicación.
+
+### Causa 2 — seleccionar reordenaba el lienzo compartido
+
+`highlight()` llamaba a `bringToFront()` sobre las capas del objeto elegido. Con
+un lienzo compartido eso es un reordenamiento **global**, no por objeto, y es
+permanente.
+
+El área de impacto de un círculo es su **disco entero**, no su anillo: el
+`_containsPoint` de `CircleMarker` en Leaflet es `distancia <= radio`. Y el
+lienzo entrega el clic **solo a la capa más alta** cuyo disco contiene el punto.
+Medido: tras seleccionar una vez el círculo de 16 km, ese círculo respondía a
+todos los clics de su interior por el resto de la sesión, y los objetos de
+dentro quedaban inalcanzables hasta recargar la página.
+
+**Arreglo:** `highlight()` ya no llama a `bringToFront()`. El resaltado se hace
+con grosor y color, que no pueden cambiar quién recibe el clic.
+
+### Causa 3 — el orden de dibujo dependía del historial de la sesión
+
+Las categorías llegan en el orden de la lista de capas, donde `radials` precede a
+`circles`. Con `circles` encima, un clic sobre un radial **en el punto donde lo
+cruza un círculo** devolvía el círculo: el operador hacía clic en la línea que
+veía y recibía el área a la que no apuntaba.
+
+Además, Leaflet no tiene «insertar en posición»: un grupo que se quita y se
+vuelve a poner queda como el último añadido, es decir, arriba del todo. Mostrar
+una capa la dejaba clavada encima.
+
+**Arreglo:** `restack()` reconstruye el orden de dibujo de forma determinista —
+el de llegada, con `CATEGORY_DRAW_RANK` resolviendo el único conflicto: el disco
+del círculo debajo, la línea del radial encima, y los objetos discretos por
+encima de ambos, que es el orden que ya daba la API. Se llama al final de
+`renderAll()` y al volver a mostrar una capa.
+
+Se eliminó `setCategoryOrder()`, que reordenaba **panales** para fingir un
+«insertar después». Nunca recibió un `order` — nadie lo llamaba — y era el
+mecanismo equivocado: con `preferCanvas` hay un solo lienzo y una sola lista, el
+orden de paneles no dice qué se dibuja sobre qué. Peor: movía el elemento
+overlayPane dentro del markerPane, el mismo tipo de error que el panel propio
+del punto central. `ensureCategory()` pierde su opción `order` con ella.
+
+### Verificación
+
+En el navegador real, con un `MouseEvent` de verdad en las coordenadas del
+objeto — el mismo camino que un clic de usuario, y lo que jsdom no puede hacer:
+**10 de 10 objetos seleccionan**, los tres tipos, cada uno centrado en pantalla.
+También: el clic en suelo vacío deselecciona; ocultar y volver a mostrar la capa
+`circles` no altera el orden y los objetos de dentro siguen seleccionables; la
+herramienta de círculo sigue admitiendo su vista previa en el overlayPane y
+sigue habiendo un solo lienzo; la consola está limpia.
+
+Antes: el radial 4 perdía contra el círculo 9 y el punto 5 respondía con el
+círculo 1.
+
+### Guardas
+
+8 tests nuevos en `frontend/tests/canvas-hit-targets.spec.js`. No simulan un
+clic: afirman las tres propiedades que el navegador tiene y sin las cuales
+ningún clic llega a destino. Cada una tiene escrita la medición de la que sale.
+
+**Verificadas revirtiendo cada arreglo**, que es la única forma de saber que
+guardan algo:
+
+| Arreglo revertido | Tests que fallan |
+|---|---|
+| `pane: 'markerPane'` en el punto central | 3 |
+| `bringToFront()` en `highlight()` | 1 |
+| `CATEGORY_DRAW_RANK` vacío y sin `restack()` | 2 |
+
+Un test viejo de este arreglo pasó por casualidad: renderizaba el círculo antes
+que el radial, que es justo al revés de como llegan de la API, así que no
+ejercitaba el conflicto. Corregido para usar el orden real.
+
+### Una suposición que era falsa
+
+`npm run lint` figuraba como limpio en sesiones anteriores. **No lo es, y nunca
+lo fue:** no hay configuración de ESLint en el repositorio, en ninguna rama,
+en ningún commit — `git log --all -- "*eslintrc*" "eslint.config*"` no devuelve
+nada. El script fallaba y el resultado se reportaba como correcto. La
+comprobación real de esta versión es el build, que pasa en 25 s, y las 314
+pruebas de frontend.
+
+**Totales: 376 + 7 Python, 314 frontend, 675 de paridad.**
