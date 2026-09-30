@@ -30,6 +30,11 @@
  * looked plausible, which is the problem: an operator computing interference
  * protection around a wrong ARP produces a confidently wrong report.
  *
+ * To change the set of aerodromes, change SELECTED in that script and re-run it
+ * with OurAirports' `airports.csv` in the project root as `_ap.csv`. Codes the
+ * source does not publish are reported on stdout and left out. They are never
+ * filled in by hand.
+ *
  * ── Accuracy ─────────────────────────────────────────────────────────────
  *
  * Coordinates are the ARP as published, to about 1e-5 degrees (~1 m). That is
@@ -41,9 +46,12 @@
 /** @type {Airport[]} Argentina. */
 const ar = [
   {
+    key: 'SASA',
     icao: 'SASA',
+    gps: 'SASA',
+    local: 'SAL',
     iata: 'SLA',
-    name: 'Martn Miguel de Gemes International Airport',
+    name: 'Martín Miguel de Güemes International Airport',
     country: 'AR',
     kind: 'large_airport',
     lat: -24.856001,
@@ -52,9 +60,26 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SASJ',
+    icao: 'SASJ',
+    gps: 'SASJ',
+    local: 'JUJ',
+    iata: 'JUJ',
+    name: 'Gobernador Horacio Guzman International Airport',
+    country: 'AR',
+    kind: 'large_airport',
+    lat: -24.392799,
+    lon: -65.097801,
+    elevFt: 3019,
+    scheduled: true,
+  },
+  {
+    key: 'SANT',
     icao: 'SANT',
+    gps: 'SANT',
+    local: 'TUC',
     iata: 'TUC',
-    name: 'Teniente Benjamn Matienzo International Airport',
+    name: 'Teniente Benjamín Matienzo International Airport',
     country: 'AR',
     kind: 'large_airport',
     lat: -26.837397,
@@ -63,7 +88,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SARE',
     icao: 'SARE',
+    gps: 'SARE',
+    local: 'SIS',
     iata: 'RES',
     name: 'Resistencia International Airport',
     country: 'AR',
@@ -74,9 +102,12 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SACO',
     icao: 'SACO',
+    gps: 'SACO',
+    local: 'CBA',
     iata: 'COR',
-    name: 'Ingeniero Aeronutico Ambrosio L.V. Taravella International Airport',
+    name: 'Ingeniero Aeronáutico Ambrosio L.V. Taravella International Airport',
     country: 'AR',
     kind: 'large_airport',
     lat: -31.312346,
@@ -85,7 +116,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAME',
     icao: 'SAME',
+    gps: 'SAME',
+    local: 'DOZ',
     iata: 'MDZ',
     name: 'Governor Francisco Gabrielli International Airport',
     country: 'AR',
@@ -96,7 +130,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAAR',
     icao: 'SAAR',
+    gps: 'SAAR',
+    local: 'ROS',
     iata: 'ROS',
     name: 'Rosario Islas Malvinas International Airport',
     country: 'AR',
@@ -107,7 +144,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAEZ',
     icao: 'SAEZ',
+    gps: 'SAEZ',
+    local: 'EZE',
     iata: 'EZE',
     name: 'Ezeiza International Airport - Ministro Pistarini',
     country: 'AR',
@@ -118,7 +158,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SABE',
     icao: 'SABE',
+    gps: 'SABE',
+    local: 'AER',
     iata: 'AEP',
     name: 'Aeroparque Jorge Newbery',
     country: 'AR',
@@ -129,9 +172,12 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAZN',
     icao: 'SAZN',
+    gps: 'SAZN',
+    local: 'NEU',
     iata: 'NQN',
-    name: 'Presidente Pern International Airport',
+    name: 'Presidente Perón International Airport',
     country: 'AR',
     kind: 'large_airport',
     lat: -38.949001,
@@ -140,7 +186,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAZS',
     icao: 'SAZS',
+    gps: 'SAZS',
+    local: 'BAR',
     iata: 'BRC',
     name: 'Teniente Luis Candelaria International Airport',
     country: 'AR',
@@ -151,7 +200,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAVC',
     icao: 'SAVC',
+    gps: 'SAVC',
+    local: 'CRV',
     iata: 'CRD',
     name: 'General Enrique Mosconi International Airport',
     country: 'AR',
@@ -162,9 +214,12 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAWG',
     icao: 'SAWG',
+    gps: 'SAWG',
+    local: 'GAL',
     iata: 'RGL',
-    name: 'Piloto Civil Norberto Fernndez International Airport',
+    name: 'Piloto Civil Norberto Fernández International Airport',
     country: 'AR',
     kind: 'large_airport',
     lat: -51.608791,
@@ -173,9 +228,40 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAST',
+    icao: 'SAST',
+    gps: 'SAST',
+    local: 'TAR',
+    iata: 'TTG',
+    name: 'General Enrique Mosconi Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -22.616877,
+    lon: -63.793015,
+    elevFt: 1472,
+    scheduled: false,
+  },
+  {
+    key: 'SASO',
+    icao: 'SASO',
+    gps: 'SASO',
+    local: 'ORA',
+    iata: 'ORA',
+    name: 'Orán Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -23.1528,
+    lon: -64.329201,
+    elevFt: 1171,
+    scheduled: false,
+  },
+  {
+    key: 'SARI',
     icao: 'SARI',
+    gps: 'SARI',
+    local: 'IGU',
     iata: 'IGR',
-    name: 'Cataratas Del Iguaz International Airport',
+    name: 'Cataratas Del Iguazú International Airport',
     country: 'AR',
     kind: 'medium_airport',
     lat: -25.737301,
@@ -184,7 +270,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SARF',
     icao: 'SARF',
+    gps: 'SARF',
+    local: 'FSA',
     iata: 'FMA',
     name: 'Formosa National Airport',
     country: 'AR',
@@ -195,9 +284,12 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SANR',
     icao: 'SANR',
+    gps: 'SANR',
+    local: 'TRH',
     iata: 'RHD',
-    name: 'Termas de Ro Hondo international Airport',
+    name: 'Termas de Río Hondo international Airport',
     country: 'AR',
     kind: 'medium_airport',
     lat: -27.4966,
@@ -206,7 +298,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SARC',
     icao: 'SARC',
+    gps: 'SARC',
+    local: 'CRR',
     iata: 'CNQ',
     name: 'Corrientes Airport',
     country: 'AR',
@@ -217,7 +312,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SARP',
     icao: 'SARP',
+    gps: 'SARP',
+    local: 'POS',
     iata: 'PSS',
     name: 'Libertador Gral D Jose De San Martin Airport',
     country: 'AR',
@@ -228,7 +326,24 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SANE',
+    icao: 'SANE',
+    gps: 'SANE',
+    local: 'SDE',
+    iata: 'SDE',
+    name: 'Vicecomodoro Angel D. La Paz Aragonés Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -27.765556,
+    lon: -64.309998,
+    elevFt: 656,
+    scheduled: true,
+  },
+  {
+    key: 'SANC',
     icao: 'SANC',
+    gps: 'SANC',
+    local: 'CAT',
     iata: 'CTC',
     name: 'Coronel Felipe Varela International Airport',
     country: 'AR',
@@ -239,7 +354,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SANL',
     icao: 'SANL',
+    gps: 'SANL',
+    local: 'LAR',
     iata: 'IRJ',
     name: 'Capitan V A Almonacid Airport',
     country: 'AR',
@@ -250,7 +368,94 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SARL',
+    icao: 'SARL',
+    gps: 'SARL',
+    local: 'LIB',
+    iata: 'AOL',
+    name: 'Paso De Los Libres Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -29.6894,
+    lon: -57.1521,
+    elevFt: 230,
+    scheduled: false,
+  },
+  {
+    key: 'SATG',
+    icao: 'SATG',
+    gps: 'SATG',
+    local: 'GOY',
+    iata: 'OYA',
+    name: 'Goya Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -29.1058,
+    lon: -59.2189,
+    elevFt: 128,
+    scheduled: false,
+  },
+  {
+    key: 'SATR',
+    icao: 'SATR',
+    gps: 'SATR',
+    local: 'RTA',
+    iata: 'RCQ',
+    name: 'Reconquista Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -29.210278,
+    lon: -59.683333,
+    elevFt: 160,
+    scheduled: false,
+  },
+  {
+    key: 'SATU',
+    icao: 'SATU',
+    gps: 'SATU',
+    local: 'CCA',
+    iata: 'UZU',
+    name: 'Curuzu Cuatia Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -29.7706,
+    lon: -57.9789,
+    elevFt: 229,
+    scheduled: false,
+  },
+  {
+    key: 'SACT',
+    icao: 'SACT',
+    gps: null,
+    local: null,
+    iata: null,
+    name: 'Chamical Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -30.345303,
+    lon: -66.294072,
+    elevFt: 1502,
+    scheduled: false,
+  },
+  {
+    key: 'SARM',
+    icao: 'SARM',
+    gps: 'SARM',
+    local: 'MCS',
+    iata: 'MCS',
+    name: 'Monte Caseros Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -30.2719,
+    lon: -57.6402,
+    elevFt: 170,
+    scheduled: false,
+  },
+  {
+    key: 'SANU',
     icao: 'SANU',
+    gps: 'SANU',
+    local: 'JUA',
     iata: 'UAQ',
     name: 'Domingo Faustino Sarmiento Airport',
     country: 'AR',
@@ -261,7 +466,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAAP',
     icao: 'SAAP',
+    gps: 'SAAP',
+    local: 'PAR',
     iata: 'PRA',
     name: 'General Urquiza Airport',
     country: 'AR',
@@ -272,7 +480,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAAV',
     icao: 'SAAV',
+    gps: 'SAAV',
+    local: 'SVO',
     iata: 'SFN',
     name: 'Sauce Viejo Airport',
     country: 'AR',
@@ -283,7 +494,52 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAAC',
+    icao: 'SAAC',
+    gps: 'SAAC',
+    local: 'DIA',
+    iata: 'COC',
+    name: 'Comodoro Pierrestegui Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -31.2969,
+    lon: -57.9966,
+    elevFt: 112,
+    scheduled: false,
+  },
+  {
+    key: 'SAOD',
+    icao: 'SAOD',
+    gps: 'SAOD',
+    local: 'LDR',
+    iata: 'VDR',
+    name: 'Villa Dolores Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -31.9452,
+    lon: -65.146301,
+    elevFt: 1847,
+    scheduled: false,
+  },
+  {
+    key: 'SAOV',
+    icao: 'SAOV',
+    gps: 'SAOV',
+    local: 'VMR',
+    iata: null,
+    name: 'Presidente Néstor Kirchner Regional Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -32.3201,
+    lon: -63.22663,
+    elevFt: 670,
+    scheduled: false,
+  },
+  {
+    key: 'SAOU',
     icao: 'SAOU',
+    gps: 'SAOU',
+    local: 'UIS',
     iata: 'LUQ',
     name: 'Brigadier Mayor D Cesar Raul Ojeda Airport',
     country: 'AR',
@@ -294,7 +550,52 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAOC',
+    icao: 'SAOC',
+    gps: 'SAOC',
+    local: 'TRC',
+    iata: 'RCU',
+    name: 'Area De Material Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -33.085098,
+    lon: -64.261299,
+    elevFt: 1380,
+    scheduled: false,
+  },
+  {
+    key: 'SAAG',
+    icao: 'SAAG',
+    gps: 'SAAG',
+    local: 'GUA',
+    iata: 'GHU',
+    name: 'Gualeguaychu Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -33.005567,
+    lon: -58.612833,
+    elevFt: 75,
+    scheduled: false,
+  },
+  {
+    key: 'SAOR',
+    icao: 'SAOR',
+    gps: 'SAOR',
+    local: 'RYD',
+    iata: 'VME',
+    name: 'Villa Reynolds Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -33.7299,
+    lon: -65.387398,
+    elevFt: 1591,
+    scheduled: false,
+  },
+  {
+    key: 'SAMR',
     icao: 'SAMR',
+    gps: 'SAMR',
+    local: 'SRA',
     iata: 'AFA',
     name: 'Suboficial Ay Santiago Germano Airport',
     country: 'AR',
@@ -305,7 +606,94 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SADP',
+    icao: 'SADP',
+    gps: 'SADP',
+    local: 'PAL',
+    iata: 'EPA',
+    name: 'El Palomar Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -34.6099,
+    lon: -58.6126,
+    elevFt: 59,
+    scheduled: false,
+  },
+  {
+    key: 'SADF',
+    icao: null,
+    gps: 'SADF',
+    local: 'FDO',
+    iata: null,
+    name: 'San Fernando Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -34.4532,
+    lon: -58.5896,
+    elevFt: 10,
+    scheduled: false,
+  },
+  {
+    key: 'SADL',
+    icao: 'SADL',
+    gps: 'SADL',
+    local: 'PTA',
+    iata: 'LPG',
+    name: 'La Plata Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -34.9722,
+    lon: -57.8947,
+    elevFt: 72,
+    scheduled: false,
+  },
+  {
+    key: 'SAMM',
+    icao: 'SAMM',
+    gps: 'SAMM',
+    local: 'MLG',
+    iata: 'LGS',
+    name: 'Comodoro D.R. Salomón Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -35.493599,
+    lon: -69.574303,
+    elevFt: 4685,
+    scheduled: false,
+  },
+  {
+    key: 'SAZG',
+    icao: 'SAZG',
+    gps: 'SAZG',
+    local: 'GPI',
+    iata: 'GPO',
+    name: 'General Pico Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -35.696201,
+    lon: -63.758301,
+    elevFt: 459,
+    scheduled: false,
+  },
+  {
+    key: 'SAZP',
+    icao: 'SAZP',
+    gps: 'SAZP',
+    local: 'PEH',
+    iata: 'PEH',
+    name: 'Comodoro Pedro Zanni Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -35.8446,
+    lon: -61.8576,
+    elevFt: 278,
+    scheduled: false,
+  },
+  {
+    key: 'SAZL',
     icao: 'SAZL',
+    gps: 'SAZL',
+    local: 'STR',
     iata: 'SST',
     name: 'Santa Teresita Airport',
     country: 'AR',
@@ -316,7 +704,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAZR',
     icao: 'SAZR',
+    gps: 'SAZR',
+    local: 'OSA',
     iata: 'RSA',
     name: 'Santa Rosa Airport',
     country: 'AR',
@@ -327,9 +718,12 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAZM',
     icao: 'SAZM',
+    gps: 'SAZM',
+    local: 'MDP',
     iata: 'MDQ',
-    name: 'stor Piazzola International Airport',
+    name: 'Ástor Piazzola International Airport',
     country: 'AR',
     kind: 'medium_airport',
     lat: -37.9342,
@@ -338,7 +732,52 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAHS',
+    icao: 'SAHS',
+    gps: 'SAHS',
+    local: 'RIN',
+    iata: 'RDS',
+    name: 'Rincon De Los Sauces Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -37.390598,
+    lon: -68.904198,
+    elevFt: 1968,
+    scheduled: false,
+  },
+  {
+    key: 'SAZT',
+    icao: 'SAZT',
+    gps: 'SAZT',
+    local: 'DIL',
+    iata: 'TDL',
+    name: 'Héroes de Malvinas Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -37.234634,
+    lon: -59.228647,
+    elevFt: 574,
+    scheduled: false,
+  },
+  {
+    key: 'SAZV',
+    icao: 'SAZV',
+    gps: 'SAZV',
+    local: 'GES',
+    iata: 'VLG',
+    name: 'Villa Gesell Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -37.2354,
+    lon: -57.0292,
+    elevFt: 32,
+    scheduled: false,
+  },
+  {
+    key: 'SAZB',
     icao: 'SAZB',
+    gps: 'SAZB',
+    local: 'BCA',
     iata: 'BHI',
     name: 'Comandante Espora Airport',
     country: 'AR',
@@ -349,7 +788,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAZO',
     icao: 'SAZO',
+    gps: 'SAZO',
+    local: 'NEC',
     iata: 'NEC',
     name: 'Necochea Airport',
     country: 'AR',
@@ -360,7 +802,52 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAHZ',
+    icao: 'SAHZ',
+    gps: 'SAHZ',
+    local: 'ZAP',
+    iata: 'APZ',
+    name: 'Zapala Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -38.975498,
+    lon: -70.113602,
+    elevFt: 3330,
+    scheduled: false,
+  },
+  {
+    key: 'SAZH',
+    icao: 'SAZH',
+    gps: 'SAZH',
+    local: 'YOS',
+    iata: 'OYO',
+    name: 'Tres Arroyos Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -38.3869,
+    lon: -60.3297,
+    elevFt: 400,
+    scheduled: false,
+  },
+  {
+    key: 'SAZW',
+    icao: 'SAZW',
+    gps: 'SAZW',
+    local: 'CUT',
+    iata: 'CUT',
+    name: 'Cutral-Co Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -38.939701,
+    lon: -69.264603,
+    elevFt: 2132,
+    scheduled: false,
+  },
+  {
+    key: 'SAVV',
     icao: 'SAVV',
+    gps: 'SAVV',
+    local: 'VIE',
     iata: 'VDM',
     name: 'Gobernador Castello Airport',
     country: 'AR',
@@ -371,7 +858,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAZY',
     icao: 'SAZY',
+    gps: 'SAZY',
+    local: 'CHP',
     iata: 'CPC',
     name: 'Aviador C. Campos Airport',
     country: 'AR',
@@ -382,7 +872,24 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAVB',
+    icao: 'SAVB',
+    gps: 'SAVB',
+    local: 'BOL',
+    iata: 'EHL',
+    name: 'El Bolsón Airfield',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -41.943199,
+    lon: -71.532303,
+    elevFt: 1141,
+    scheduled: false,
+  },
+  {
+    key: 'SAVE',
     icao: 'SAVE',
+    gps: 'SAVE',
+    local: 'ESQ',
     iata: 'EQS',
     name: 'Esquel Brigadier Antonio Parodi International Airport',
     country: 'AR',
@@ -393,7 +900,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAVY',
     icao: 'SAVY',
+    gps: 'SAVY',
+    local: 'DRY',
     iata: 'PMY',
     name: 'El Tehuelche Airport',
     country: 'AR',
@@ -404,7 +914,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAVT',
     icao: 'SAVT',
+    gps: 'SAVT',
+    local: 'TRE',
     iata: 'REL',
     name: 'Almirante Marco Andres Zar Airport',
     country: 'AR',
@@ -415,7 +928,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAWP',
     icao: 'SAWP',
+    gps: 'SAWP',
+    local: 'PTM',
     iata: 'PMQ',
     name: 'Perito Moreno Jalil Hamer Airport',
     country: 'AR',
@@ -426,7 +942,24 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAVH',
+    icao: 'SAVH',
+    gps: 'SAVH',
+    local: 'CLH',
+    iata: 'LHS',
+    name: 'Las Heras Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -46.538517,
+    lon: -68.965323,
+    elevFt: 1082,
+    scheduled: true,
+  },
+  {
+    key: 'SAWD',
     icao: 'SAWD',
+    gps: 'SAWD',
+    local: 'ADO',
     iata: 'PUD',
     name: 'Puerto Deseado Airport',
     country: 'AR',
@@ -437,7 +970,24 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAWJ',
+    icao: 'SAWJ',
+    gps: 'SAWJ',
+    local: 'SJU',
+    iata: 'ULA',
+    name: 'Capitan D Daniel Vazquez Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -49.306816,
+    lon: -67.802596,
+    elevFt: 203,
+    scheduled: false,
+  },
+  {
+    key: 'SAWC',
     icao: 'SAWC',
+    gps: 'SAWC',
+    local: 'ECA',
     iata: 'FTE',
     name: 'El Calafate - Commander Armando Tola International Airport',
     country: 'AR',
@@ -448,9 +998,26 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAWU',
+    icao: 'SAWU',
+    gps: 'SAWU',
+    local: 'SCZ',
+    iata: 'RZA',
+    name: 'Santa Cruz Airport',
+    country: 'AR',
+    kind: 'medium_airport',
+    lat: -50.0165,
+    lon: -68.5792,
+    elevFt: 364,
+    scheduled: false,
+  },
+  {
+    key: 'SAWE',
     icao: 'SAWE',
+    gps: 'SAWE',
+    local: 'GRA',
     iata: 'RGA',
-    name: 'Gobernador Ramn Trejo Noel International Airport',
+    name: 'Gobernador Ramón Trejo Noel International Airport',
     country: 'AR',
     kind: 'medium_airport',
     lat: -53.7777,
@@ -459,7 +1026,10 @@ const ar = [
     scheduled: true,
   },
   {
+    key: 'SAWH',
     icao: 'SAWH',
+    gps: 'SAWH',
+    local: 'USU',
     iata: 'USH',
     name: 'Ushuaia - Malvinas Argentinas International Airport',
     country: 'AR',
@@ -469,14 +1039,73 @@ const ar = [
     elevFt: 102,
     scheduled: true,
   },
+  {
+    key: 'SAOL',
+    icao: null,
+    gps: 'SAOL',
+    local: 'LYE',
+    iata: null,
+    name: 'Laboulaye Airport',
+    country: 'AR',
+    kind: 'small_airport',
+    lat: -34.135399,
+    lon: -63.362301,
+    elevFt: 449,
+    scheduled: false,
+  },
+  {
+    key: 'SAVN',
+    icao: 'SAVN',
+    gps: 'SAVN',
+    local: 'SAN',
+    iata: 'OES',
+    name: 'Antoine de Saint Exupéry Airport',
+    country: 'AR',
+    kind: 'small_airport',
+    lat: -40.7512,
+    lon: -65.0343,
+    elevFt: 85,
+    scheduled: true,
+  },
+  {
+    key: 'SAWR',
+    icao: 'SAWR',
+    gps: 'SAWR',
+    local: 'GRE',
+    iata: 'GGS',
+    name: 'Gobernador Gregores Airport',
+    country: 'AR',
+    kind: 'small_airport',
+    lat: -48.7831,
+    lon: -70.150002,
+    elevFt: 356,
+    scheduled: true,
+  },
+  {
+    key: 'SAWT',
+    icao: 'SAWT',
+    gps: 'SAWT',
+    local: 'BIO',
+    iata: 'RYO',
+    name: '28 de Noviembre Airport',
+    country: 'AR',
+    kind: 'small_airport',
+    lat: -51.605,
+    lon: -72.2203,
+    elevFt: 909,
+    scheduled: true,
+  },
 ]
 
 /** @type {Airport[]} Uruguay. */
 const uy = [
   {
+    key: 'SUMU',
     icao: 'SUMU',
+    gps: 'SUMU',
+    local: null,
     iata: 'MVD',
-    name: 'Carrasco General Cesreo L. Berisso International Airport',
+    name: 'Carrasco General Cesáreo L. Berisso International Airport',
     country: 'UY',
     kind: 'large_airport',
     lat: -34.835647,
@@ -485,7 +1114,10 @@ const uy = [
     scheduled: true,
   },
   {
+    key: 'SULS',
     icao: 'SULS',
+    gps: 'SULS',
+    local: null,
     iata: 'PDP',
     name: 'Capitan Corbeta CA Curbelo International Airport',
     country: 'UY',
@@ -496,7 +1128,10 @@ const uy = [
     scheduled: true,
   },
   {
+    key: 'SUVO',
     icao: 'SUVO',
+    gps: 'SUVO',
+    local: null,
     iata: 'VCH',
     name: 'Vichadero Airport',
     country: 'UY',
@@ -507,7 +1142,10 @@ const uy = [
     scheduled: false,
   },
   {
+    key: 'SUCA',
     icao: 'SUCA',
+    gps: 'SUCA',
+    local: null,
     iata: 'CYR',
     name: 'Colonia Laguna de Los Patos International Airport',
     country: 'UY',
@@ -522,7 +1160,10 @@ const uy = [
 /** @type {Airport[]} Paraguay. */
 const py = [
   {
+    key: 'SGAS',
     icao: 'SGAS',
+    gps: 'SGAS',
+    local: null,
     iata: 'ASU',
     name: 'Silvio Pettirossi International Airport',
     country: 'PY',
@@ -533,9 +1174,12 @@ const py = [
     scheduled: true,
   },
   {
+    key: 'SGME',
     icao: 'SGME',
+    gps: 'SGME',
+    local: null,
     iata: 'ESG',
-    name: 'Dr. Luis Mara Argaa International Airport',
+    name: 'Dr. Luis María Argaña International Airport',
     country: 'PY',
     kind: 'medium_airport',
     lat: -22.046499,
@@ -548,9 +1192,12 @@ const py = [
 /** @type {Airport[]} Chile. */
 const cl = [
   {
+    key: 'SCFA',
     icao: 'SCFA',
+    gps: 'SCFA',
+    local: null,
     iata: 'ANF',
-    name: 'Andrs Sabella Glvez International Airport',
+    name: 'Andrés Sabella Gálvez International Airport',
     country: 'CL',
     kind: 'large_airport',
     lat: -23.445274,
@@ -559,9 +1206,12 @@ const cl = [
     scheduled: true,
   },
   {
+    key: 'SCEL',
     icao: 'SCEL',
+    gps: 'SCEL',
+    local: null,
     iata: 'SCL',
-    name: 'Comodoro Arturo Merino Bentez International Airport',
+    name: 'Comodoro Arturo Merino Benítez International Airport',
     country: 'CL',
     kind: 'large_airport',
     lat: -33.393002,
@@ -570,9 +1220,12 @@ const cl = [
     scheduled: true,
   },
   {
+    key: 'SCQP',
     icao: 'SCQP',
+    gps: 'SCQP',
+    local: null,
     iata: 'ZCO',
-    name: 'La Araucana International Airport',
+    name: 'La Araucanía International Airport',
     country: 'CL',
     kind: 'large_airport',
     lat: -38.9259,
@@ -581,9 +1234,12 @@ const cl = [
     scheduled: true,
   },
   {
+    key: 'SCJO',
     icao: 'SCJO',
+    gps: 'SCJO',
+    local: null,
     iata: 'ZOS',
-    name: 'Caal Bajo Carlos Hott Siebert Airport',
+    name: 'Cañal Bajo Carlos Hott Siebert Airport',
     country: 'CL',
     kind: 'medium_airport',
     lat: -40.611198,
@@ -592,9 +1248,12 @@ const cl = [
     scheduled: true,
   },
   {
+    key: 'SCTN',
     icao: 'SCTN',
+    gps: 'SCTN',
+    local: null,
     iata: 'WCH',
-    name: 'Nuevo Chaitn Airport',
+    name: 'Nuevo Chaitén Airport',
     country: 'CL',
     kind: 'medium_airport',
     lat: -42.781943,
@@ -603,7 +1262,10 @@ const cl = [
     scheduled: false,
   },
   {
+    key: 'SCRD',
     icao: 'SCRD',
+    gps: 'SCRD',
+    local: null,
     iata: 'VAP',
     name: 'Rodelillo Airport',
     country: 'CL',
@@ -613,12 +1275,43 @@ const cl = [
     elevFt: 1100,
     scheduled: false,
   },
+  {
+    key: 'SCGL',
+    icao: null,
+    gps: 'SCGL',
+    local: null,
+    iata: null,
+    name: 'Las Aguilas Airport',
+    country: 'CL',
+    kind: 'small_airport',
+    lat: -34.169167,
+    lon: -71.531113,
+    elevFt: 450,
+    scheduled: false,
+  },
+  {
+    key: 'SCQR',
+    icao: null,
+    gps: 'SCQR',
+    local: null,
+    iata: null,
+    name: 'Los Morros Airport',
+    country: 'CL',
+    kind: 'small_airport',
+    lat: -36.122624,
+    lon: -72.804916,
+    elevFt: 7,
+    scheduled: false,
+  },
 ]
 
 /** @type {Airport[]} Brasil. */
 const br = [
   {
+    key: 'SBRF',
     icao: 'SBRF',
+    gps: 'SBRF',
+    local: 'PE0001',
     iata: 'REC',
     name: 'Recife/Guararapes - Gilberto Freyre International Airport',
     country: 'BR',
@@ -629,9 +1322,12 @@ const br = [
     scheduled: true,
   },
   {
+    key: 'SBSV',
     icao: 'SBSV',
+    gps: 'SBSV',
+    local: 'BA0001',
     iata: 'SSA',
-    name: 'Deputado Luiz Eduardo Magalhes International Airport',
+    name: 'Deputado Luiz Eduardo Magalhães International Airport',
     country: 'BR',
     kind: 'large_airport',
     lat: -12.908611,
@@ -640,7 +1336,10 @@ const br = [
     scheduled: true,
   },
   {
+    key: 'SBCF',
     icao: 'SBCF',
+    gps: 'SBCF',
+    local: 'MG0001',
     iata: 'CNF',
     name: 'Tancredo Neves International Airport',
     country: 'BR',
@@ -651,9 +1350,12 @@ const br = [
     scheduled: true,
   },
   {
+    key: 'SBGR',
     icao: 'SBGR',
+    gps: 'SBGR',
+    local: 'SP0002',
     iata: 'GRU',
-    name: 'So Paulo/GuarulhosGovernor Andr Franco Montoro International Airport',
+    name: 'São Paulo/Guarulhos–Governor André Franco Montoro International Airport',
     country: 'BR',
     kind: 'large_airport',
     lat: -23.431274,
@@ -662,7 +1364,10 @@ const br = [
     scheduled: true,
   },
   {
+    key: 'SBCT',
     icao: 'SBCT',
+    gps: 'SBCT',
+    local: 'PR0001',
     iata: 'CWB',
     name: 'Curitiba-Afonso Pena International Airport',
     country: 'BR',
@@ -673,7 +1378,10 @@ const br = [
     scheduled: true,
   },
   {
+    key: 'SBPA',
     icao: 'SBPA',
+    gps: 'SBPA',
+    local: 'RS0001',
     iata: 'POA',
     name: 'Porto Alegre-Salgado Filho International Airport',
     country: 'BR',
@@ -688,7 +1396,10 @@ const br = [
 /** @type {Airport[]} España. */
 const es = [
   {
+    key: 'LEAS',
     icao: 'LEAS',
+    gps: 'LEAS',
+    local: null,
     iata: 'OVD',
     name: 'Asturias Airport',
     country: 'ES',
@@ -699,7 +1410,10 @@ const es = [
     scheduled: true,
   },
   {
+    key: 'LEBL',
     icao: 'LEBL',
+    gps: 'LEBL',
+    local: null,
     iata: 'BCN',
     name: 'Josep Tarradellas Barcelona-El Prat Airport',
     country: 'ES',
@@ -710,9 +1424,12 @@ const es = [
     scheduled: true,
   },
   {
+    key: 'LEMD',
     icao: 'LEMD',
+    gps: 'LEMD',
+    local: null,
     iata: 'MAD',
-    name: 'Adolfo Surez MadridBarajas Airport',
+    name: 'Adolfo Suárez Madrid–Barajas Airport',
     country: 'ES',
     kind: 'large_airport',
     lat: 40.493407,
@@ -721,7 +1438,10 @@ const es = [
     scheduled: true,
   },
   {
+    key: 'LEPA',
     icao: 'LEPA',
+    gps: 'LEPA',
+    local: null,
     iata: 'PMI',
     name: 'Palma de Mallorca Airport',
     country: 'ES',
@@ -736,7 +1456,10 @@ const es = [
 /** @type {Airport[]} Estados Unidos. */
 const us = [
   {
+    key: 'KORD',
     icao: 'KORD',
+    gps: 'KORD',
+    local: 'ORD',
     iata: 'ORD',
     name: 'Chicago O\'Hare International Airport',
     country: 'US',
@@ -747,7 +1470,10 @@ const us = [
     scheduled: true,
   },
   {
+    key: 'KJFK',
     icao: 'KJFK',
+    gps: 'KJFK',
+    local: 'JFK',
     iata: 'JFK',
     name: 'John F. Kennedy International Airport',
     country: 'US',
@@ -758,7 +1484,10 @@ const us = [
     scheduled: true,
   },
   {
+    key: 'KLAX',
     icao: 'KLAX',
+    gps: 'KLAX',
+    local: 'LAX',
     iata: 'LAX',
     name: 'Los Angeles International Airport',
     country: 'US',
@@ -769,7 +1498,10 @@ const us = [
     scheduled: true,
   },
   {
+    key: 'KMIA',
     icao: 'KMIA',
+    gps: 'KMIA',
+    local: 'MIA',
     iata: 'MIA',
     name: 'Miami International Airport',
     country: 'US',
@@ -784,7 +1516,10 @@ const us = [
 /** @type {Airport[]} Francia. */
 const fr = [
   {
+    key: 'LFPG',
     icao: 'LFPG',
+    gps: 'LFPG',
+    local: null,
     iata: 'CDG',
     name: 'Charles de Gaulle International Airport',
     country: 'FR',
@@ -795,7 +1530,10 @@ const fr = [
     scheduled: true,
   },
   {
+    key: 'LFML',
     icao: 'LFML',
+    gps: 'LFML',
+    local: null,
     iata: 'MRS',
     name: 'Marseille Provence Airport',
     country: 'FR',
@@ -809,14 +1547,17 @@ const fr = [
 
 /**
  * @typedef {object} Airport
- * @property {string}  icao     ICAO location indicator
- * @property {?string} iata     IATA code, null when the field has none
- * @property {string}  name     Aerodrome name, ASCII
- * @property {string}  country  ISO 3166-1 alpha-2
- * @property {string}  kind     large_airport | medium_airport | small_airport | heliport
- * @property {number}  lat      ARP latitude, WGS84 decimal degrees
- * @property {number}  lon      ARP longitude, WGS84 decimal degrees
- * @property {?number} elevFt   Field elevation, feet, null when unpublished
+ * @property {string}  key     Unique identifier: ICAO, else GPS, else local
+ * @property {?string} icao    ICAO location indicator, null when unpublished
+ * @property {?string} gps     GPS code, null when unpublished
+ * @property {?string} local   Local code, null when unpublished
+ * @property {?string} iata    IATA code, null when the field has none
+ * @property {string}  name    Aerodrome name
+ * @property {string}  country ISO 3166-1 alpha-2
+ * @property {string}  kind    large_airport | medium_airport | small_airport | heliport
+ * @property {number}  lat     ARP latitude, WGS84 decimal degrees
+ * @property {number}  lon     ARP longitude, WGS84 decimal degrees
+ * @property {?number} elevFt  Field elevation, feet, null when unpublished
  * @property {boolean} scheduled Whether scheduled passenger service
  */
 
@@ -844,17 +1585,73 @@ export const AIRPORT_COUNTRIES = [
   { code: 'FR', label: 'Francia', count: fr.length }
 ]
 
-/** Lookup by ICAO, case-insensitive. */
-export const AIRPORTS_BY_ICAO = new Map(AIRPORTS.map((a) => [a.icao.toLowerCase(), a]))
+/**
+ * The short code to show on the map: the IATA first.
+ *
+ * An operator says "EZE" and "AEP", not "SAEZ" and "SABE" — the IATA is the
+ * code they read on a boarding pass and type into a slot. It is not always
+ * published, so this falls back through the codes the source does publish and
+ * ends at a shortened name rather than at nothing.
+ */
+export function airportCode(airport) {
+  return (
+    airport.iata || airport.icao || airport.gps || airport.local || shortName(airport)
+  )
+}
+
+/** The name without the trailing "Airport", for the codes that have nothing else. */
+function shortName(airport) {
+  return String(airport.name || '')
+    .replace(/\s+(International\s+)?Airport$/i, '')
+    .slice(0, 14)
+}
+
+/**
+ * True for an aerodrome that carries regular traffic.
+ *
+ * Used to tell the big fields from the small ones on the map. `scheduled` is
+ * the source's own answer, and the size class is the fallback, so an
+ * aerodrome that is medium but has no scheduled service still reads as major
+ * rather than as a strip.
+ */
+export function isMajor(airport) {
+  return airport.scheduled || airport.kind === 'large_airport' || airport.kind === 'medium_airport'
+}
+
+/** Lookup by ICAO, case-insensitive. Only the aerodromes that publish one. */
+export const AIRPORTS_BY_ICAO = new Map(
+  AIRPORTS.filter((a) => a.icao).map((a) => [a.icao.toLowerCase(), a]),
+)
 
 /** Lookup by IATA. */
 export const AIRPORTS_BY_IATA = new Map(AIRPORTS.filter((a) => a.iata).map((a) => [a.iata, a]))
 
 /**
- * Resolve an airport from an ICAO or IATA code, case-insensitively.
+ * Every published code for one aerodrome, longest first, so a lookup matches
+ * the most specific thing the operator typed.
+ */
+export function airportCodes(airport) {
+  return [airport.icao, airport.iata, airport.gps, airport.local]
+    .filter((c) => typeof c === 'string' && c.length > 0)
+    .sort((a, b) => b.length - a.length)
+}
+
+/** Every published code of every aerodrome, mapped to the aerodrome. */
+const BY_CODE = new Map()
+for (const airport of AIRPORTS) {
+  for (const code of airportCodes(airport)) {
+    const k = code.toLowerCase()
+    if (!BY_CODE.has(k)) BY_CODE.set(k, airport)
+  }
+}
+
+/**
+ * Resolve an aerodrome from any code it publishes, case-insensitively.
  *
- * The distance tool asks for a code and the operator may type either, so
- * both are accepted.
+ * The distance tool asks for a code and the operator may type any of them: the
+ * IATA they know, the ICAO from a chart, the local code printed in a FIR
+ * publication, or the GPS code for a field like San Fernando that publishes no
+ * ICAO at all.
  *
  * @param {string} text
  * @returns {Airport | null}
@@ -862,9 +1659,6 @@ export const AIRPORTS_BY_IATA = new Map(AIRPORTS.filter((a) => a.iata).map((a) =
 export function findAirport(text) {
   if (!text) return null
   const t = String(text).trim().toUpperCase()
-  // ICAO is four characters, IATA three. Both must resolve: the panel asks
-  // for "a code" and the operator may have either, and requiring four
-  // would silently reject every IATA code.
-  if (t.length !== 4 && t.length !== 3) return null
-  return AIRPORTS_BY_ICAO.get(t.toLowerCase()) || AIRPORTS_BY_IATA.get(t) || null
+  if (t.length < 3 || t.length > 4) return null
+  return BY_CODE.get(t.toLowerCase()) || null
 }

@@ -196,6 +196,15 @@ table thead th {
   display: none;
 }
 
+/* The minor aerodromes: amber on the map, and a quieter label so a country full
+   of regional strips does not read as loud as the hubs. Same hue as the symbol
+   in map/airports.js — the two are the same distinction, stated twice. */
+.aerorf-airport-label-minor {
+  color: #d9a441;
+  font-size: 8px;
+  opacity: 0.72;
+}
+
 .aerorf-airport-tip {
   background: #0f172a;
   border: 1px solid #1e293b;

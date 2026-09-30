@@ -19,7 +19,13 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { AirportLayer, AIRPORT_LAYER_KEY, cardinal } from '@/map/airports'
-import { AIRPORTS, AIRPORTS_BY_ICAO, findAirport } from '@/data/airports'
+import {
+  AIRPORTS,
+  AIRPORTS_BY_ICAO,
+  findAirport,
+  airportCode,
+  isMajor,
+} from '@/data/airports'
 import { haversine } from '@/map/geo'
 import { MapEngine } from '@/map/MapEngine'
 
@@ -30,11 +36,24 @@ describe('the aerodrome reference data', () => {
     expect(AIRPORTS.length).toBeGreaterThan(40)
   })
 
-  it('has no duplicated ICAO code', () => {
+  it('has no duplicated identifier', () => {
+    // `key`, not `icao`: some aerodromes in service publish no ICAO code at
+    // all, and indexing on it would put more than one of them under the same
+    // value. San Fernando is the one in this list.
     const seen = new Map()
     for (const a of AIRPORTS) {
+      expect(a.key, 'un aerodromo sin identificador').toBeTruthy()
+      expect(seen.has(a.key), `identificador duplicado: ${a.key}`).toBe(false)
+      seen.set(a.key, a)
+    }
+  })
+
+  it('has no duplicated ICAO code', () => {
+    const seen = new Set()
+    for (const a of AIRPORTS) {
+      if (!a.icao) continue
       expect(seen.has(a.icao), `ICAO duplicado: ${a.icao}`).toBe(false)
-      seen.set(a.icao, a)
+      seen.add(a.icao)
     }
   })
 
@@ -66,11 +85,77 @@ describe('the aerodrome reference data', () => {
     }
   })
 
-  it('uses a four-letter ICAO code and a three-letter IATA code', () => {
+  it('uses a four-letter code and a three-letter IATA code', () => {
     for (const a of AIRPORTS) {
-      expect(a.icao, `${a.icao} no parece un codigo ICAO`).toMatch(/^[A-Z0-9]{4}$/)
+      // An aerodrome with no ICAO still has to carry a four-letter identifier
+      // of some kind, or there is nothing to look it up or label it with. The
+      // two in this list that have no ICAO both publish a gps_code.
+      const four = a.icao || a.gps
+      expect(four, `${a.key} sin codigo de cuatro letras`).toMatch(/^[A-Z0-9]{4}$/)
+      if (a.icao) expect(a.icao).toMatch(/^[A-Z0-9]{4}$/)
       if (a.iata) expect(a.iata).toMatch(/^[A-Z0-9]{3}$/)
     }
+  })
+
+  it('keeps the accents in the published names', () => {
+    // The generator used to run every name through
+    // `name.encode("ascii", "ignore")`, on the theory that the names were for a
+    // console. They are not: they are read in the browser, and every accented
+    // aerodrome in the country came out with a hole where the vowel belonged —
+    // "Martn Miguel de Gemes", "Presidente Pern".
+    const salta = AIRPORTS.find((a) => a.icao === 'SASA')
+    expect(salta?.name, 'el nombre de SASA debe conservar los acentos')
+      .toBe('Martín Miguel de Güemes International Airport')
+    const perón = AIRPORTS.find((a) => a.icao === 'SAZN')
+    expect(perón?.name).toContain('Perón')
+  })
+
+  it('carries the two Buenos Aires fields the operator asked for', () => {
+    // El Palomar and San Fernando. The first publishes its code as SADP with
+    // IATA EPA; the second publishes neither an ICAO nor an IATA code, only a
+    // gps_code and a local one. Both are looked up by either.
+    const palomar = findAirport('SADP')
+    expect(palomar?.name).toBe('El Palomar Airport')
+    expect(palomar?.iata).toBe('EPA')
+
+    const fernando = findAirport('SADF')
+    expect(fernando?.name).toBe('San Fernando Airport')
+    expect(fernando?.icao, 'la fuente no publica ICAO para San Fernando').toBeNull()
+    expect(fernando?.local).toBe('FDO')
+    // Reachable by the local code too, which is how it is published in the
+    // Argentine AIP.
+    expect(findAirport('FDO')?.key).toBe('SADF')
+  })
+
+  it('carries every Argentine aerodrome the source calls a hub or a scheduled field', () => {
+    // The rule the selection follows, asserted so it cannot quietly shrink:
+    // every Argentine airport the source types medium_airport, or
+    // small_airport with scheduled service, is present. Jujuy was missing
+    // before this, and it is a large airport with a scheduled service.
+    const required = ['SASJ', 'SADP', 'SADL', 'SANE', 'SAVH', 'SAVN', 'SAWR', 'SAWT']
+    for (const code of required) {
+      expect(findAirport(code), `falta el aeropuerto ${code}`).toBeTruthy()
+    }
+  })
+
+  it('labels with the IATA, which is the code an operator types', () => {
+    expect(airportCode(AIRPORTS_BY_ICAO.get('saez'))).toBe('EZE')
+    expect(airportCode(AIRPORTS_BY_ICAO.get('sabe'))).toBe('AEP')
+    // No IATA published: falls through to the ICAO rather than to nothing.
+    const sinIata = AIRPORTS.find((a) => !a.iata)
+    expect(airportCode(sinIata), 'un aerodromo sin IATA igual debe tener etiqueta')
+      .toBeTruthy()
+  })
+
+  it('tells the major fields from the minor ones, for the two symbol colours', () => {
+    const eze = AIRPORTS_BY_ICAO.get('saez')
+    expect(isMajor(eze)).toBe(true)
+    // A small aerodrome with no scheduled service is the minor family.
+    const menor = AIRPORTS.find(
+      (a) => a.kind === 'small_airport' && !a.scheduled,
+    )
+    expect(menor, 'debe haber al menos un aerodromo menor en la lista').toBeTruthy()
+    expect(isMajor(menor)).toBe(false)
   })
 
   it('carries a name and a country for every aerodrome', () => {
@@ -178,11 +263,36 @@ describe('AirportLayer on the map', () => {
     expect(tip.getContent()).toContain('referencia')
   })
 
-  it('shows the ICAO code when labels are on, and hides them again', () => {
+  it('shows the short code when labels are on, and hides them again', () => {
     layer.setLabels(true)
-    expect(layer.markers.get('SAEZ').getTooltip()).toBeTruthy()
+    const eze = layer.markers.get('SAEZ')
+    expect(eze.getTooltip()).toBeTruthy()
+    // The permanent label is the IATA, not the ICAO: the operator says EZE.
+    expect(eze.getTooltip().getContent()).toContain('EZE')
     layer.setLabels(false)
     expect(layer.labelsVisible).toBe(false)
+  })
+
+  it('draws the minor aerodromes differently from the major ones', () => {
+    // Two symbol families, so a regional strip does not disappear under a hub
+    // and the operator can tell at a glance which is which.
+    const major = layer.markers.get('SAEZ')
+    const minor = AIRPORTS.find((a) => !isMajor(a) && a.kind !== 'heliport')
+    const minorMarker = layer.markers.get(minor.key)
+    expect(minorMarker, 'el aeropuerto menor debe estar dibujado').toBeTruthy()
+    expect(major.options.color, 'el color distingue las dos familias')
+      .not.toBe(minorMarker.options.color)
+    expect(major.options.radius).toBeGreaterThan(minorMarker.options.radius)
+  })
+
+  it('labels an aerodrome that has no ICAO code at all', () => {
+    // San Fernando. Keyed on `key`, so it is reachable and not filed under
+    // `null` together with anything else.
+    const fernando = layer.markers.get('SADF')
+    expect(fernando, 'San Fernando debe estar en el mapa').toBeTruthy()
+    expect(fernando.airport.name).toBe('San Fernando Airport')
+    layer.setLabels(true)
+    expect(fernando.getTooltip().getContent()).toBeTruthy()
   })
 
   it('fits the map to the aerodromes', () => {

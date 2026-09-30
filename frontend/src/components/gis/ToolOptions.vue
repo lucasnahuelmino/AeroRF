@@ -91,6 +91,40 @@
       </p>
     </section>
 
+    <!--
+      How the circle and the radial get their size. This is the control the
+      operator asked for: before it, the number in this panel was drawn on the
+      map as a preview and then thrown away by the second click, so typing 5 NM
+      and pressing the map stored whatever distance the two clicks happened to
+      be apart. Two distinct jobs, two explicit choices.
+    -->
+    <section
+      v-if="mapStore.activeTool === 'circle' || mapStore.activeTool === 'radial'"
+      class="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+    >
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+        Tamaño
+      </h3>
+      <label class="flex items-start gap-2 text-[11px] text-slate-300">
+        <input
+          type="checkbox"
+          :checked="mapStore.toolOptions.useTyped"
+          class="mt-0.5 accent-blue-600"
+          @change="applyUseTyped($event.target.checked)"
+        />
+        <span>
+          Usar el valor del panel
+          <span class="mt-0.5 block text-[10px] leading-snug text-slate-500">
+            {{
+              mapStore.toolOptions.useTyped
+                ? 'Un clic y listo. La herramienta sigue armada para el siguiente.'
+                : 'Dos clics: primero el centro, después el borde. El radio sale de esa distancia.'
+            }}
+          </span>
+        </span>
+      </label>
+    </section>
+
     <!-- Radial (spec §11, §37) -->
     <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
@@ -343,6 +377,11 @@ function applyLength(value = length.value) {
   length.value = v
   mapStore.setToolOption('length', v)
   mapStore.toolManager?.setOptions({ length: v })
+}
+
+function applyUseTyped(checked) {
+  mapStore.setToolOption('useTyped', Boolean(checked))
+  mapStore.toolManager?.setOptions({ useTyped: Boolean(checked) })
 }
 
 // ─── Manual entry (spec §7 method B) ────────────────────────────────────────

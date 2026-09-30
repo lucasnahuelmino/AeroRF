@@ -28,8 +28,23 @@
         class="accent-blue-600"
         @change="emit('update:labels', $event.target.checked)"
       />
-      Mostrar códigos ICAO
+      Mostrar códigos (IATA)
     </label>
+
+    <!-- What the two symbol families mean. The layer now carries every
+         aerodrome in the country, so a blue dot and an amber dot have to be
+         told apart, and the difference is the source's own classification. -->
+    <ul class="space-y-1 border-t border-slate-800 pt-2 text-[10px] text-slate-500">
+      <li class="flex items-center gap-1.5">
+        <span class="inline-block h-2 w-2 rounded-full border border-sky-400 bg-sky-500/50" />
+        Con tráfico: EZE, AEP y regionales con vuelo regular
+      </li>
+      <li class="flex items-center gap-1.5">
+        <span class="inline-block h-2 w-2 rounded-full border border-amber-500 bg-amber-900/30" />
+        Aeródromos menores activos: El Palomar, San Fernando y strippings
+      </li>
+      <li>Referencia publicada, no medida por AeroRF.</li>
+    </ul>
 
     <div class="border-t border-slate-800 pt-2">
       <div class="mb-1 flex items-center justify-between">

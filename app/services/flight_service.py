@@ -519,8 +519,53 @@ def _store_track(
 
     ``session_id`` links a track produced by a recording session back to
     that session, which is what lets the replay view find it.
+
+    Returns the row that now holds this trajectory, which is not always a row
+    this call inserted. Asking twice for the same flight used to insert a
+    second identical row every time, and the operator then saw every recorded
+    flight two or three times in the list. Measured in the database before this
+    change: 34 rows holding 8 groups of exact duplicates.
+
+    A match is the same aerodrome, the same flight over it, and the same number
+    of points. Two things are deliberately *not* treated as repeats:
+
+    - A sparser trajectory over the same window. That is different data, not a
+      repeat, and it is how a partial live recording stays visible next to the
+      full one instead of being hidden by it.
+    - Another flight of the same aerodrome. ``callsign`` and ``flight_id`` are
+      part of the key because two flights of one aircraft can overlap in time,
+      and collapsing them would file the second under the first's callsign —
+      a confidently wrong label rather than a harmless duplicate.
+
+    ``session_id`` is not part of the key: a recording session and a fetched
+    trajectory can describe the same points, and that is the same trajectory.
+    When they meet, the session is attached to the row that already exists, so
+    the replay view still finds it.
     """
     from app.services.geojson_service import line_geometry
+
+    started_at = _utc(payload.get("start_time"))
+    ended_at = _utc(payload.get("end_time"))
+
+    existing = (
+        db.query(AircraftTrack)
+        .filter(
+            AircraftTrack.icao24 == icao24,
+            AircraftTrack.flight_id == flight_id,
+            AircraftTrack.callsign == callsign,
+            AircraftTrack.started_at == started_at,
+            AircraftTrack.ended_at == ended_at,
+            AircraftTrack.point_count == len(points),
+        )
+        .order_by(AircraftTrack.id)
+        .first()
+    )
+    if existing is not None:
+        if session_id is not None and existing.session_id is None:
+            existing.session_id = session_id
+            db.commit()
+            db.refresh(existing)
+        return existing
 
     track = AircraftTrack(
         icao24=icao24,
@@ -528,8 +573,8 @@ def _store_track(
         session_id=session_id,
         flight_id=flight_id,
         source=payload.get("source", TRACK_SOURCE_OPENSKY),
-        started_at=_utc(payload.get("start_time")),
-        ended_at=_utc(payload.get("end_time")),
+        started_at=started_at,
+        ended_at=ended_at,
         point_count=len(points),
         observed_seconds=payload.get("span_s"),
         geometry=line_geometry([[p["latitude"], p["longitude"]] for p in points]),

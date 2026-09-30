@@ -104,7 +104,16 @@ export const useMapStore = defineStore('map', () => {
   const draft = ref(null)
 
   // Tool defaults the operator tweaks between uses (spec §10, §36, §37).
-  const toolOptions = ref({ unit: 'nm', radius: 20, length: 20, azimuth: 135 })
+  // `useTyped: false` keeps the original two-click sizing: click the centre,
+  // then click the edge. The panel can switch it to one-click sizing, where the
+  // radius or length typed here is what gets stored.
+  const toolOptions = ref({
+    unit: 'nm',
+    radius: 20,
+    length: 20,
+    azimuth: 135,
+    useTyped: false,
+  })
 
   // ─── Context menu (spec §45) ─────────────────────────────────────────────
   const contextMenu = ref({ open: false, lat: null, lon: null, x: 0, y: 0 })

@@ -93,7 +93,12 @@ export class ToolManager {
     this._unsubscribe = null
     this._keyHandler = null
     /** Options the store injects (radius unit, default names, …). */
-    this.options = { unit: 'nm', radius: 5, length: 10, azimuth: 0 }
+    // `useTyped` picks how a circle or a radial gets its size. False is the
+    // original interaction — click the centre, then click where you want the
+    // edge — and it is the default, so nothing that worked before changes.
+    // True makes the panel's number the size: one click, and the number you
+    // typed is the number stored.
+    this.options = { unit: 'nm', radius: 5, length: 10, azimuth: 0, useTyped: false }
   }
 
   // ─── Activation ───────────────────────────────────────────────────────────
@@ -359,20 +364,50 @@ export class ToolManager {
         return this._pushPoint(point, true)
 
       case TOOLS.CIRCLE:
+        // Two ways to size a circle, and the operator chooses.
+        //
+        // `cursorSizing` (the default) is the original interaction: the first
+        // click places the centre, the second one is the decision to keep the
+        // circle, and its radius is the distance from the centre to where they
+        // clicked. Point at what you want covered.
+        //
+        // `typed` is the other one: the radius in the options panel is the
+        // radius, and one click places the whole circle. Write 5 NM, press the
+        // map, get 5 NM.
+        //
+        // They were conflated before this, which is the bug the operator
+        // reported: they typed 5 NM, clicked, and the stored radius was the
+        // distance between the two clicks — 2.987 NM in the reproduction — with
+        // the typed number discarded. Worse, the *second* click also snapped to
+        // the centre of a nearby shape, so the radius came out of a position
+        // the operator never aimed at.
+        if (this.options.useTyped) {
+          this._startCircle(point)
+          return this.commitCircle({ keepTool: true })
+        }
         // The first click places the centre; the second one is the decision
         // to keep the circle, sized to where the operator clicked. Sizing is
         // measured from that click before committing, so the stored radius is
         // the one the pointer was showing, not a stale value from the last
         // mousemove.
         if (this.draft?.center) {
-          this._updateCircle(point)
+          // Deliberately *not* snapped: the centre was already placed, and
+          // snapping the sizing click moved it onto another shape and changed
+          // the radius behind the operator's back.
+          this._updateCircle(raw)
           return this.commitCircle()
         }
         return this._startCircle(point)
 
       case TOOLS.RADIAL:
+        if (this.options.useTyped) {
+          this._startRadial(point)
+          return this.commitRadial({ keepTool: true })
+        }
         if (this.draft?.origin) {
-          this._updateRadial(point)
+          // Same reasoning as the circle: this click is azimuth and length, so
+          // it is taken where it landed.
+          this._updateRadial(raw)
           return this.commitRadial()
         }
         return this._startRadial(point)
@@ -596,17 +631,20 @@ export class ToolManager {
   }
 
   /** Confirm the current circle. */
-  commitCircle() {
+  commitCircle({ keepTool = false } = {}) {
     if (this.active !== TOOLS.CIRCLE || !this.draft?.center) return null
     const { center, radiusM } = this.draft
-    const result = this._emitComplete({
-      type: 'circle',
-      latitude: center[0],
-      longitude: center[1],
-      radius: round(this.draft.radius, 3),
-      radius_unit: this.draft.unit,
-      radius_m: radiusM,
-    })
+    const result = this._emitComplete(
+      {
+        type: 'circle',
+        latitude: center[0],
+        longitude: center[1],
+        radius: round(this.draft.radius, 3),
+        radius_unit: this.draft.unit,
+        radius_m: radiusM,
+      },
+      { keepTool },
+    )
     // The object is stored; drop the sizing aids so the map is left clean.
     this.engine.removeDraft('edge')
     this._pointer = null
@@ -728,18 +766,21 @@ export class ToolManager {
     this._emitPreview({ type: 'radial', ...this.draft })
   }
 
-  commitRadial() {
+  commitRadial({ keepTool = false } = {}) {
     if (this.active !== TOOLS.RADIAL || !this.draft?.origin) return null
     const { origin, azimuth, lengthM } = this.draft
-    return this._emitComplete({
-      type: 'radial',
-      latitude: origin[0],
-      longitude: origin[1],
-      azimuth: round(azimuth, 2),
-      length_value: round(this.draft.length, 3),
-      length_unit: this.draft.unit,
-      length_m: lengthM,
-    })
+    return this._emitComplete(
+      {
+        type: 'radial',
+        latitude: origin[0],
+        longitude: origin[1],
+        azimuth: round(azimuth, 2),
+        length_value: round(this.draft.length, 3),
+        length_unit: this.draft.unit,
+        length_m: lengthM,
+      },
+      { keepTool },
+    )
   }
 
   // ─── Commit ───────────────────────────────────────────────────────────────
@@ -776,10 +817,31 @@ export class ToolManager {
     })
   }
 
-  _emitComplete(payload) {
+  /**
+   * Hand the finished shape to the shell.
+   *
+   * `keepTool` leaves the tool armed. It is what the typed-radius mode needs:
+   * an operator placing a 5 NM circle around four sites wants four circles of
+   * 5 NM, and having to re-pick the tool and retype the number after each one
+   * is what made the panel look like it had vanished — the fields disappear
+   * with the tool.
+   */
+  _emitComplete(payload, { keepTool = false } = {}) {
     this.cleanup()
     this.draft = null
-    this.active = null
+    if (keepTool) {
+      this._pointer = null
+      // `cleanup()` unsubscribed from the map's clicks, so a tool left armed
+      // but unsubscribed is deaf: the second click of the same radius never
+      // arrives and the operator concludes the feature is broken. Listen again
+      // before drawing the ghost for the next one.
+      this.engine.suppressClicks(false)
+      this._setCursor(TOOL_META[this.active]?.cursor || 'crosshair')
+      this._unsubscribe = this.engine.on('click', (next) => this._onClick(next))
+      this._renderGhost()
+    } else {
+      this.active = null
+    }
     this.handlers.onComplete?.(payload)
     this._emitChange()
     return payload
