@@ -1,20 +1,57 @@
 # Punto de retorno — AeroRF
 
 **Fecha:** 2026-09-30
-**Estado:** funcional. **La selección de objetos en el mapa quedó resuelta** en
-0.27.3 y verificada en un navegador real.
+**Estado:** funcional. La selección de objetos quedó resuelta en 0.27.3 y el
+popup de los objetos se quitó en 0.27.4.
 
 ---
 
-## Lo que se resolvió en 0.27.3
+## Dos cosas que conviene no volver a tropezar
+
+**Medir en el navegador, no simular.** El bug de 0.27.3 estuvo escondido porque
+`layer.fire('click')` se salta el hit-testing. Cuando me puse a medir en el
+navegador, una parte de mis mediciones **también estaba mal**: convertía un
+punto geográfico a coordenadas de pantalla con el rectángulo del canvas, que
+está desplazado (-42, -63) respecto del contenedor del mapa, porque Leaflet lo
+pinta con margen. Todos los clics iban 75 px desviados. Con la conversión
+correcta —el rectángulo del **contenedor del mapa**, despachando sobre el
+canvas— todo responde. Cuando una medición da «no funciona», comprobar primero
+la medición.
+
+**No corregir datos a ojo.** `frontend/src/data/airports.js` perdió todos los
+acentos al escribirse: `Martn Miguel de Gemes`, `Presidente Pern`, `Capitan`.
+La `ñ` sobrevivió, así que no es una limpieza de acentos sino corrupción de la
+escritura. El popup lo muestra tal cual, sin pérdida. Está pendiente y hay que
+resolverlo volviendo a derivar el archivo de su fuente, no escribiendo los
+nombres de memoria.
+
+---
+
+## 0.27.4 — el popup de los objetos salió
+
+Al seleccionar, la información se lee en el Inspector del panel lateral, no en
+un globo sobre el mapa. No se perdió nada: el Inspector mostraba todo lo que
+el globo mostraba, más la carga por tipo y el formulario de edición.
+
+**Los popups de aeropuerto y de aeronave se quedan a propósito.** Ninguno de
+los dos tiene panel lateral, así que su globo es el único sitio donde se lee
+esa información. Quitarlos sería perder datos.
+
+Con él salieron `objectPopup()`, y también un `TYPE_LABELS` duplicado en
+`MapEngine` que nadie leía —el vivo está en `stores/map.js` como `typeName`—.
+
+Detalle en `AERORF_CHANGELOG.md`, sección 0.27.4.
+
+---
+
+## 0.27.3 — la selección volvió a funcionar
 
 **Síntoma que-was abierto:** ningún objeto del mapa se seleccionaba. Ni puntos,
 ni círculos, ni radiales. Como consecuencia no se podía borrar, anotar, mover
 ni medir desde un objeto.
 
-**Ahora:** los 10 objetos de la base seleccionan con un clic real, los tres
-tipos, verificado en el navegador con un `MouseEvent` de verdad — no con
-`layer.fire()`. También verificados: el clic en suelo vacío deselecciona, y
+**Ahora:** los objetos seleccionan con un clic real, los tres tipos, verificado
+en el navegador. También verificados: el clic en suelo vacío deselecciona, y
 ocultar y volver a mostrar una capa no altera el orden de dibujo.
 
 Había **tres** causas, no una, y ninguna era la que se había diagnosticado antes:
@@ -121,6 +158,9 @@ generar uno nuevo en OpenSky y actualizar `.env`.
 - `npm run lint` no funciona. Se puede dejar así, o añadir una configuración
   mínima de ESLint. No se añadió aquí porque no se pidió y el build ya cubre
   la comprobación.
+- **Los acentos de `frontend/src/data/airports.js`.** Ver arriba. 67 nombres de
+  aeropuerto, la mayoría con la ortografía rota. Se arregla rederivando el
+  archivo de su fuente, no corrigiéndolo a mano.
 
 ### Limitación conocida y documentada
 
@@ -137,5 +177,5 @@ El muestreo de posiciones corre en el bucle de sondeo del WebSocket, así que
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.27.3) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.27.4) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |

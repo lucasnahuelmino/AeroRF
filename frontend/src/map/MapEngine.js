@@ -5,7 +5,10 @@
  *
  * Responsibilities (spec §4): Leaflet initialisation, OpenStreetMap
  * basemap, zoom, pan, click events, cursor coordinates, object selection,
- * layers, geometries, popups, measurement and drawing hooks.
+ * layers, geometries, labels on hover, measurement and drawing hooks.
+ *
+ * No popups here: the objects' details live in the Inspector panel, and the
+ * airport and aircraft popups belong to their own modules.
  *
  * Why a class rather than a composable: the map has real state (panes,
  * layer registries, click handlers, a draw session). Putting that in a
@@ -641,77 +644,6 @@ export class MapEngine {
     return bits.join('<br/>')
   }
 
-  /** Rich popup body (spec §39). */
-  objectPopup(object) {
-    const p = object.properties || {}
-    const rows = []
-    const row = (k, v) => {
-      if (v === null || v === undefined || v === '') return
-      rows.push(
-        `<div class="aerorf-popup-row"><span>${escapeHtml(k)}</span><b>${escapeHtml(String(v))}</b></div>`,
-      )
-    }
-
-    row('ID', object.id)
-    row('Tipo', typeLabel(object.type))
-    row('Nombre', object.name)
-    row('Estado', object.status)
-    row('Categoría', object.category)
-
-    if (object.latitude != null) {
-      row('Latitud', Number(object.latitude).toFixed(6))
-      row('Longitud', Number(object.longitude).toFixed(6))
-    }
-
-    if (p.rf) {
-      row('Frecuencia', p.rf.frequency_mhz ? `${p.rf.frequency_mhz} MHz` : null)
-      row('Nivel', p.rf.power_dbm != null ? `${p.rf.power_dbm} dBm` : null)
-      row('Tipo de señal', p.rf.kind)
-      row('Altura', p.rf.height_m ? `${p.rf.height_m} m` : null)
-    }
-    if (p.antenna) {
-      row('Frecuencia', p.antenna.frequency_mhz ? `${p.antenna.frequency_mhz} MHz` : null)
-      row('Ganancia', p.antenna.gain_dbi != null ? `${p.antenna.gain_dbi} dBi` : null)
-      row('Altura', p.antenna.height_m ? `${p.antenna.height_m} m` : null)
-      row('Azimut', p.antenna.azimuth_deg != null ? `${p.antenna.azimuth_deg}°` : null)
-      row('Sector', p.antenna.sector_deg ? `${p.antenna.sector_deg}°` : null)
-      row('Polarización', p.antenna.polarization)
-    }
-    if (p.reference) {
-      row('Código', p.reference.code)
-      row('Radio', p.reference.radius != null
-        ? `${p.reference.radius} ${p.reference.radius_unit}`
-        : null)
-    }
-
-    if (object.metrics?.radius_nm != null) {
-      row('Radio', `${object.metrics.radius_nm.toFixed(3)} NM`)
-      row('Equivalente', `${object.metrics.radius_km.toFixed(3)} km`)
-    }
-    if (object.radial) {
-      row('Azimut', `${object.radial.azimuth.toFixed(1)}°`)
-      row('Longitud', `${object.radial.length_nm.toFixed(2)} NM / ${object.radial.length_km.toFixed(2)} km`)
-    }
-    if (object.metrics?.total_length_nm != null) {
-      row('Longitud', `${object.metrics.total_length_nm.toFixed(3)} NM`)
-      row('Equivalente', `${object.metrics.total_length_km.toFixed(3)} km`)
-    }
-
-    if (p.expediente) row('Expediente', p.expediente)
-    row('Capa', p.layer_name || p.layer)
-    row('Procedencia', provenanceLabel(object.provenance))
-    row('Creado', p.created_at ? formatDate(p.created_at) : null)
-    row('Modificado', p.updated_at ? formatDate(p.updated_at) : null)
-
-    return `
-      <div class="aerorf-popup">
-        <div class="aerorf-popup-title">${escapeHtml(object.name || typeLabel(object.type))}</div>
-        ${object.description ? `<div class="aerorf-popup-desc">${escapeHtml(object.description)}</div>` : ''}
-        <div class="aerorf-popup-rows">${rows.join('')}</div>
-        <div class="aerorf-popup-hint">Doble clic para abrir en el Inspector</div>
-      </div>`
-  }
-
   /** Attach a click handler that reports the object id. */
   onObjectClick(objectId, handler) {
     const key = String(objectId)
@@ -957,24 +889,10 @@ export class MapEngine {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const TYPE_LABELS = {
-  point: 'Punto',
-  line: 'Línea',
-  polygon: 'Polígono',
-  circle: 'Círculo',
-  radial: 'Radial',
-  trace: 'Traza',
-  measurement: 'Medición',
-  annotation: 'Anotación',
-  rf_source: 'Fuente interferente',
-  antenna: 'Antena',
-  reference: 'Referencia',
-  rf_event: 'Evento RF',
-  enacom_station: 'Estación ENACOM',
-  airport: 'Aeropuerto',
-  coverage: 'Cobertura',
-  other: 'Otro',
-}
+// The type labels live in `stores/map.js` as `typeName`, and that is the one the
+// whole interface uses — the Inspector included. There was a second, identical
+// table here as `typeLabel`, used only by `objectPopup`, which meant two places
+// to keep in step and one that nothing read. It went when the popup did.
 
 const PROVENANCE_LABELS = {
   observed: 'Dato observado',
@@ -982,10 +900,6 @@ const PROVENANCE_LABELS = {
   live: 'Dato en vivo',
   calculated: 'Dato calculado',
   user: 'Introducido por el usuario',
-}
-
-export function typeLabel(type) {
-  return TYPE_LABELS[type] || type || '—'
 }
 
 export function provenanceLabel(value) {
@@ -999,16 +913,6 @@ export function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-function formatDate(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return String(iso)
-  return d.toLocaleString('es-AR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
 }
 
 export default MapEngine

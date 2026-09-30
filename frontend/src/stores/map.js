@@ -209,7 +209,7 @@ export const useMapStore = defineStore('map', () => {
       const layer = e.renderObject(obj)
       if (layer) {
         e.onObjectClick(obj.id, (id) => select(id))
-        bindPopup(obj, layer)
+        bindInspect(obj, layer)
       }
     })
     // The draw order is what decides who receives a click, so it is set here
@@ -219,28 +219,39 @@ export const useMapStore = defineStore('map', () => {
     e.restack()
   }
 
-  function bindPopup(obj, layer = null) {
+  /**
+   * Bind the double click that opens the object in the Inspector.
+   *
+   * There is no popup on the map objects any more. The balloon was the second
+   * place the same information appeared, it opened right on top of the panel
+   * the operator had just clicked into, and it covered the toolbar and the
+   * coordinates bar. Nothing is lost: `InspectorPanel` shows every field the
+   * popup did, plus the per-type payload and the edit form, and it does it in
+   * the panel that the operator was already reading.
+   *
+   * Airport and aircraft markers keep their popups. Neither has a side panel —
+   * `AirportPanel` is a search box and a live aircraft only shows up in
+   * `selectedAircraft` when the flight panel picks it — so for those the popup
+   * is the only place the information is readable.
+   *
+   * The double click is bound to the *children* of a group, not to the group. A
+   * measured shape is a group — the ring or line plus its centre dot — and
+   * `on('dblclick')` on a group never fires, because no event is ever raised on
+   * the group from a child. Bound on the group it looked like it worked and did
+   * nothing.
+   */
+  function bindInspect(obj, layer = null) {
     const e = engine.value
     if (!e) return
     const target = layer || e.featureLayers.get(String(obj.id))
     if (!target) return
     const fresh = byId.value.get(obj.id) || obj
-    // A measured shape is a group — the ring or line plus its centre dot — and
-    // a group holds no popup and reports no double click of its own. Both are
-    // bound to the children instead, so opening the details and opening the
-    // inspector work on a circle as well as on a point.
-    //
-    // Without this the popup silently did nothing on a circle: `bindPopup` on
-    // a group stores a property nothing reads, and `on('dblclick')` on a group
-    // never fires, because no event is ever raised on the group from a child.
     const targets = e.vectorLayersFor(target)
     if (!targets.length) {
-      target.bindPopup?.(e.objectPopup(fresh))
       target.on?.('dblclick', () => select(fresh.id))
       return
     }
     targets.forEach((child) => {
-      child.bindPopup?.(e.objectPopup(fresh))
       child.on?.('dblclick', () => select(fresh.id))
     })
   }
@@ -355,7 +366,7 @@ export const useMapStore = defineStore('map', () => {
     const layer = e.renderObject(object)
     if (layer) {
       e.onObjectClick(object.id, (id) => select(id))
-      bindPopup(object, layer)
+      bindInspect(object, layer)
     }
   }
 

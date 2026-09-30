@@ -596,20 +596,6 @@ describe('MapEngine in jsdom', () => {
     expect(layer).toBeNull()
     engine.destroy()
   })
-
-  it('formats a circle popup with both units (spec §10, §39)', () => {
-    const engine = new MapEngine({ container: 'map-test' })
-    engine.init()
-    const html = engine.objectPopup({
-      id: 1, type: 'circle', name: 'Radio 20 NM', status: 'Activo',
-      metrics: { radius_nm: 20, radius_km: 37.04 },
-      properties: {}, provenance: 'user',
-    })
-    expect(html).toContain('Radio 20 NM')
-    expect(html).toContain('20.000')
-    expect(html).toContain('37.040')
-    engine.destroy()
-  })
 })
 
 describe('ToolManager in jsdom', () => {

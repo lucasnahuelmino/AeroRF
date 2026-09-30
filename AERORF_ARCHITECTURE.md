@@ -202,7 +202,7 @@ Cinco valores, aplicados a cada dato y conservados de extremo a extremo
 
 El origen se etiqueta en el modelo (`MapObject.source`,
 `AircraftTrack.source`, `RFSource.provenance`), viaja en la respuesta de
-la API, aparece en los popups del mapa, en la leyenda de la capa de
+la API, aparece en el Inspector del panel lateral, en la leyenda de la capa de
 capas, y en las exportaciones.
 
 ### 3.7 Seguridad
@@ -302,7 +302,7 @@ vectores y los compara:
 - El formato de coordenadas se compara **como texto**, byte a byte.
 
 Si el JS y el Python divergieran un decimal, el operador vería un valor en
-la barra de estado y otro en el popup, y las distancias de un expediente
+la barra de estado y otro en el Inspector, y las distancias de un expediente
 no coincidirían con la pantalla. La paridad lo hace imposible por
 construcción.
 

@@ -83,6 +83,12 @@ Muestra el objeto seleccionado: propiedades, geometría, notas e historial. Es
 append-only: las notas se conservan para siempre y no se sobrescriben, y cada
 cambio de un campo queda registrado con su valor anterior.
 
+**Aquí es donde está toda la información de un objeto.** Al hacer clic en un
+objeto no aparece ninguna ventana sobre el mapa: el mapa queda despejado y los
+datos se leen en este panel, que además permite editarlos. Un clic ya selecciona;
+el doble clic también, y conviene para líneas finas como un radial, donde el
+blanco es de tres píxeles.
+
 ---
 
 ## Las diez herramientas del mapa

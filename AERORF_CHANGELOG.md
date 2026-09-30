@@ -1773,7 +1773,7 @@ Verificadas revirtiendo el arreglo: volver a `layerGroup` deja 2 tests en rojo.
 
 En 0.27.1 atribuí el problema a que un `LayerGroup` no reenvía clics y cambié a
 `FeatureGroup`. Era **una causa real pero no la que rompía la selección**, y lo
-dije como si lo fuera. El `LayerGroup`，确实 impedía seleccionar en su momento,
+dije como si lo fuera. El `LayerGroup`, sí impedía seleccionar en su momento,
 pero el síntoma que reportaste — que **nada** se selecciona, ni siquiera un
 punto simple — no lo explicaba.
 
@@ -1970,3 +1970,79 @@ comprobación real de esta versión es el build, que pasa en 25 s, y las 314
 pruebas de frontend.
 
 **Totales: 376 + 7 Python, 314 frontend, 675 de paridad.**
+
+---
+
+## 0.27.4 — Fuera el popup de los objetos del mapa
+
+**Lo que pidió el operador:** al seleccionar, toda la información en el panel
+lateral, no en un globo que tapa las herramientas.
+
+### Qué se quitó y qué se queda
+
+El popup de los objetos del mapa —círculos, radiales, puntos, fuentes,
+antenas, eventos, anotaciones— desaparece. No se pierde nada: `InspectorPanel`
+muestra todos los campos que mostraba el globo, más la carga por tipo y el
+formulario de edición, y además es editable. El globo era la segunda copia de
+lo mismo, aparecía encima del panel al que el operador acababa de hacer clic y
+tapaba la barra de herramientas y la barra de coordenadas.
+
+**Los popups de aeropuerto y de aeronave se quedan.** Ninguno de los dos tiene
+panel: `AirportPanel` es un buscador, y una aeronave en vivo solo aparece en
+`selectedAircraft` cuando el panel de vuelos la elige. Para esos dos el globo es
+el único sitio donde se lee la información, y la opción de quitarlos sin más que
+se le ofreció al operador habría sido perder datos.
+
+### Lo que se borró con él
+
+- `MapEngine.objectPopup()`, que solo servía para eso.
+- `MapEngine.typeLabel()` y su `TYPE_LABELS`, que era una **segunda** tabla
+  idéntica a la de `stores/map.js` (`typeName`), la que usa toda la aplicación
+  incluido el Inspector. Dos tablas que mantener y una que nadie leía.
+- `MapEngine.formatDate()`, que solo usaba el popup. El Inspector tiene el
+  suyo.
+- El test de `components.spec.js` que fijaba el popup. No baja la cobertura:
+  el requisito que fijaba —que un círculo muestre **ambas unidades**— ya lo
+  cubre el test de `InspectorPanel`, que sigue afirmándolo.
+- `stores/map.js`: `bindPopup()` pasó a llamarse `bindInspect()`, y ya solo
+  engancha el doble clic. El comentario explica por qué va a los **hijos** del
+  grupo: en un grupo `on('dblclick')` nunca se dispara, igual que antes pasaba
+  con `bindPopup`.
+
+El test de `selection.spec.js` que probaba el popup en los hijos del grupo ahora
+prueba el doble clic, que tiene exactamente el mismo requisito. Y se **añadió**
+otro que afirma que un objeto del mapa no trae popup, para que no vuelva por
+la puerta de atrás.
+
+Los estilos `.aerorf-popup*` están en el bloque `<style>` **global** de
+`GisShell.vue`, no en el `scoped`, y los necesitan los dos popups que quedan. No
+se tocaron.
+
+### Dos cosas que aparecieron de paso
+
+**El dataset de aeropuertos perdió todos los acentos.** En `data/airports.js`:
+`Martn Miguel de Gemes`, `Presidente Pern`, `Capitan V A Almonacid`,
+`Norberto Fernndez`. La `ñ` sí sobrevivió, así que no es una limpieza de
+acentos sino una corrupción en la escritura del archivo. El popup muestra lo
+que hay en el dato, sin pérdida: el daño es de origen y es previo a este
+cambio. **No se corrigió a ojo**, porque adivinar los nombres sería inventar
+datos; hay que volver a derivar el archivo de su fuente.
+
+**Una verificación anterior mía era más laxa de lo que parecía.** Al medir en
+el navegador había usado el rectángulo del **contenedor del mapa** para
+convertir un punto geográfico a coordenadas de pantalla, que es lo correcto. Al
+pasar a las pruebas de popup cambié al rectángulo del **canvas**, que está
+desplazado (-42, -63) respecto del contenedor porque Leaflet lo pinta con
+margen. Todos los clics de esas pruebas iban 75 px desviados, y de ahí que
+«el popup del aeropuerto no abría»: no era que no abriera, que el clic no
+llegaba. Medido con la conversión correcta, el popup del aeropuerto abre y
+muestra SASA con ICAO, IATA, nombre y tipo.
+
+El orden de dibujo quedó confirmado con la conversión buena: 9 de 11 objetos
+seleccionan en su propio punto, y el navegador muestra **cero popups** en los
+11 casos. Los dos que no son **coincidencias geométricas exactas de los datos
+del operador**: la circunferencia del círculo 11 pasa justo por el centro del
+círculo 3, y el radial 12 arranca justo en el centro del círculo 11. Ambos
+círculos responden por su anillo.
+
+**Totales: 376 + 7 Python, 314 frontend, 675 de paridad, build limpio en 27 s.**

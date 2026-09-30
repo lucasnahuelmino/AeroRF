@@ -10,8 +10,9 @@ import { MapEngine } from '@/map/MapEngine'
  * *before* recording the id, so the style call raised on a grouped layer and
  * the id was never stored — the object was clicked and nothing was selected.
  *
- * The same hole was in the tooltip and in the popup, both of which bind to a
- * layer and both of which do nothing useful on a group.
+ * The same hole was in the tooltip and in the double click, both of which bind
+ * to a layer and both of which do nothing useful on a group. (The popup used to
+ * be a third; the map objects no longer have one.)
  *
  * These tests go through the sequence the store performs, in order, because
  * that ordering is the bug: it is not that highlighting a group is wrong, it is
@@ -95,7 +96,7 @@ describe('highlighting does not throw, whatever the layer is', () => {
     // to happen rather than being skipped.
     const layer = engine.renderObject(CIRCLE)
     const children = engine.vectorLayersFor(layer)
-    expect(children.length, 'no se低压n los hijos del grupo').toBeGreaterThan(0)
+    expect(children.length, 'no se ven los hijos del grupo').toBeGreaterThan(0)
     // Would throw on a group.
     expect(() => engine.highlight(CIRCLE.id)).not.toThrow()
     expect(() => engine.clearHighlight()).not.toThrow()
@@ -170,13 +171,33 @@ describe('the name and the details of a grouped shape', () => {
     expect(bound.length, 'el nombre del circulo no se muestra').toBeGreaterThan(0)
   })
 
-  it('a popup can be bound to a child of the group', () => {
-    // What the store does. A group accepts `bindPopup` without complaint and
-    // shows nothing, so the binding has to reach the children.
+  it('the double click that opens the Inspector reaches a child of the group', () => {
+    // What the store does. A group accepts `on('dblclick')` without complaint
+    // and never fires it — no event is ever raised on the group from a child —
+    // so the binding has to reach the children or double-clicking a circle
+    // opens nothing.
+    //
+    // This used to be a test about popups. The popup is gone from the map
+    // objects; the double click that opens the Inspector is what replaced it,
+    // and it has exactly the same requirement, so the test follows the code.
     const layer = engine.renderObject(CIRCLE)
     const targets = engine.vectorLayersFor(layer)
     expect(targets.length).toBeGreaterThan(0)
-    targets.forEach((c) => c.bindPopup('<p>detalle</p>'))
-    expect(targets.some((c) => c.getPopup())).toBe(true)
+    const seen = []
+    targets.forEach((c) => c.on('dblclick', () => seen.push(c)))
+    targets[0].fire('dblclick')
+    expect(seen.length, 'el doble clic no llega al hijo del grupo').toBe(1)
+  })
+
+  it('a map object carries no popup any more', () => {
+    // The balloon appeared on top of the panel the operator had just clicked
+    // into and covered the toolbar. `InspectorPanel` shows every field it did.
+    // Airports and aircraft keep theirs: neither has a side panel, so theirs is
+    // the only place that information can be read.
+    const layer = engine.renderObject(CIRCLE)
+    const withPopup = engine
+      .vectorLayersFor(layer)
+      .filter((c) => typeof c.getPopup === 'function' && c.getPopup())
+    expect(withPopup.length, 'un objeto del mapa no debe traer popup').toBe(0)
   })
 })
