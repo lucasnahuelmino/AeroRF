@@ -2046,3 +2046,127 @@ círculo 3, y el radial 12 arranca justo en el centro del círculo 11. Ambos
 círculos responden por su anillo.
 
 **Totales: 376 + 7 Python, 314 frontend, 675 de paridad, build limpio en 27 s.**
+
+---
+
+## 0.28.0 — Aeropuertos con IATA, y el radio que no se respetaba
+
+**Estado: verificado a medias.** El código está commiteado y los tests de
+backend y de aeropuertos en verde, pero la suite de frontend completa y el
+build no llegaron a correr: la máquina se quedó sin memoria y vitest se colgaba
+al arrancar. Lo pendiente de confirmar está en `RETOMAR.md` y al final de
+esta entrada. El commit es `57ba41e`.
+
+### Aeropuertos
+
+**Las etiquetas pasan a mostrar el IATA** —EZE, AEP— en lugar del ICAO. Es el
+código que el operador lee en el boarding pass y escribe en la casilla.
+`airportCode()` degrada a ICAO, luego a `gps_code`, luego al código local, y
+por último al nombre recortado, así que un aeródromo sin IATA no queda sin
+etiqueta.
+
+**Más aeródromos, con un criterio y no con un gusto.** Entra todo aeropuerto
+argentino que la fuente tipea `medium_airport`, o `small_airport` con vuelo
+regular, y que siga en servicio. La regla está escrita en
+`tools/build_airports.py`, junto a la lista, para que no dependa de quién la
+armó. Entra además **Jujuy**: un `large_airport` con vuelo regular que faltaba,
+y el único grande del país que no estaba.
+
+**El Palomar y San Fernando, que el operador pidió.** El Palomar está en la
+fuente como `SADP`, con IATA `EPA`. San Fernando publica **ningún ICAO ni
+ningún IATA**: solo `gps_code` SADF y `local_code` FDO. No estaban porque la
+selección se hacía únicamente por `icao_code`. El generador ahora resuelve un
+token contra `icao_code` primero y contra `gps_code` después, e imprime en
+pantalla cuáles se resolvieron por la segunda vía. Nada se inventa: un token que
+no coincide con ninguna de las dos se reporta y se deja fuera — y al correrlo
+aparecieron cuatro que la fuente no publica, `SCQN`, `SGCI`, `SGPP` y `SUCU`,
+que quedan fuera y pendientes de decidir.
+
+De 67 a 105 aeródromos.
+
+**Dos familias de símbolo**, porque con 105 puntos un radio regional dibujado
+igual que un hub desaparece debajo: azul relleno y etiqueta para los que tienen
+tráfico, ámbar hueco y etiqueta más discreta para los menores activos. El panel
+lleva la leyenda, porque un color que no se explica no informa de nada. La capa
+sigue sin persistirse.
+
+### Los acentos: la explicación que era falsa
+
+Ayer se attributuyó a una corrupción al escribir el archivo. **Era una línea del
+generador**, `name.encode("ascii", "ignore")`, puesta a propósito y con un
+comentario que lo justificaba con que los nombres eran para una consola. No lo
+son: el archivo se escribe en UTF-8 y el navegador lo lee en UTF-8. Los acentos
+vuelven: "Martín Miguel de Güemes", 26 nombres con acento.
+
+### El radio que no se respetaba
+
+**Lo que reportó el operador:** escribía 5 NM, apretaba el mapa, y el círculo
+salía de 2.987 NM. No se podía crear un objeto desde el panel.
+
+**Reproducido en el navegador:** el radio se tomaba de la distancia entre los
+dos clics y el valor escrito se descartaba. El panel dibujaba la previa con el
+número correcto y después lo pisaba, así que lo que se veía no era lo que se
+guardaba.
+
+Había dos trabajos distintos mezclados en una sola interacción. Ahora son dos
+opciones explícitas, y **la que existía sigue siendo el default**, para que
+nada que el operador aprendiera ayer le resulte equivocado hoy:
+
+- **Ajustar con el cursor** — primer clic el centro, segundo el borde.
+- **Usar el valor del panel** — un clic, y el número escrito es el que se
+  guarda.
+
+En el segundo modo la herramienta **sigue armada** después de crear. El otro
+reclamo del operador era que «al crear un elemento se oculta el panel»: no se
+ocultaba, se desarmaba la herramienta y con ella desaparecían los campos. Poner
+cuatro círculos de 5 NM son cuatro clics.
+
+**El clic que dimensiona ya no hace snap.** El centro ya está puesto, así que
+ese clic solo lleva una distancia; el snap lo movía al centro de otra figura y
+el radio salía de un punto al que el operador no apuntó. Medido: 4.866 NM donde
+se habían pedido 5.
+
+### Las grabaciones
+
+**El operador dijo que las de ayer no se guardaron bien. Se guardaron: cada una,
+dos o tres veces.** 34 filas con 8 grupos de duplicados exactos.
+
+`_store_track` construía la fila y la insertaba siempre, sin preguntar si esa
+trayectoria ya estaba. Pedir dos veces el mismo vuelo —el operador recargando el
+panel, un reintento tras un timeout, la caché de trayectoriasstarting vacía en
+cada carga— insertaba una fila nueva cada vez.
+
+Ahora busca primero. La coincidencia es la misma aeronave, el mismo vuelo sobre
+ella y el mismo número de puntos. Dos cosas **no** son repetidas, a propósito:
+
+- una trayectoria más escasa sobre la misma ventana: son los datos distintos de
+  una grabación parcial, y esconderla detrás de la completa sería perderla;
+- otro vuelo de la misma aeronave: `callsign` y `flight_id` son parte de la
+  clave. Sin ellos, dos vuelos que se solapan en el tiempo se colapsaban y el
+  segundo quedaba archivado bajo el callsign del primero — una etiqueta
+  incorrecta y segura, no una duplicata inofensiva. **Lo encontró un test
+  propio, no la inspección.**
+
+`session_id` no es parte de la clave: una sesión y una trayectoria descargada
+pueden describir los mismos puntos, y son la misma trayectoria. Cuando se
+encuentran, la sesión se engancha a la fila que ya existe, así que el replay la
+sigue encontrando.
+
+**Las 16 filas duplicadas que ya hay en la base no se borraron.** Son datos del
+operador y la decisión es suya.
+
+### Lo que falta verificar
+
+`frontend/tests/typed-sizing.spec.js` — 11 tests. Corrieron una vez: 8 pasaron,
+3 fallaron. Uno era un bug real (la herramienta quedaba armada pero sorda, porque
+`cleanup()` cancela la suscripción a los clics) y está corregido. Los otros dos
+son precisión de los propios tests: uno espera 9260 m exactos y el código da
+9249,6 porque `metros / 111320` grados es una aproximación; el otro espera un
+snap con tolerancia de 0,00005 grados cuando hace falta más. **No volvieron a
+correr.** La suite frontend completa y el build tampoco, por lo mismo.
+
+Los 39 tests de `airports.spec.js` pasan y los 6 de `tests/test_track_dedup.py`
+pasan, y el arreglo de deduplicación **sí** se verificó revirtiéndolo: 3 de sus
+6 tests fallan sin él.
+
+**Totales en verde: 382 + 7 Python, 39 de aeropuertos, 675 de paridad.**
