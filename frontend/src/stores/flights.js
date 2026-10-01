@@ -133,7 +133,25 @@ export const useFlightsStore = defineStore('flights', () => {
     }
   }
 
+  /**
+   * Clear the search box and everything that came out of it.
+   *
+   * The box itself was the missing part. `query` is bound to the inputs with
+   * `v-model`, so leaving it alone left the operator's ICAO24 sitting in the
+   * field after pressing "Limpiar" — which is why the button looked broken even
+   * when it had done everything it was written to do.
+   *
+   * `query` is an object of four fields, not a string: `query.value = ''` would
+   * have replaced it with something that is not that shape, and the next render
+   * would have thrown on `query.callsign`. Every field is reset to empty
+   * instead, which is what "clear" means for an input.
+   *
+   * It deliberately does not touch `tracks`: those are the cached trajectories
+   * and the map is drawing them, and "Limpiar" sits next to the search box, not
+   * next to the watchlist. "Quitar todas" is the button that clears those.
+   */
   function clearSearch() {
+    query.value = { callsign: '', icao24: '', date: '', time_hint: '' }
     searchResult.value = null
     selectedIcao24.value = null
     track.value = null

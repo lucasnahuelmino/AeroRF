@@ -167,6 +167,34 @@ eso es lo correcto.
 
 ---
 
+## 0.29.4 — Trayectorias, «Limpiar», y diálogos propios
+
+**Las trayectorias se acumulaban: mismo bug de 0.29.3 en otra clase.**
+`drawTrack` usa `layer.addTo(this.trackGroup)` y `removeTrack` solo llamaba
+`layer.remove()`, que saca la capa del mapa pero no del grupo. Medido con dos
+vuelos de `e02659`: el grupo tenía **2** hijos después del primero y **3** después
+del segundo, y un `restack()` los devolvía. `clearTracks` — lo que llama «Quitar
+todas» — tenía la misma fuga. Arreglado igual que 0.29.3.
+
+**El botón «Limpiar» no limpiaba:** reseteaba todo lo *derivado* de la búsqueda y
+nada de lo que el operador había escrito en la caja. Ahora vacía los cuatro campos
+de `query`. No toca `tracks`: lo que limpia las trayectorias es «Quitar todas».
+
+**Los diálogos los dibuja ahora la aplicación.** Eran siete nativos — cuatro
+`confirm` y tres `prompt` usados como respaldo del portapapeles — y por eso
+decían «localhost:5199 dice…». Ahora hay `systemStore.ask()` (devuelve promesa) y
+`systemStore.notify()`, con `DialogHost.vue` montado una vez. «Eliminar» sale en
+rojo, Escape cancela, y el fondo se cierra con `mousedown` y no con `click`, la
+misma trampa del escudo del menú en 0.29.2.
+
+Una guarda que **no deja pasar ningún `window.confirm`/`alert`/`prompt`** en todo
+`src/`, y que señala archivo y línea. A propósito es de fuente: afirmar que cada
+uno de los siete lugares renderiza algo pasaría igual con un octavo.
+
+**379 tests frontend · 382 Python · 675 paridad · build limpio.**
+
+---
+
 ## Lo que queda pendiente
 
 - **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
@@ -184,7 +212,7 @@ eso es lo correcto.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **366 pasan**, 27 archivos |
+| Frontend (vitest) | **379 pasan**, 27 archivos |
 | Python (no integración) | **382 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |

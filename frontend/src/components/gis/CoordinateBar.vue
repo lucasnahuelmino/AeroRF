@@ -81,8 +81,10 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { useMapStore } from '@/stores/map'
+import { useSystemStore } from '@/stores/system'
 
 const mapStore = useMapStore()
+const systemStore = useSystemStore()
 
 const formats = [
   { id: 'dd', label: 'DD', title: 'Grados decimales' },
@@ -127,7 +129,7 @@ async function copyCoordinates() {
     mapStore.notice = `Coordenadas copiadas: ${text}`
   } catch {
     // Clipboard API needs a secure context; fall back to a prompt.
-    window.prompt('Copiar coordenadas:', text)
+    systemStore.notify('No se pudo copiar. Coordenadas: ' + text, { kind: 'warn', ms: 6000 })
   }
 }
 

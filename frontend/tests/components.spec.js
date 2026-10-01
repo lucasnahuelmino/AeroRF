@@ -164,6 +164,7 @@ vi.mock('@/api/client', () => {
 // ─── Imports after the mock ─────────────────────────────────────────────────
 import CoordinateBar from '@/components/gis/CoordinateBar.vue'
 import ContextMenu from '@/components/gis/ContextMenu.vue'
+import DialogHost from '@/components/DialogHost.vue'
 import FlightPanel from '@/components/gis/FlightPanel.vue'
 import InspectorPanel from '@/components/gis/InspectorPanel.vue'
 import LayerPanel from '@/components/gis/LayerPanel.vue'
@@ -173,8 +174,11 @@ import ExpedientePanel from '@/components/gis/ExpedientePanel.vue'
 import GisShell from '@/views/GisShell.vue'
 
 import { useMapStore } from '@/stores/map'
-import { useFlightsStore } from '@/stores/flights'
 import { useSystemStore } from '@/stores/system'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { useFlightsStore } from '@/stores/flights'
 import { useExpedientesStore } from '@/stores/expedientes'
 
 import { MapEngine } from '@/map/MapEngine'
@@ -889,6 +893,229 @@ describe('MeasureEngine in jsdom', () => {
   })
 })
 
+// The operator: the confirmation boxes said "localhost:5199 dice…" — the browser
+// draws them, with the page's origin as the title, in the operating system's
+// style, in the middle of an institutional tool. Seven of them: four confirms
+// and three prompts used as a clipboard fallback.
+// The operator: the "Limpiar" button next to the search box does not clear
+// anything.
+describe('Limpiar clears the search box, which is what it says it does', () => {
+  it('empties every field of the query and the result', async () => {
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+
+    flights.query.callsign = 'ARG1763'
+    flights.query.icao24 = 'e02659'
+    flights.query.date = '2026-09-29'
+    flights.query.time_hint = 'mañana'
+    flights.selectedIcao24 = 'e02659'
+    flights.error = 'algo'
+
+    flights.clearSearch()
+
+    // The fields are what the operator sees. `clearSearch` used to leave them
+    // exactly as they were — it reset everything *derived* from the search and
+    // nothing the operator had typed, which is why the button looked broken.
+    expect(flights.query, 'la caja de busqueda debe quedar vacia').toEqual({
+      callsign: '',
+      icao24: '',
+      date: '',
+      time_hint: '',
+    })
+    expect(flights.selectedIcao24).toBeNull()
+    expect(flights.searchResult).toBeNull()
+    expect(flights.error).toBeNull()
+  })
+
+  it('does not throw on a query that was never filled in', async () => {
+    // `query` is an object of four fields, not a string. `query.value = ''` would
+    // have left the store holding something that is not that shape, and the next
+    // render would have thrown on `query.callsign`.
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+    expect(() => flights.clearSearch()).not.toThrow()
+    expect(flights.query.callsign).toBe('')
+    expect(flights.query.icao24).toBe('')
+  })
+
+  it('keeps the cached trajectories, which is what "Quitar todas" is for', async () => {
+    // Documented boundary: "Limpiar" sits next to the search box, not next to
+    // the watchlist, and the map is drawing those routes. Clearing them here
+    // would make the button do something the operator did not ask for.
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+    flights.tracks = { abc123: { points: [] } }
+    flights.clearSearch()
+    expect(flights.tracks.abc123, 'las trayectorias no son de este boton').toBeTruthy()
+  })
+})
+
+describe('the application draws its own confirmations', () => {
+  it('leaves no native dialog anywhere in the source', () => {
+    // A source-level check, deliberately. The alternative would be to assert
+    // that each of the seven call sites renders something, which would pass even
+    // if the eighth `window.confirm` appeared tomorrow. This one fails the moment
+    // anyone reaches for the browser's box again.
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
+    const offenders = []
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full)
+          continue
+        }
+        if (!/\.(js|vue)$/.test(entry.name)) continue
+        readFileSync(full, 'utf8')
+          .split('\n')
+          .forEach((line, i) => {
+            // The dialog host is the one place allowed to reason about them.
+            if (full.endsWith('DialogHost.vue')) return
+            if (/window\.(confirm|alert|prompt)\s*\(/.test(line)) {
+              offenders.push(`${entry.name}:${i + 1}  ${line.trim()}`)
+            }
+          })
+      }
+    }
+    walk(root)
+    expect(
+      offenders,
+      'los diálogos nativos los dibuja el navegador: dicen "localhost:5199 dice..." y no se pueden ~\n' +
+        'estilizar. Usar systemStore.ask() o systemStore.notify().',
+    ).toEqual([])
+  })
+
+  it('ask resolves to what the operator answered', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const system = useSystemStore()
+
+    const pendiente = system.ask({ title: 'Eliminar', message: '¿Eliminar «X»?' })
+    expect(system.dialog, 'debe haber un dialogo abierto').toBeTruthy()
+    expect(system.dialog.title).toBe('Eliminar')
+
+    system.answerDialog(true)
+    expect(await pendiente, 'Aceptar resuelve con true').toBe(true)
+    expect(system.dialog, 'el dialogo se cierra').toBeNull()
+
+    const otra = system.ask({ title: 'Seguir', message: '¿Seguir?' })
+    system.answerDialog(false)
+    expect(await otra, 'Cancelar resuelve con false').toBe(false)
+  })
+
+  it('keeps its labels and its danger flag, which the caller chose', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const system = useSystemStore()
+
+    system.ask({ title: 'T', message: 'M' })
+    expect(system.dialog.confirmLabel).toBe('Aceptar')
+    expect(system.dialog.cancelLabel).toBe('Cancelar')
+    expect(system.dialog.danger, 'por defecto no es destructivo').toBe(false)
+
+    system.ask({ title: 'T', message: 'M', confirmLabel: 'Eliminar', danger: true })
+    expect(system.dialog.confirmLabel).toBe('Eliminar')
+    expect(system.dialog.danger).toBe(true)
+
+    system.answerDialog(false)
+  })
+
+  it('answers the previous question with "no" when a second one arrives', async () => {
+    // Otherwise the first `await` is stranded forever, and the caller proceeds
+    // only if someone eventually clicks — a dialog that can be answered by a
+    // question that is no longer on screen.
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const system = useSystemStore()
+
+    const primera = system.ask({ title: 'Una', message: '¿?' })
+    const segunda = system.ask({ title: 'Dos', message: '¿?' })
+    system.answerDialog(true)
+
+    expect(await primera, 'la primera se responde sola con no').toBe(false)
+    expect(await segunda).toBe(true)
+  })
+
+  it('notify shows a message and clears itself', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const system = useSystemStore()
+    vi.useFakeTimers()
+
+    system.notify('Coordenadas copiadas')
+    expect(system.notice.text).toBe('Coordenadas copiadas')
+    expect(system.notice.kind).toBe('info')
+
+    vi.advanceTimersByTime(2600)
+    expect(system.notice, 'el aviso se va solo').toBeNull()
+
+    system.notify('No se pudo copiar', { kind: 'warn', ms: 6000 })
+    expect(system.notice.kind).toBe('warn')
+    vi.advanceTimersByTime(5999)
+    expect(system.notice, 'un aviso largo sigue en pantalla').not.toBeNull()
+    system.dismissNotice()
+    expect(system.notice, 'y se puede cerrar a mano').toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('renders the question, both answers, and nothing when closed', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const system = useSystemStore()
+    const w = mountComponent(DialogHost, { pinia })
+    await flushPromises()
+
+    expect(document.body.querySelector('.aerorf-dialog')).toBeNull()
+
+    system.ask({
+      title: 'Eliminar objeto',
+      message: '¿Eliminar «Círculo»?',
+      confirmLabel: 'Eliminar',
+      danger: true,
+    })
+    await flushPromises()
+
+    const dlg = document.body.querySelector('.aerorf-dialog')
+    expect(dlg, 'el dialogo debe estar en el body: esta teletransportado').toBeTruthy()
+    expect(dlg.textContent).toContain('Eliminar objeto')
+    expect(dlg.textContent).toContain('¿Eliminar «Círculo»?')
+    const botones = [...dlg.querySelectorAll('button')].map((b) => b.textContent.trim())
+    expect(botones).toEqual(['Cancelar', 'Eliminar'])
+    expect(dlg.getAttribute('role')).toBe('alertdialog')
+    expect(dlg.getAttribute('aria-modal')).toBe('true')
+
+    w.unmount()
+  })
+
+  it('Cancelar answers no and closes; a press on the backdrop too', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const system = useSystemStore()
+    const w = mountComponent(DialogHost, { pinia })
+    await flushPromises()
+
+    const primera = system.ask({ title: 'T', message: 'M' })
+    await flushPromises()
+    document.body.querySelector('.aerorf-dialog button').click()
+    await flushPromises()
+    expect(await primera).toBe(false)
+    expect(document.body.querySelector('.aerorf-dialog')).toBeNull()
+
+    const segunda = system.ask({ title: 'T', message: 'M' })
+    await flushPromises()
+    // `mousedown`, not `click`: a press that becomes a drag must not leave the
+    // dialog standing, which is the trap the context menu's shield walked into.
+    document.body
+      .querySelector('.aerorf-dialog')
+      .parentElement.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
+    expect(await segunda).toBe(false)
+    expect(document.body.querySelector('.aerorf-dialog')).toBeNull()
+
+    w.unmount()
+  })
+})
+
 describe('AircraftRenderer in jsdom', () => {
   let container
   let engine
@@ -927,6 +1154,74 @@ describe('AircraftRenderer in jsdom', () => {
     renderer.updateAircraft(STATE, '#22c55e')
     renderer.updateAircraft({ ...STATE, latitude: -34.7 }, '#22c55e')
     expect(renderer.markers.size).toBe(1)
+  })
+
+  // The operator reported trajectories piling up on themselves: two flights of
+  // the same aircraft, and the earlier one's route stayed on the map. "Quitar
+  // todas" left the lot behind.
+  //
+  // Same cause as the deleted-objects bug fixed in 0.29.3, in a different class:
+  // `drawTrack` adds with `layer.addTo(this.trackGroup)`, `removeTrack` called
+  // only `layer.remove()`, and a layer off the map is still a child of the group —
+  // so `LayerGroup.onAdd` put it back. Measured in the browser with two flights
+  // of `e02659`: 2 children after the first, **3** after the second, and one
+  // `restack()` brought all three back.
+  describe('a trajectory must also be detached from its group', () => {
+    const TRACK_A = {
+      icao24: 'e02659',
+      points: [
+        { latitude: -34.6, longitude: -58.4, provenance: 'historical' },
+        { latitude: -34.7, longitude: -58.5, provenance: 'historical' },
+        { latitude: -34.8, longitude: -58.6, provenance: 'historical' },
+      ],
+    }
+    const TRACK_B = {
+      ...TRACK_A,
+      points: [
+        { latitude: -35.1, longitude: -59.1, provenance: 'historical' },
+        { latitude: -35.2, longitude: -59.2, provenance: 'historical' },
+      ],
+    }
+
+    const hijos = () => {
+      const g = engine.categoryLayers.get('aircraft_tracks')
+      return g && g._layers ? Object.keys(g._layers).length : 0
+    }
+
+    it('replaces the route instead of stacking a second one', () => {
+      renderer.drawTrack(TRACK_A, '#a855f7')
+      expect(hijos(), 'la primera ruta debe estar en su grupo').toBe(1)
+
+      renderer.drawTrack(TRACK_B, '#a855f7')
+
+      // One aircraft, one route. The second flight of the same aircraft replaces
+      // the first; before the fix the group held both.
+      expect(hijos(), 'la ruta anterior debe quedar suelta del grupo').toBe(1)
+      expect(renderer.tracks.size).toBe(1)
+    })
+
+    it('removeTrack empties the group, not just the map', () => {
+      renderer.drawTrack(TRACK_A, '#a855f7')
+      renderer.drawTrack(TRACK_B, '#a855f7')
+      renderer.removeTrack('e02659')
+      expect(hijos(), 'no debe quedar ninguna ruta en el grupo').toBe(0)
+      expect(renderer.tracks.size).toBe(0)
+    })
+
+    it('clearTracks empties the group too, which is what "Quitar todas" relies on', () => {
+      renderer.drawTrack(TRACK_A, '#a855f7')
+      renderer.drawTrack({ ...TRACK_A, icao24: 'e06491' }, '#a855f7')
+      renderer.drawTrack({ ...TRACK_B, icao24: 'def456' }, '#a855f7')
+      expect(hijos()).toBe(3)
+
+      renderer.clearTracks()
+
+      expect(hijos(), 'todas las rutas deben quedar sueltas del grupo').toBe(0)
+      expect(renderer.tracks.size).toBe(0)
+      // And a restack must not bring them back, which is how they reappeared.
+      engine.restack()
+      expect(hijos(), 'un restack no debe resucitar ninguna ruta').toBe(0)
+    })
   })
 
   it('refuses to draw an aircraft with no position (spec §56)', () => {

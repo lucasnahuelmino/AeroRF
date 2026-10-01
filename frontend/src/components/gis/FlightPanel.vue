@@ -434,15 +434,17 @@ onBeforeUnmount(() => {
 const searchButtonLabel = computed(() =>
   flightsStore.loading ? 'Buscando…' : 'Buscar',
 )
-function doSearch() {
-  flightsStore.search().then((result) => {
-    if (result?.icao24) {
-      const follow = window.confirm(
-        `¿Seguir ${result.callsign || result.icao24}?\n\nAceptar agrega la aeronave a la lista de seguimiento (máximo ${MAX_TRACKED}).`,
-      )
-      if (follow) flightsStore.trackAircraft(result.icao24, result.callsign)
-    }
+async function doSearch() {
+  const result = await flightsStore.search()
+  if (!result?.icao24) return
+  const follow = await systemStore.ask({
+    title: 'Seguir aeronave',
+    message:
+      `¿Seguir ${result.callsign || result.icao24}?\n\n` +
+      `Seguir agrega la aeronave a la lista de seguimiento (máximo ${MAX_TRACKED}).`,
+    confirmLabel: 'Seguir',
   })
+  if (follow) flightsStore.trackAircraft(result.icao24, result.callsign)
 }
 
 async function untrack(icao24) {

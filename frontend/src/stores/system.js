@@ -161,12 +161,69 @@ export const useSystemStore = defineStore('system', () => {
     localStorage.setItem('aerorf:sidebar-open', '1')
   }
 
+  // ─── Dialogues and notices ──────────────────────────────────────────────────
+  //
+  // These replace `window.confirm` and `window.prompt`.
+  //
+  // The native ones are rendered by the browser, not by this application: they
+  // carry the page's origin as their title, so the operator saw
+  // "localhost:5199 dice..." above a system-styled box in the middle of an
+  // otherwise institutional interface. It reads as a stray web page in the
+  // middle of a tool, and it cannot be styled to match anything.
+  //
+  // `ask` returns a Promise because every call site is a question with a yes/no
+  // answer, and `await` reads better than a callback at the call site:
+  //
+  //   if (await system.ask({ title: 'Eliminar', message: '…', danger: true })) …
+  //
+  // `notify` is for the outcome of something that has already happened and needs
+  // no answer. It replaces the `window.prompt` that was used as a clipboard
+  // fallback, where the "input" was always prefilled and never edited.
+  const dialog = ref(null)
+  let dialogResolve = null
+
+  function ask({ title, message, confirmLabel = 'Aceptar', cancelLabel = 'Cancelar', danger = false } = {}) {
+    // A second question while one is open answers the first: the operator did
+    // something else, and leaving the first pending would strand its `await`.
+    if (dialogResolve) dialogResolve(false)
+    dialog.value = { title, message, confirmLabel, cancelLabel, danger }
+    return new Promise((resolve) => {
+      dialogResolve = resolve
+    })
+  }
+
+  function answerDialog(value) {
+    const resolve = dialogResolve
+    dialog.value = null
+    dialogResolve = null
+    resolve?.(value)
+  }
+
+  const notice = ref(null)
+  let noticeTimer = null
+
+  function notify(text, { kind = 'info', ms = 2600 } = {}) {
+    notice.value = { text, kind, id: Date.now() }
+    if (noticeTimer) clearTimeout(noticeTimer)
+    noticeTimer = setTimeout(() => {
+      notice.value = null
+      noticeTimer = null
+    }, ms)
+  }
+
+  function dismissNotice() {
+    if (noticeTimer) clearTimeout(noticeTimer)
+    noticeTimer = null
+    notice.value = null
+  }
+
   return {
     backendStatus, openskyStatus, dbStatus, config, lastCheck,
     connected, dbConnected, checkBackend, loadConfig,
     cursor, coordinateFormat, setCursor, setCoordinateFormat,
     sidebarOpen, leftPanel, sidebarWidth, setSidebarWidth, setPanel, toggleSidebar,
     inspectorOpen, inspectorWidth, setInspectorWidth, toggleInspector,
+    dialog, ask, answerDialog, notice, notify, dismissNotice,
     showTimeline,
     airportCountries, airportLabels, setAirportCountries, toggleAirportCountry,
     setAirportLabels,

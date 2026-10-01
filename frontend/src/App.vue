@@ -18,6 +18,14 @@
       day. 26px out of the map's height is the price.
     -->
     <FooterBar />
+
+    <!--
+      The application's own confirm dialog and notice, once, for the whole
+      application. They replace `window.confirm` and `window.prompt`, which the
+      browser draws with the page's origin in its title — the operator saw
+      "localhost:5199 dice…" — and which cannot be styled to match anything.
+    -->
+    <DialogHost />
   </div>
 </template>
 
@@ -40,6 +48,7 @@ import { useRoute } from 'vue-router'
 
 import BrandBar from '@/components/BrandBar.vue'
 import FooterBar from '@/components/FooterBar.vue'
+import DialogHost from '@/components/DialogHost.vue'
 import { useSystemStore } from '@/stores/system'
 import { useFlightsStore } from '@/stores/flights'
 import { useMapStore } from '@/stores/map'

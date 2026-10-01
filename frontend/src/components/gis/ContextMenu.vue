@@ -225,7 +225,7 @@ async function copyCoords() {
     await navigator.clipboard.writeText(text)
     mapStore.notice = `Coordenadas copiadas: ${text}`
   } catch {
-    window.prompt('Copiar coordenadas:', text)
+    systemStore.notify('No se pudo copiar. Coordenadas: ' + text, { kind: 'warn', ms: 6000 })
   }
   close()
 }

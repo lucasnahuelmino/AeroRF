@@ -255,11 +255,32 @@ export class AircraftRenderer {
     return layer
   }
 
-  /** Remove one aircraft's track, leaving every other one on the map. */
+  /**
+   * Remove one aircraft's track, leaving every other one on the map.
+   *
+   * Detaching from `trackGroup` is not optional. `drawTrack` adds each
+   * trajectory with `layer.addTo(this.trackGroup)`, and `layer.remove()` only
+   * takes it off the map — the group keeps the reference, and `LayerGroup.onAdd`
+   * re-adds every child it still holds.
+   *
+   * The store caches one trajectory per aircraft, so selecting a second flight
+   * of the same aircraft replaces the cached data and calls `drawTrack` again,
+   * which calls this first. Measured in the browser with two flights of
+   * `e02659`: the group held 2 children after the first and **3** after the
+   * second, and a single `restack()` put all three back on the map. That is the
+   * trajectories piling up on themselves and never going away.
+   *
+   * The same leak applied to `clearTracks`, which is what "Quitar todas" calls:
+   * it emptied its own `Map` and left every layer in the group, so the next
+   * restack brought the lot back.
+   */
   removeTrack(icao24) {
     const key = icao24 || 'current'
     const layer = this.tracks.get(key)
     if (layer) {
+      if (this.trackGroup && typeof this.trackGroup.removeLayer === 'function') {
+        this.trackGroup.removeLayer(layer)
+      }
       layer.remove()
       this.tracks.delete(key)
     }
@@ -267,7 +288,12 @@ export class AircraftRenderer {
   }
 
   clearTracks() {
-    this.tracks.forEach((layer) => layer.remove())
+    this.tracks.forEach((layer) => {
+      if (this.trackGroup && typeof this.trackGroup.removeLayer === 'function') {
+        this.trackGroup.removeLayer(layer)
+      }
+      layer.remove()
+    })
     this.tracks.clear()
   }
 

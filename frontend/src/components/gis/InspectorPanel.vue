@@ -391,9 +391,11 @@ import { provenanceLabel } from '@/map/MapEngine'
 import { haversine } from '@/map/geo'
 import { describeError, mapObjects, updateTyped } from '@/api/client'
 import { useMapStore, typeName } from '@/stores/map'
+import { useSystemStore } from '@/stores/system'
 import { useExpedientesStore } from '@/stores/expedientes'
 
 const mapStore = useMapStore()
+const systemStore = useSystemStore()
 const expedientesStore = useExpedientesStore()
 
 const object = computed(() => mapStore.selected)
@@ -685,7 +687,7 @@ async function copyCoords() {
     await navigator.clipboard.writeText(text)
     mapStore.notice = `Coordenadas copiadas: ${text}`
   } catch {
-    window.prompt('Copiar coordenadas:', text)
+    systemStore.notify('No se pudo copiar. Coordenadas: ' + text, { kind: 'warn', ms: 6000 })
   }
 }
 
@@ -711,12 +713,16 @@ async function linkExpediente() {
   mapStore.notice = `Asociado a ${first.numero_expediente}`
 }
 
-function remove() {
+async function remove() {
   const obj = object.value
   if (!obj) return
-  if (window.confirm(`¿Eliminar «${obj.name || typeName(obj.type)}»?`)) {
-    mapStore.deleteObject(obj.id, true)
-  }
+  const ok = await systemStore.ask({
+    title: 'Eliminar objeto',
+    message: `¿Eliminar «${obj.name || typeName(obj.type)}»? Esta acción no se puede deshacer.`,
+    confirmLabel: 'Eliminar',
+    danger: true,
+  })
+  if (ok) mapStore.deleteObject(obj.id, true)
 }
 
 // ── Formatting ──────────────────────────────────────────────────────────────

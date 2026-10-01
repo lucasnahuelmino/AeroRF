@@ -2801,3 +2801,111 @@ anotación) y los de prueba ya estaban borrados antes de este arreglo. Cuando
 vuelvas a abrir la aplicación no vas a ver ningún objeto, y eso es correcto: no
 queda ninguno. Los que veías en pantalla eran justamente las capas que no se
 quitaban.
+---
+
+## 0.29.4 — Trayectorias que se acumulan, el botón que no limpiaba, y diálogos propios
+
+Tres cosas del operador en un lote.
+
+### 1. LAS TRAYECTORIAS SE ACUMULABAN Y NO SE BORRABAN
+
+Síntoma: al elegir un vuelo se acumulaban los trayectos, «vuelos del mismo avión
+en distintos días», y al apretar «Quitar todas» quedaba todo.
+
+**Es el mismo bug de 0.29.3, en otra clase.** `drawTrack` agrega con
+`layer.addTo(this.trackGroup)`, y `removeTrack` llamaba solo a `layer.remove()`,
+que saca la capa del mapa pero **no la suelta del grupo**. `LayerGroup.onAdd`
+vuelve a agregar todos sus hijos.
+
+Medido en el navegador con dos vuelos de `e02659`: el grupo tenía **2** hijos
+después del primero y **3** después del segundo, y un solo `restack()` devolvía
+los tres.
+
+Y `clearTracks`, que es lo que llama «Quitar todas», tenía la misma fuga: vaciaba
+su propio `Map` y dejaba cada capa en el grupo, así que el siguiente `restack()`
+traía el lote entero de vuelta.
+
+El arreglo es el mismo de 0.29.3: `removeTrack` y `clearTracks` sueltan la capa
+del grupo antes de sacarla del mapa.
+
+### 2. EL BOTÓN «LIMPIAR» NO LIMPIA
+
+`clearSearch()` reseteaba `searchResult`, `selectedIcao24`, `track` y `error`, y
+**no tocaba `query`**, que es lo que el operador ve en la caja. Cuando apretaba
+«Limpiar» seguía escribiendo su ICAO24 ahí, y el botón parecía no hacer nada.
+
+`query` es un objeto de cuatro campos, no un texto: `query.value = ''` habría
+dejado el store con algo que no es esa forma y el siguiente render habría
+reventado en `query.callsign`. Se resetea campo por campo.
+
+Y deliberadamente **no** toca `tracks`: esas son las trayectorias cacheadas que
+el mapa está dibujando, y «Limpiar» está al lado de la caja de búsqueda, no del
+seguimiento. Lo que las limpia es «Quitar todas».
+
+### 3. LOS DIÁLOGOS: «localhost:5199 dice…»
+
+Los dibuja el navegador, no la aplicación: pone el origen de la página como título
+y los estilo con los controles del sistema operativo. En medio de una herramienta
+institucional, eso parece una página web colada. Y no se puede estilar.
+
+Había **siete**: cuatro `confirm` (eliminar objeto desde la barra y desde el
+inspector, seguir aeronave) y tres `prompt` que se usaban como respaldo del
+portapapeles para mostrar un texto precargado que nunca se editaba.
+
+**Ahora los dibuja la aplicación.** `systemStore.ask()` devuelve una promesa, así
+que el lugar de la llamada se lee como una pregunta con respuesta:
+
+```js
+if (await systemStore.ask({ title: 'Eliminar objeto', message: '…', danger: true })) …
+```
+
+`systemStore.notify()` es para lo que ya pasó y no necesita respuesta, y
+reemplaza los `prompt`.
+
+`DialogHost.vue` se monta una vez en `App.vue`. El estado vive en el store porque
+las preguntas vienen de tres sitios que no son ancestros entre sí, y así hay
+**exactamente un diálogo en pantalla, por construcción**.
+
+Detalles que importan:
+
+- **«Eliminar» es rojo.** Una caja destructiva que se ve como todas las demás es
+  una cosa más que hay que leer con cuidado antes de apretar.
+- **Escape cancela**, y también cierra el aviso. Una confirmación que no se puede
+  descartar solo se puede responder con el ratón, y la mano puede estar en el mapa.
+- **El fondo se cierra con `mousedown`, no con `click`**: la misma trampa en la
+  que cayó el escudo del menú de clic derecho en 0.29.2.
+- **`pre-line`** en el mensaje, porque la pregunta de «seguir aeronave» necesita
+  una línea en blanco entre la pregunta y la consecuencia.
+- El aviso va abajo al centro, para no tapar ni la barra de herramientas ni la
+  lectura de coordenadas.
+
+**Un error mío en el camino:** primero dejé `const dialog = () => store.dialog` en
+el componente. En una plantilla una función siempre es verdadera, así que
+`v-if` nunca fue falso y `dialog.title` era `undefined`: la caja salía sin título,
+sin mensaje y con dos botones sin etiqueta. Salió al mirarlo en el navegador.
+
+### Pruebas
+
+**379 en verde**, 27 archivos, contra 366.
+
+Catorce pruebas nuevas en `components.spec.js`:
+
+- **Una que no deja pasar ningún `window.confirm`/`alert`/`prompt`** en todo
+  `src/`. Es una comprobación a nivel de fuente, a propósito: afirmar que cada uno
+  de los siete lugares renderiza algo pasaría igual si mañana apareciera un
+  octavo `window.confirm`. Esta falla en el momento en que alguien vuelve a buscar
+  la caja del navegador, y **señala el archivo y la línea**.
+- El store del diálogo: qué devuelve `ask` según la respuesta, qué pasa si llega
+  una segunda pregunta con la primera abierta (la primera se responde sola con
+  «no», si no su `await` queda colgado para siempre), y `notify` con su cuenta
+  atrás.
+- El componente: título, mensaje, los dos botones, `role="alertdialog"`, y que
+  Cancelar y el fondo lo cierren.
+- Las trayectorias: reemplazar en vez de apilar, y que `clearTracks` vacíe el
+  grupo.
+
+Verificadas revirtiendo: trayectorías **3 de 59 fallan**; con un `window.prompt`
+de vuelta **1 falla** y nombra `ContextMenu.vue:228`; sin el reset de `query` **1
+falla**.
+
+**382 Python · 675 de paridad · build limpio.**

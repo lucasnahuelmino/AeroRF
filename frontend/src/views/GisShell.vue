@@ -804,13 +804,16 @@ function toggleSelectedVisibility() {
   mapStore.updateObject(obj.id, { visible: !obj.visible })
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   const obj = mapStore.selected
   if (!obj) return
-  // eslint-disable-next-line no-alert
-  if (window.confirm(`¿Eliminar «${obj.name || typeName(obj.type)}»? Esta acción no se puede deshacer.`)) {
-    mapStore.deleteObject(obj.id, true)
-  }
+  const ok = await systemStore.ask({
+    title: 'Eliminar objeto',
+    message: `¿Eliminar «${obj.name || typeName(obj.type)}»? Esta acción no se puede deshacer.`,
+    confirmLabel: 'Eliminar',
+    danger: true,
+  })
+  if (ok) mapStore.deleteObject(obj.id, true)
 }
 
 // The measure readout needs no watcher: MeasureEngine already calls its
