@@ -217,7 +217,11 @@ export class MapEngine {
   destroy() {
     this._destroyed = true
     this.clearDrafts()
-    this.featureLayers.forEach((layer) => layer.remove())
+    // Through `removeObject`, so the layers are detached from their category
+    // groups too. Here it hardly matters — the groups are removed on the next
+    // line — but going through the one removal path is what keeps a second
+    // removal path from drifting away from the first.
+    Array.from(this.featureLayers.keys()).forEach((key) => this.removeObject(key))
     this.featureLayers.clear()
     this.categoryLayers.forEach((layer) => layer.remove())
     this.categoryLayers.clear()
@@ -440,6 +444,10 @@ export class MapEngine {
 
     const host = this.ensureCategory(object.layer || 'user')
     layer.addTo(host)
+    // Remembered so `removeObject` can detach from this group and not only from
+    // the map. See the note there: leaving the layer in the group is what made
+    // deleted objects come back the next time the category was shown.
+    layer._aerorfHost = host
     this.featureLayers.set(String(object.id), layer)
 
     if (object.show_label !== false && object.name) this._addTooltip(layer, object)
@@ -701,21 +709,59 @@ export class MapEngine {
     entry.bound = true
   }
 
-  /** Remove an object from the map (does not touch the database). */
+  /**
+   * Remove an object from the map (does not touch the database).
+   *
+   * Two removals, and the second one is the one that was missing.
+   *
+   * `layer.remove()` only takes the layer off the map. It does **not** detach it
+   * from the `LayerGroup` that holds it — objects are added to a per-category
+   * group, not straight to the map, so the group keeps the reference either way.
+   * And `LayerGroup.onAdd` re-adds every child it still holds, so the moment that
+   * category is put back on the map — by `restack()`, which runs on every layer
+   * and category change — the layer comes back drawn.
+   *
+   * That was the whole of "deleted objects reappear, visible but unselectable":
+   * the store had dropped them, `featureLayers` was empty, and the selection
+   * handler had been deleted, so nothing could be selected any more; but the
+   * group still held the layer and put it back on the next restack. Measured
+   * after deleting three objects: store 0, map 0, one child left in each of
+   * `reference_points`, `circles` and `radials`, and one `restack()` later all
+   * three were back with no selection handler between them.
+   *
+   * The same leak happened on every re-render, because `renderObject` starts by
+   * calling this: moving an object or changing its status left the old layer
+   * behind in its group as well.
+   *
+   * The host is remembered in `_aerorfHost` when the layer is registered, so the
+   * group can be found without searching all of them.
+   */
   removeObject(objectId) {
     const key = String(objectId)
     if (this._highlighted != null && String(this._highlighted) === key) {
       this._highlighted = null
     }
     const layer = this.featureLayers.get(key)
-    if (!layer) return
-    layer.remove()
-    this.featureLayers.delete(key)
+    if (layer) {
+      const host = layer._aerorfHost
+      if (host && typeof host.removeLayer === 'function') host.removeLayer(layer)
+      layer.remove()
+      this.featureLayers.delete(key)
+    }
+    // Unconditional: a layer can be gone from the map and still be holding a
+    // click handler, and a handler for an object that no longer exists is what
+    // makes a selection land on nothing.
     this.selectionHandlers.delete(key)
   }
 
+  /**
+   * Every registered object, removed through the one path that also detaches
+   * from the category group. Iterating `featureLayers` and calling
+   * `layer.remove()` — what this did before — left every one of them in its
+   * group.
+   */
   clearObjects() {
-    this.featureLayers.forEach((layer) => layer.remove())
+    Array.from(this.featureLayers.keys()).forEach((key) => this.removeObject(key))
     this.featureLayers.clear()
     this.selectionHandlers.clear()
   }

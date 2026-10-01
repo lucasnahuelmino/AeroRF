@@ -89,6 +89,103 @@ function drawOrder() {
   return out
 }
 
+/**
+ * Deleting an object must remove it from its category group, not only from the
+ * map.
+ *
+ * The operator deleted objects and they came back drawn, and could not be
+ * selected again. Measured in the browser on the running app: after deleting
+ * three objects the store was empty, `featureLayers` was empty and the map had
+ * no layer left — but `reference_points`, `circles` and `radials` each still held
+ * one child, and a single `restack()` put all three back, with no selection
+ * handler between them.
+ *
+ * The cause is that objects are added to a per-category `LayerGroup`, and
+ * `layer.remove()` only takes a layer off the map; it does not detach it from the
+ * group. `LayerGroup.onAdd` re-adds every child it still holds, so the layer came
+ * back the next time that category was shown — drawn, unselectable, and not in
+ * any store.
+ *
+ * Asserted on the group's own children, because that is the thing that was wrong.
+ * `map.hasLayer` and `featureLayers` were both already correct while the bug was
+ * live, so neither of them could see it.
+ */
+describe('deleting an object must also detach it from its category group', () => {
+  const hijosDe = (categoria) => {
+    const g = engine.categoryLayers.get(categoria)
+    return g && g._layers ? Object.keys(g._layers).length : 0
+  }
+
+  const enElMapa = () =>
+    Object.values(engine.map._layers)
+      .filter((l) => l && l.featureId !== undefined)
+      .map((l) => l.featureId)
+
+  it.each([
+    ['circle', CIRCLE, 'circles'],
+    ['radial', RADIAL, 'radials'],
+    ['point', POINT, 'reference_points'],
+  ])('leaves no %s behind in %s', (_label, object, categoria) => {
+    engine.renderObject(object)
+    expect(hijosDe(categoria), 'la capa debe estar en su grupo').toBe(1)
+
+    engine.removeObject(object.id)
+
+    expect(enElMapa(), 'no debe quedar ninguna capa de objeto en el mapa').toEqual([])
+    expect(hijosDe(categoria), 'la capa debe quedar suelta del grupo').toBe(0)
+    expect(engine.featureLayers.size, 'el registro debe quedar vacio').toBe(0)
+    expect(engine.selectionHandlers.size, 'no debe quedar handler de seleccion').toBe(0)
+  })
+
+  it.each([
+    ['circle', CIRCLE, 'circles'],
+    ['radial', RADIAL, 'radials'],
+    ['point', POINT, 'reference_points'],
+  ])('a restack does not bring a deleted %s back', (_label, object, categoria) => {
+    engine.renderObject(object)
+    engine.removeObject(object.id)
+
+    // `restack()` runs on every layer and category change, and it is what put
+    // the deleted objects back on screen.
+    engine.restack()
+    expect(enElMapa(), 'un restack no debe resucitar el objeto').toEqual([])
+
+    // And the other way a category gets shown again: taken off the map and put
+    // back, which makes `LayerGroup.onAdd` re-add everything it still holds.
+    const group = engine.categoryLayers.get(categoria)
+    engine.map.removeLayer(group)
+    engine.map.addLayer(group)
+    expect(enElMapa(), 'volver a mostrar la categoria no debe resucitarlo').toEqual([])
+  })
+
+  it('re-rendering an object does not leave the old layer in its group', () => {
+    // `renderObject` starts by removing what is there, so every update —
+    // moving an object, changing its status — went through the same leak and
+    // piled a stale layer into the group each time.
+    engine.renderObject(CIRCLE)
+    engine.renderObject(CIRCLE)
+    engine.renderObject(CIRCLE)
+    expect(hijosDe('circles'), 'tres renderizados, una sola capa viva').toBe(1)
+    expect(enElMapa()).toEqual([CIRCLE.id])
+  })
+
+  it('clearObjects empties the groups too, not just the map', () => {
+    engine.renderObject(CIRCLE)
+    engine.renderObject(RADIAL)
+    engine.renderObject(POINT)
+    expect(hijosDe('circles')).toBe(1)
+    expect(hijosDe('radials')).toBe(1)
+    expect(hijosDe('reference_points')).toBe(1)
+
+    engine.clearObjects()
+
+    expect(hijosDe('circles'), 'clearObjects debe soltar las capas de su grupo').toBe(0)
+    expect(hijosDe('radials')).toBe(0)
+    expect(hijosDe('reference_points')).toBe(0)
+    expect(enElMapa()).toEqual([])
+  })
+})
+
 describe('a vector layer must not be given a pane of its own', () => {
   it.each([
     ['circle', CIRCLE],

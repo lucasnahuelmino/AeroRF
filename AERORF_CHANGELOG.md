@@ -2717,3 +2717,87 @@ con el escudo repuesto falla una; con `click` en vez de `mousedown` fallan dos.
 
 Se borró el objeto de prueba que se creó al verificar. En la base quedan los tres
 del operador.
+---
+
+## 0.29.3 — Los objetos borrados volvían a aparecer, dibujados pero sin poder seleccionarse
+
+El operador: al borrar objetos, seguían viéndose en el mapa; ya no se podían
+seleccionar para volver a borrarlos. Y aparecían objetos viejos que hacia tiempo
+había borrado.
+
+### LA CAUSA
+
+Los objetos no se agregan directamente al mapa: se agregan a un `LayerGroup` por
+categoría (`circles`, `radials`, `reference_points`…), mediante `ensureCategory()`.
+
+`removeObject()` llamaba a `layer.remove()`, y eso **solo lo saca del mapa**: no
+lo suelta del grupo que lo contiene. El grupo se queda con la referencia.
+
+Y `LayerGroup.onAdd` vuelve a agregar **todos** sus hijos. Así que en cuanto esa
+categoría se volvía a mostrar, la capa regresaba dibujada.
+
+Medido en el navegador, sobre la aplicación corriendo, después de borrar tres
+objetos:
+
+| | store | mapa | `featureLayers` | hijos del grupo |
+|---|---|---|---|---|
+| tras borrar | 0 | 0 | 0 | **1, 1, 1** |
+
+Con **un solo `restack()`** volvían los tres al mapa. Y ninguno tenía handler de
+selección: de ahí exactamente lo de «visibles pero inactivos». `restack()`
+corre en cada cambio de capa o de categoría, así que reaparecían solos.
+
+Lo que lo hace difícil de ver es que **todo lo demás daba bien**: `map.hasLayer`
+decía que no, y `featureLayers` estaba vacío. Los dos indicadores obvios eran
+correctos mientras el bug estaba vivo.
+
+### EL ARREGLO
+
+`removeObject()` ahora suelta la capa del grupo antes de sacarla del mapa. El
+grupo queda guardado en la capa como `_aerorfHost` al registrarla, para no tener
+que buscarla entre todos.
+
+```js
+const host = layer._aerorfHost
+if (host && typeof host.removeLayer === 'function') host.removeLayer(layer)
+layer.remove()
+```
+
+`clearObjects()` y `destroy()` ahora pasan por `removeObject()`, en vez de tener
+su propio bucle con `layer.remove()`. Que haya un solo camino de baja es lo que
+evita que un segundo camino se quede atrás: los dos tenían la misma fuga.
+
+**El mismo bug pasaba con cada actualización.** `renderObject()` empieza llamando
+a `removeObject()`, así que mover un objeto o cambiarle el estado dejaba la capa
+vieja en el grupo. Tres renderizados del mismo objeto dejaban tres capas:
+**una sola prueba, y fallaba.**
+
+### Verificado
+
+En el navegador, con los objetos viniendo de la base (recarga en medio): tras
+borrar los tres, store 0, mapa 0, **grupos 0, 0, 0**, `featureLayers` 0, handlers
+0. Un `restack()` no devuelve nada. Quitar la categoría del mapa y volver a
+ponerla tampoco.
+
+### Pruebas
+
+**366 en verde**, 27 archivos, contra 358. Ocho pruebas nuevas en
+`canvas-hit-targets.spec.js`, que usan un `MapEngine` real sobre un mapa real de
+Leaflet.
+
+Están **afirmadas sobre los hijos del grupo**, y no sobre `map.hasLayer` ni sobre
+`featureLayers`, porque esos dos eran correctos mientras el bug estaba vivo y no
+podían verlo. Esa es la razón de que este bug pasara tanto tiempo: los
+indicadores que se miran primero no lo detectan.
+
+Verificadas revirtiendo: **8 de 16 fallan** al quitar el `removeLayer` del grupo.
+
+**382 Python · 675 de paridad · build limpio.**
+
+### Una nota sobre el estado de los datos
+
+La base quedó con **0 objetos**: los tres del operador (círculo, radial,
+anotación) y los de prueba ya estaban borrados antes de este arreglo. Cuando
+vuelvas a abrir la aplicación no vas a ver ningún objeto, y eso es correcto: no
+queda ninguno. Los que veías en pantalla eran justamente las capas que no se
+quitaban.

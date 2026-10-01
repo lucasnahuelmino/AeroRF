@@ -140,6 +140,33 @@ afirmaciones del archivo son relativas a `NOW`, así que no se debilitó ninguna
 
 ---
 
+## 0.29.3 — Los objetos borrados volvían a aparecer
+
+**Bug de datos visuales, no de la base.** Los objetos se agregan a un
+`LayerGroup` por categoría, y `removeObject()` llamaba solo a `layer.remove()`,
+que **lo saca del mapa pero no del grupo**. `LayerGroup.onAdd` vuelve a agregar
+todos sus hijos, así que la capa regresaba dibujada en el siguiente `restack()` —
+sin handler de selección, o sea «visibles pero inactivos». Con un solo `restack()`
+volvían los tres.
+
+Lo difícil: **`map.hasLayer` y `featureLayers` decían que no**, los dos
+indicadores obvios eran correctos mientras el bug estaba vivo. Las ocho pruebas
+nuevas afirman sobre los **hijos del grupo**, que es lo que estaba mal. Al
+revertir el arreglo fallan 8 de 16.
+
+El mismo bug pasaba con cada actualización, porque `renderObject()` empieza
+llamando a `removeObject()`: tres renderizados del mismo objeto dejaban tres
+capas. `clearObjects()` y `destroy()` ahora pasan por `removeObject()` para que
+haya un solo camino de baja.
+
+**366 tests frontend · 382 Python · 675 paridad · build limpio.**
+
+**La base quedó con 0 objetos.** Los tres del operador ya estaban borrados; los
+que veías eran las capas que no se quitaban. Al reabrir no vas a ver ninguno, y
+eso es lo correcto.
+
+---
+
 ## Lo que queda pendiente
 
 - **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
@@ -157,14 +184,13 @@ afirmaciones del archivo son relativas a `NOW`, así que no se debilitó ninguna
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **358 pasan**, 27 archivos |
+| Frontend (vitest) | **366 pasan**, 27 archivos |
 | Python (no integración) | **382 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
 
-Objetos en la base: **3, los del operador** — un círculo (id 1), un radial (id 2) y
-una anotación (id 3). Los 17 que se crearon al verificar se borraron.
-
+Base de objetos: **0**. Los tres del operador fueron borrados; lo que se veia eran capas que no se quitaban.
+una anotación (id 3). 
 ---
 
 ## Documentos
