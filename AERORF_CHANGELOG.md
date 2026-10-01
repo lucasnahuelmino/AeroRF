@@ -2613,3 +2613,107 @@ la traducción falla siete.
 
 Los 17 objetos de prueba que se crearon al verificar se borraron. En la base
 quedan los tres del operador: un círculo, un radial y una anotación.
+---
+
+## 0.29.2 — El mapa no se movía: había un escudo invisible encima
+
+El operador reportó que apretar en el mapa y arrastrar no lo movía. No se
+reprodujo el síntoma exacto, pero se encontró la causa, y era real.
+
+### LA CAUSA
+
+Detrás del menú de clic derecho había un escudo: `fixed inset-0`,
+`pointer-events: auto`, `z-index: 1240`, que cerraba el menú con `@click`.
+
+Medido en el navegador, en el mismo punto del mapa:
+
+- menú cerrado, ahí está el canvas de Leaflet, y un arrastre mueve **16.906 m**;
+- menú abierto, ahí está **`DIV.fixed.inset-0`**, y el mismo arrastre mueve **0 m**,
+  y el menú sigue abierto.
+
+O sea: con el menú abierto, el `mousedown` que empieza el desplazamiento se lo
+comía el escudo, y el mapa no se enteraba.
+
+Y por qué sobrevivía al arrastre: **un arrastre no produce `click`**. La
+pulsación y la soltada caen en puntos distintos, así que el navegador no sintetiza
+ningún `click`, `@click` no llegaba a dispararse, el escudo se quedaba durante
+todo el gesto y hacía de tapón invisible.
+
+### EL ARREGLO
+
+**Se eliminó el escudo.** El cierre ahora es un listener de `mousedown` en
+`document`, registrado solo mientras el menú está abierto y en fase de captura.
+
+- **Captura** para que el menú ya esté cerrado cuando corre el manejador de
+  Leaflet y arranca el desplazamiento.
+- **No detiene la propagación**, a propósito: la misma pulsación cierra el menú
+  **y** empieza a desplazar.
+
+Verificado: con el menú abierto, el **primer** arrastre mueve 16.906 m y el menú
+se cierra; el segundo mueve 16.867 m. Antes: 0 m y el menú abierto.
+
+El menú sigue funcionando igual: pulsar dentro no lo cierra, y «Crear punto» crea
+el objeto y lo cierra.
+
+### LO QUE NO SE LOGRÓ REPRODUCIR
+
+No pude reproducir «se mueve y vuelve atrás», que es como lo describió el
+operador. Descarté, midiendo: nada tapando el mapa (1302 puntos de hit-test),
+`dragging` habilitado, herramienta armada (con LÍNEA armada el mapa sí se mueve),
+arrastre nativo de imagen (el `dragstart` se cancela), selección de texto, y mis
+cambios de 0.29.0 (con el watcher de `invalidateSize` anulado, idéntico). Nada
+mueve el mapa por su cuenta en 40 s.
+
+Un arrastre real del navegador desplaza 58 km y el mapa se queda ahí.
+
+Siguen faltando tres datos que solo tiene el operador: si el zoom con la rueda
+funciona, si vuelve exactamente al origen o se detiene a mitad, y cuánto se mueve
+antes de volver.
+
+### DOS ERRORES PROPIOS, CORREGIDOS
+
+**Un arnés de prueba que daba un diagnóstico falso.** Medí «el mapa solo se puede
+desplazar una vez por carga de página» y estuve a punto de arreglarlo. Era mi
+arnés: lanzaba `mousemove` sobre `document`, así que `e.target` era el propio
+`document`, que no tiene `className`, y el `removeClass` de Leaflet reventaba a
+mitad de `finishDrag`, dejando la bandera `Draggable._dragging` puesta. Con los
+eventos apuntando al elemento correcto, cuatro arrastres seguidos funcionaron
+(19.719, 19.675, 19.656 y 19.637 m).
+
+**Una guarda que no podía fallar.** La primera versión del test del escudo
+filtraba por `getBoundingClientRect()` buscando algo que cubriera la pantalla. En
+jsdom **no hay layout**: todos los rectángulos valen cero, así que el filtro no
+podía encontrar nada, ni siquiera al bug. Pasaba con el escudo puesto. Ahora
+comprueba la estructura renderizada, que sí es comprobable.
+
+### ARREGLO DE PASO: UN TEST QUE CADUCÓ SOLO
+
+`test_flight_history.py` falla desde el 2026-10-01 sin que se haya tocado nada.
+
+`NOW = 1_790_696_090` (2026-09-29) estaba fijo, con el comentario «fixed so the
+windows are reproducible». Pero el endpoint ancla el **fin** de su ventana al
+**reloj real**, así que la distancia entre ambos crecía un día por día.
+
+Con `days=8` la ventana empezaba el 2026-09-23 18:02 UTC — derivado del «ahora»
+real — y el vuelo más viejo del fixture está en 2026-09-22 15:34 UTC: un día
+fuera de la ventana que debía probar que era alcanzable.
+
+Un test que solo pasa los dos días siguientes a escribirse no está fijando
+comportamiento, está fijando el calendario.
+
+`NOW` ahora sale del reloj real. **No se debilitó ninguna afirmación**: las doce
+del archivo están escritas en términos relativos a `NOW`, así que las distancias
+entre los tres vuelos y los límites de las ventanas no cambian. El servicio de
+OpenSky está simulado, así que nada toca la red ni la base.
+
+### Verificación
+
+**358 tests frontend en verde**, 27 archivos, contra 355. **382 Python**, 7
+deseleccionadas. **675 de paridad geodésica.** Build limpio.
+
+Guardas nuevas: 3 en `components.spec.js`, sobre el escudo, el cierre por
+`mousedown` y el hecho de que la pulsación no se consuma. Verificadas revirtiendo:
+con el escudo repuesto falla una; con `click` en vez de `mousedown` fallan dos.
+
+Se borró el objeto de prueba que se creó al verificar. En la base quedan los tres
+del operador.

@@ -100,6 +100,46 @@ tapaba el punto del clic.
 
 ---
 
+## 0.29.2 — El mapa no se movía: había un escudo invisible encima
+
+**El bug era real y está arreglado.** Detrás del menú de clic derecho había un
+escudo `fixed inset-0`, `pointer-events: auto`, `z-index: 1240`, que cerraba el
+menú con `@click`. Con el menú abierto ese `DIV` estaba encima del mapa: un
+arrastre movía **0 m** en lugar de 16.906 m, y el menú seguía abierto — porque
+**un arrastre no produce `click`**, así que el escudo sobrevivía al gesto entero.
+
+**Arreglo:** se eliminó el escudo. El cierre es ahora un listener de `mousedown`
+en `document`, en fase de captura y sin detener la propagación, de modo que la
+misma pulsación cierra el menú **y** arranca el desplazamiento. Verificado:
+primer arrastre con el menú abierto, 16.906 m y el menú se cierra.
+
+**Lo que sigue sin reproducirse** es la forma exacta que describió el operador
+(«se mueve y vuelve atrás»). Faltan tres datos suyos: si el **zoom con la rueda**
+funciona, si **vuelve exactamente al origen** o se detiene a mitad, y **cuánto se
+mueve** antes de volver. Con esos datos se cierra el caso.
+
+**Dos errores míos, corregidos y anotados:**
+
+- Medí «solo se puede desplazar una vez por carga» y estuve a punto de
+  «arreglarlo». Era mi arnés: lanzaba `mousemove` sobre `document`, así que
+  `e.target` era el `document`, que no tiene `className`, y el `removeClass` de
+  Leaflet reventaba a mitad de `finishDrag`. Con los eventos apuntando al elemento
+  correcto, cuatro arrastres seguidos funcionaron.
+- La primera guarda del escudo filtraba por `getBoundingClientRect()`, y **en
+  jsdom no hay layout**: todos los rectángulos valen cero, así que no podía
+  encontrar nada, ni siquiera al bug. Pasaba con el escudo puesto. Ahora comprueba
+  la estructura renderizada.
+
+**Además, un test que caducó solo:** `test_flight_history.py` falla desde el
+2026-10-01 sin que se haya tocado nada. `NOW` estaba fijo en 2026-09-29 pero el
+endpoint ancla la ventana al reloj real, así que la distancia crecía un día por
+día y el vuelo del fixture quedó fuera. `NOW` ahora sale del reloj real; las doce
+afirmaciones del archivo son relativas a `NOW`, así que no se debilitó ninguna.
+
+**358 tests frontend · 382 Python · 675 paridad · build limpio.**
+
+---
+
 ## Lo que queda pendiente
 
 - **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
@@ -117,7 +157,7 @@ tapaba el punto del clic.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **355 pasan**, 27 archivos |
+| Frontend (vitest) | **358 pasan**, 27 archivos |
 | Python (no integración) | **382 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |

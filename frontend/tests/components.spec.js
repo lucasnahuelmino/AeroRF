@@ -397,6 +397,99 @@ describe('ContextMenu', () => {
     expect(document.body.querySelector('.aerorf-context')).toBeNull()
     w.unmount()
   })
+
+  // The bug this protects against made the map look frozen, which is what the
+  // operator reported as "press, drag, and the map does not move".
+  //
+  // There was a full-screen shield behind the menu: `fixed inset-0`,
+  // `pointer-events: auto`, `z-index: 1240`, closing on `@click`. It covered the
+  // viewport, so the map never got the `mousedown` that starts a pan — and since
+  // a drag produces no `click`, the shield survived the whole gesture. Measured
+  // in the browser: menu closed, a drag moved the map 16,906 m; menu open, the
+  // same drag moved it 0 m and the menu was still open.
+  it('has no full-screen shield swallowing the press that should drag the map', async () => {
+    const pinia = makePinia()
+    const map = useMapStore()
+    const w = mountComponent(ContextMenu, { pinia })
+    map.openContextMenu({ latlng: { lat: -34.6, lng: -58.4 }, containerPoint: { x: 100, y: 100 } })
+    await flushPromises()
+
+    // Asserted on the rendered structure, not on geometry. The first version of
+    // this test filtered by `getBoundingClientRect()` and it passed *with the
+    // shield restored*: jsdom computes no layout, every rect is zero, and a
+    // filter for "covers the viewport" can never match anything — including the
+    // bug. A guard that cannot fail is not a guard.
+    //
+    // What is actually asserted is the thing the shield was: a `fixed` element
+    // pinned to all four edges, sitting over the map. `inset-0` is what makes an
+    // element cover the viewport, and it is in the class list either way,
+    // because Tailwind emits no stylesheet for jsdom to measure.
+    const shields = [...document.body.querySelectorAll('div')]
+      .filter((el) => !el.classList.contains('aerorf-context'))
+      .filter((el) => el.className.split(/\s+/).includes('inset-0'))
+      .map((el) => el.className)
+    expect(
+      shields,
+      'no debe haber una capa a pantalla completa sobre el mapa: se queda el tiempo del arrastre',
+    ).toEqual([])
+
+    w.unmount()
+  })
+
+  it('closes on the press outside the menu, and that same press still reaches the map', async () => {
+    const pinia = makePinia()
+    const map = useMapStore()
+    const w = mountComponent(ContextMenu, { pinia })
+    map.openContextMenu({ latlng: { lat: -34.6, lng: -58.4 }, containerPoint: { x: 100, y: 100 } })
+    await flushPromises()
+    expect(document.body.querySelector('.aerorf-context')).not.toBeNull()
+
+    // A press on the map — anywhere outside the menu — dismisses it. `mousedown`
+    // and not `click`: press and release land on different points when dragging,
+    // so a `click` never arrives and the menu would outlive the gesture.
+    const fuera = document.createElement('div')
+    document.body.appendChild(fuera)
+    fuera.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
+    expect(document.body.querySelector('.aerorf-context')).toBeNull()
+
+    // And the dismissal must not consume the press: the event is not stopped, so
+    // a listener further down still sees it. That is what lets one press close
+    // the menu and begin the pan.
+    map.openContextMenu({ latlng: { lat: -34.6, lng: -58.4 }, containerPoint: { x: 100, y: 100 } })
+    await flushPromises()
+    let llegoAlMapa = false
+    const alMapa = () => {
+      llegoAlMapa = true
+    }
+    document.addEventListener('mousedown', alMapa)
+    document.body.appendChild(fuera).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
+    document.removeEventListener('mousedown', alMapa)
+    expect(document.body.querySelector('.aerorf-context')).toBeNull()
+    expect(llegoAlMapa, 'la pulsacion no debe consumirse al cerrar el menu').toBe(true)
+
+    fuera.remove()
+    w.unmount()
+  })
+
+  it('does not close when the press is on the menu itself', async () => {
+    const pinia = makePinia()
+    const map = useMapStore()
+    const w = mountComponent(ContextMenu, { pinia })
+    map.openContextMenu({ latlng: { lat: -34.6, lng: -58.4 }, containerPoint: { x: 100, y: 100 } })
+    await flushPromises()
+
+    const menu = document.body.querySelector('.aerorf-context')
+    expect(menu).not.toBeNull()
+    menu.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
+    // Still open: otherwise the first press on any row would dismiss the menu
+    // before the click that activates the row could land.
+    expect(document.body.querySelector('.aerorf-context')).not.toBeNull()
+
+    w.unmount()
+  })
 })
 
 // ─── The shell itself ────────────────────────────────────────────────────────

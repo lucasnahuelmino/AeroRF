@@ -1,7 +1,29 @@
 <template>
   <Teleport to="body">
+    <!--
+      There is deliberately no full-screen "click-away" shield behind this menu.
+
+      There used to be one: `fixed inset-0`, `pointer-events: auto`,
+      `z-index: 1240`, closing on `@click`. It covered the entire viewport, so
+      while the menu was open the map could not be touched at all. Measured with
+      the menu closed, a press-and-drag moved the map 16,906 m; with the menu
+      open, the same drag moved it 0 m and the menu was still open afterwards.
+
+      Two things were wrong with it and both had to go. It intercepted the
+      press, so the map never saw the `mousedown` that starts a pan. And it
+      listened for `click`, which a drag never produces — press and release land
+      on different points — so it survived the whole gesture.
+
+      Dismissal is now a document listener in `onDocMouseDown`, registered only
+      while the menu is open and running in the capture phase. Capture means it
+      runs before Leaflet's own handler and closes the menu first; it does not
+      stop propagation, so the same press still reaches the map. One press now
+      dismisses the menu *and* begins the pan, instead of being swallowed by a
+      transparent sheet.
+    -->
     <div
       v-if="menu.open"
+      ref="menuEl"
       class="aerorf-context fixed z-[1250] min-w-[13rem] rounded-lg border py-1 shadow-2xl"
       :style="style"
       @click.stop
@@ -58,8 +80,13 @@
       </div>
     </div>
 
-    <!-- Click-away shield -->
-    <div v-if="menu.open" class="fixed inset-0 z-[1240]" @click="close" @contextmenu.prevent="close" />
+    <!--
+      The menu closes itself on the next `mousedown` anywhere outside it, via
+      `onDocMouseDown` in the script below. There is no backdrop element: a
+      transparent sheet over the whole viewport is what made the map unusable
+      while the menu was open, and dismissing on the press that already belongs
+      to the map is both more correct and one element less.
+    -->
   </Teleport>
 </template>
 
@@ -84,6 +111,35 @@ const systemStore = useSystemStore()
 
 const menu = computed(() => mapStore.contextMenu)
 const measuredDistance = ref(null)
+const menuEl = ref(null)
+
+/**
+ * Dismiss on the next press outside the menu — and let that press through.
+ *
+ * Capture phase, so the menu is already closed by the time Leaflet's own
+ * `mousedown` handler runs and starts the pan. Propagation is deliberately not
+ * stopped: the point of the change is that one press both dismisses the menu and
+ * drags the map, instead of being eaten by a transparent sheet.
+ *
+ * Registered only while the menu is open, rather than permanently, so a closed
+ * menu costs nothing and there is no listener left behind to surprise anyone.
+ */
+function onDocMouseDown(event) {
+  if (!menu.value.open) return
+  if (menuEl.value?.contains(event.target)) return
+  close()
+}
+
+watch(
+  () => menu.value.open,
+  (open) => {
+    if (open) document.addEventListener('mousedown', onDocMouseDown, true)
+    else document.removeEventListener('mousedown', onDocMouseDown, true)
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown, true))
 
 /** Keep the menu inside the viewport. */
 const style = computed(() => {

@@ -20,11 +20,35 @@ mismatch report.
 
 from __future__ import annotations
 
+import time
+
 import httpx
 import pytest
 
 ICAO = "a101c3"
-NOW = 1_790_696_090  # 2026-09-29, fixed so the windows are reproducible
+
+#: The anchor for every relative time in this file, taken from the real clock
+#: when the module is imported.
+#:
+#: It used to be a hard-coded `1_790_696_090` — 2026-09-29 — "fixed so the
+#: windows are reproducible". That is the trap: the *data* was anchored to a
+#: fixed instant while the endpoint anchors the end of its window to the real
+#: clock, so the gap between the two grew by a day every day.
+#:
+#: It passed on 2026-09-30 and failed on 2026-10-01, with no code change
+#: anywhere. With `days=8` the endpoint began at 2026-09-23 18:02 UTC — derived
+#: from the real "now" — and the oldest fixture flight sat at 2026-09-22 15:34
+#: UTC, one day outside the window it was supposed to prove was reachable. A test
+#: that only passes for a couple of days after it is written is not pinning
+#: behaviour, it is pinning the calendar.
+#:
+#: Anchoring to the real clock keeps every assertion in this file exact, because
+#: all of them are written relative to `NOW`: the relative distances between the
+#: three flights, and the relative window boundaries, are unchanged. The windows
+#: stay reproducible in the sense that matters — the recorded boundaries are a
+#: deterministic function of `NOW` — and the OpenSky service is monkeypatched
+#: below, so nothing here reaches the network or the database.
+NOW = int(time.time())
 
 
 def _flight(first: int, last: int, callsign: str, dep: str | None, arr: str | None):
