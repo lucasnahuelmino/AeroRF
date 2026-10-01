@@ -2490,3 +2490,126 @@ nuevas de layout se verificaron revirtiendo: shell a `100vh` falla, logo a 30px
 falla, sin la ficha blanca falla.
 
 **Totales: 342 frontend, 382 + 7 Python, 675 de paridad, build limpio.**
+---
+
+## 0.29.1 — Las cinco herramientas que no guardaban nada, las cinco pestañas, el menú sin fondo y el cursor
+
+Cuatro cosas del operador, en un lote. Una era un fallo de datos, no de aspecto.
+
+### LO IMPORTANTE: LÍNEA, POLÍGONO, MEDIR, TRAZA Y COBERTURA NO GUARDABAN LA FORMA
+
+El operador dijo que esas herramientas «deben generar el objeto y persistir».
+Generaban el objeto. La forma se perdía.
+
+`draw.js`, en `finish()`, emite los vértices como `properties.path` (línea, traza,
+medición) o `properties.ring` (polígono, cobertura). La traducción a GeoJSON de
+`stores/map.js` leía **solo** `latlngs`, así que para las cinco tomaba la salida
+temprana:
+
+- línea, polígono, cobertura y traza se guardaban como **Point** en su primer
+  vértice;
+- medición se guardaba **sin geometría ninguna**.
+
+Medido contra la API que está corriendo, antes del arreglo: los cuatro volvieron
+`geometry_type=Point` con un vértice. El pedido **era exitoso**: volvía un id,
+aparecía «Creado: …», y el objeto entraba en la base. Por eso se leía como «no
+guarda» y no como un error: no había error que ver.
+
+Círculos y radiales no estaban afectados: llevan centro y medida, y el backend
+arma el anillo. Que es también la única razón por la que esos sí se veían.
+
+**El arreglo** es una línea de precedencia en `toApiPayload`: si no hay `latlngs`,
+busca `properties.path` y luego `properties.ring`. Se corrige en el único punto de
+escritura, así que ningún llamador tiene que acordarse y las dos formas en que se nombran
+los vértices no pueden discrepar en silencio.
+
+Verificado en el navegador, con la herramienta real y clics de verdad: una línea
+de tres clics se guardó como `LineString` con sus tres vértices. Y por la misma
+ruta, `polygon` → `Polygon` 3 vértices, `coverage` → `Polygon` 3, `trace` →
+`LineString` 4, `measurement` → `LineString` 2.
+
+**Por qué once tests de `objects.spec.js` estaban en verde sobre una función rota.**
+Sus fixtures usan `latlngs`, que es un campo real y que la traducción maneja bien:
+es la forma que **nada en la aplicación produce**. Es la misma trampa que el
+fixture en array del enganche al centro. Las once comprobaban la conversión de
+una forma que no llega nunca, y por eso no tocaron el fallo real. Hay ahora nueve
+pruebas nuevas con los payloads que las herramientas emiten de verdad, y una que
+comprueba que `latlngs` sigue gaining precedencia sobre `path`.
+
+Se verificaron revirtiendo: sin el arreglo fallan **siete**.
+
+### LAS CINCO PESTAÑAS DE LA BARRA LATERAL
+
+Medido antes: el strip necesitaba **312 px** y la barra lateral tiene **215**. Con
+`flex: 1 1 0` las cinco se encogían por debajo de lo que su texto necesitaba, así
+que **«Expediente» quedaba completamente fuera**: no apretado, invisible. Los
+otros cuatro se veían recortados.
+
+Cada pestaña es ahora un icono sobre un rótulo corto: `✎ Herram.`, `▩ Capas`,
+`✈ Vuelos`, `⌖ Aerop.`, `▣ Exped.`. Suman 162 px en 215, y `flex: 0 1 auto` con
+`nowrap` hace que si una ventana llega a ser estrecha se trunquen de forma
+visible en vez de empujar una pestaña fuera del strip.
+
+Los iconos se **comprobaron antes de elegirlos**: cada uno se dibujó en un canvas
+y se comparó su mapa de bits contra un carácter de uso privado, que siempre
+sale como caja. Los catorce candidatos salieron distintos del `.notdef`, así que
+ninguno es un rectángulo hueco en la fuente de otra persona.
+
+El nombre completo sigue en el botón, como `title` y como nombre accesible. Eso
+no es adorno: dos tests buscaban el texto completo y dejaron de encontrarlo, y lo
+correcto era comprobarlos donde el nombre vive ahora.
+
+### EL MENÚ DE CLIC DERECHO NO TENÍA FONDO
+
+El mensaje era «el fondo está muy transparente y no se ve». Estaba escrito como
+`bg-slate-900/98`, y **98 no es un paso de la escala de opacidad de Tailwind**,
+que va 0, 5, 10 … 95, 100. La clase nunca se generó: el menú no tenía fondo
+ninguno y se veía el mapa por detrás de su texto.
+
+Comprobado contra el CSS construido: `.bg-slate-900\/98` no aparece, y la única
+regla `.bg-slate-900\/N` de todo el paquete es `/60`.
+
+El fondo ahora está fijado en CSS, en la regla de `.aerorf-context`. Cualquier
+cosa que tenga que ser legible no debería depender de un paso de opacidad que
+puede no existir.
+
+**Una guarda que no fallaba, y cómo se notó.** La primera versión de la prueba
+buscaba `/background:\s*#[0-9a-f]{6}/`, que es verde sobre un color translúcido:
+el minificador convierte `rgba(15, 23, 42, 0.45)` en `#0f172a73`, y la regex veía
+los primeros seis dígitos y pasaba. Salió al revertir. Ahora exige seis dígitos y
+**un lookahead negativo de otro dígito hexadecimal**, que es lo que distingue un
+color opaco de uno con alfa; más un rechazo explícito de la forma de ocho
+dígitos.
+
+### EL CURSOR DEL MAPA
+
+La hoja de Leaflet pone `cursor: grab`, así que sobre el suelo el puntero era una
+mano abierta. El motivo que dio el operador es el que manda: una mano no muestra
+dónde se hace el clic. En un mapa cuya labor es poner un punto en una coordenada
+exacta, el punto exacto tiene que estar bajo el cursor siempre; una cruz lo
+marca, una mano lo tapa con la palma.
+
+Es `crosshair` y no la flecha por la misma razón: la punta de la flecha está
+desplazada arriba y a la izquierda, así que un vértice se colocaba a unos
+píxeles de donde se apuntaba. Arrastrar sigue funcionando; solo cambia el
+puntero, también mientras arrastra, porque la mano es justamente lo que se está
+reemplazando. Los objetos interactivos conservan `pointer`, para que algo
+ pulsable siga diciendo que se puede pulsar.
+
+El selector lleva dos clases a propósito, para ganar contra la regla de Leaflet
+esté o no sea la última hoja en emitirse.
+
+### Verificación
+
+**355 tests frontend en verde**, 27 archivos, contra 342. **382 Python**, 7
+deseleccionadas. **675 de paridad geodésica.** Build limpio.
+
+Guardas nuevas: 9 en `objects.spec.js`, 4 en `layout.spec.js`, 2 reescritas en
+`components.spec.js`. Las de layout leen el CSS construido, que es el único sitio
+donde un tamaño existe de verdad; y hay que **reconstruir antes de
+correrlas** o pasan con el `dist` viejo. Cuatro se verificaron revirtiendo:
+cursor a `grab` falla, menú translúcido falla, `flex: 1 1 0` falla, y el arreglo de
+la traducción falla siete.
+
+Los 17 objetos de prueba que se crearon al verificar se borraron. En la base
+quedan los tres del operador: un círculo, un radial y una anotación.

@@ -110,6 +110,41 @@ nav .router-link-active {
   background: #475569;
 }
 
+/* ─── Map cursor ─────────────────────────────────────────────────────────────
+ * Leaflet's own stylesheet sets `cursor: grab` on the map container, so the
+ * pointer over open ground is an open hand. The operator asked for a pointer
+ * instead, and gave the reason that matters: a hand does not show where the
+ * click lands. On a map where the whole job is placing a point at an exact
+ * coordinate, the exact point has to be under the cursor at all times — a
+ * crosshair marks it; a hand hides it behind the palm.
+ *
+ * `crosshair` rather than the default arrow for that reason too: the arrow's
+ * tip is offset up and left of the actual point, so a vertex is placed a few
+ * pixels away from where the operator aimed. Both panning and drawing keep
+ * working; only the pointer changes.
+ *
+ * The selector needs two classes to beat Leaflet's rule regardless of which
+ * stylesheet is emitted last, which is why it is not a bare
+ * `.leaflet-container`. Interactive objects keep the pointer, so hovering one
+ * still says it can be clicked.
+ * ------------------------------------------------------------------------- */
+
+.gis-map-area .leaflet-container,
+.gis-map-area .leaflet-grab .leaflet-container,
+.gis-map-area .leaflet-container.leaflet-grab {
+  cursor: crosshair;
+}
+
+/* Panning is still possible; it just does not switch to a hand while it
+ * happens, because the hand is the thing being replaced. */
+.gis-map-area .leaflet-dragging .leaflet-container {
+  cursor: crosshair;
+}
+
+.gis-map-area .leaflet-interactive {
+  cursor: pointer;
+}
+
 /* ─── Images ────────────────────────────────────────────────────────────────
  * A hard guarantee that no image can ever again size itself. Without this a
  * missing height utility is enough to put a 1024px logo on screen.

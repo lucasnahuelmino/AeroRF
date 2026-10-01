@@ -38,7 +38,33 @@ function toApiPayload(payload) {
   if (!payload || typeof payload !== 'object') return payload
   const out = { ...payload }
 
-  const points = out.latlngs
+  // Where the vertices actually are.
+  //
+  // The two shapes that carry a vertex list arrive under `properties`: the
+  // drawing tools call them `path` (line, trace, measurement) and `ring`
+  // (polygon, coverage). `latlngs` is what the rest of the store and the engine
+  // speak, and it is what the translation below has always read.
+  //
+  // It read only `latlngs`, so for every tool that names its vertices `path` or
+  // `ring` the list was invisible here. The early-return branch ran instead: a
+  // line, polygon, coverage or trace was saved as a **Point** on its first
+  // vertex, and a measurement was saved with no geometry at all. Measured
+  // against the API: all four came back `geometry_type=Point` with one vertex.
+  // The request succeeded and the object appeared, which is why it read as
+  // "does not save" rather than as an error — there was no error to see.
+  //
+  // Circles and radials were unaffected: they carry a centre and a measurement
+  // and the backend builds the ring itself. Which is also why only they were
+  // ever on the map.
+  const props = out.properties
+  const points =
+    Array.isArray(out.latlngs) && out.latlngs.length
+      ? out.latlngs
+      : Array.isArray(props?.path) && props.path.length
+        ? props.path
+        : Array.isArray(props?.ring) && props.ring.length
+          ? props.ring
+          : out.latlngs
   if (!Array.isArray(points) || points.length === 0) {
     // No vertex list: nothing to translate. A circle carries its centre and
     // radius and the backend builds the ring itself.

@@ -86,15 +86,24 @@
         :style="{ width: `${systemStore.sidebarWidth}px` }"
       >
         <nav class="gis-tabs">
+          <!-- Icon over a short label, so all five fit and all five read.
+               Measured before: the strip needed 312px and the sidebar has 215,
+               and because the buttons could shrink they did, so the last one —
+               Expediente — was pushed entirely out of sight. The full name is
+               still on the button as a title and as the accessible name, so
+               abbreviating the visible label costs nothing but width. -->
           <button
             v-for="tab in sideTabs"
             :key="tab.id"
             class="gis-tab"
             :class="{ active: systemStore.leftPanel === tab.id }"
             :title="`Panel ${tab.label}`"
+            :aria-label="`Panel ${tab.label}`"
+            :aria-current="systemStore.leftPanel === tab.id ? 'page' : undefined"
             @click="systemStore.setPanel(tab.id)"
           >
-            {{ tab.label }}
+            <span class="gis-tab-icon" aria-hidden="true">{{ tab.icon }}</span>
+            <span class="gis-tab-label">{{ tab.short }}</span>
           </button>
         </nav>
 
@@ -381,12 +390,21 @@ const tools = computed(() =>
   Object.entries(TOOL_META).map(([id, meta]) => ({ id, ...meta })),
 )
 
+// The left panel's five sections.
+//
+// `icon` + `short` instead of the full name, because the full names need 312px
+// and the sidebar has 215. The icons were checked to be real glyphs and not
+// `.notdef` boxes: each was drawn to a canvas and its bitmap compared against a
+// private-use character, which always renders as a box. All fourteen candidates
+// came back distinct, so none of these is a hollow rectangle on someone else's
+// font. `label` stays the full name and is what the title and the accessible
+// name use.
 const sideTabs = [
-  { id: 'tools', label: 'Herramientas' },
-  { id: 'layers', label: 'Capas' },
-  { id: 'flights', label: 'Vuelos' },
-  { id: 'airports', label: 'Aeropuertos' },
-  { id: 'expediente', label: 'Expediente' },
+  { id: 'tools', label: 'Herramientas', short: 'Herram.', icon: '\u270E' },
+  { id: 'layers', label: 'Capas', short: 'Capas', icon: '\u25A9' },
+  { id: 'flights', label: 'Vuelos', short: 'Vuelos', icon: '\u2708' },
+  { id: 'airports', label: 'Aeropuertos', short: 'Aerop.', icon: '\u2316' },
+  { id: 'expediente', label: 'Expediente', short: 'Exped.', icon: '\u25A3' },
 ]
 
 // ─── Panel resizing ──────────────────────────────────────────────────────────
@@ -1234,17 +1252,51 @@ watch(
 .gis-mini-btn.danger { border-color: #7f1d1d; color: #fca5a5; }
 .gis-mini-btn.danger:hover { background: #7f1d1d; color: #fff; }
 
+/* A tab is an icon over a short label, in a column.
+ *
+ * `flex: 1 1 0` is what let the five buttons shrink below the width their text
+ * needed — which is how Expediente ended up off the edge rather than merely
+ * cramped. The width is now `flex: 0 0 auto` and the label is `nowrap`: five
+ * tabs that fit, instead of five that try to and one that does not.
+ */
 .gis-tab {
-  flex: 1 1 0;
-  padding: 0.5rem 0.25rem;
-  font-size: 0.5625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0.3rem 0.15rem 0.25rem;
   color: #64748b;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
 }
+
+.gis-tab-icon {
+  font-size: 13px;
+  line-height: 1;
+  /* The geometric shapes are wide and the aeroplane is narrow; without this
+     they would sit on visibly different baselines across the strip. */
+  display: block;
+  text-align: center;
+}
+
+.gis-tab-label {
+  font-size: 0.4375rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  /* The last resort, not the plan: the labels are sized to fit, and this only
+     means an unexpectedly narrow window truncates them instead of pushing one
+     tab out of the strip. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .gis-tab:hover { color: #cbd5e1; }
 .gis-tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
 

@@ -194,3 +194,126 @@ describe('object creation reaches the API with real geometry', () => {
     expect(sent[0].latlngs).toBeUndefined()
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The shape the tools actually emit
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Every test above builds its payload with `latlngs`. That is a real field and
+// the translation handles it — and it is the shape **nothing in the application
+// produces**.
+//
+// `draw.js`'s `finish()` emits the vertices as `properties.path` (line, trace,
+// measurement) or `properties.ring` (polygon, coverage). The translation read
+// only `latlngs`, so for every one of those five tools it took the early return:
+// a line, polygon, coverage or trace was saved as a **Point** on its first
+// vertex, and a measurement was saved with no geometry at all.
+//
+// Measured against the running API before the fix: all four came back
+// `geometry_type=Point` with one vertex. Circles and radials were fine, because
+// they carry a centre and a measurement and the backend builds the ring — which
+// is also the only reason they were ever on the map.
+//
+// So this file was fully green over a feature that did not work. The fixture was
+// the problem: it used a plausible-looking key that the real caller never sends,
+// which is the same trap as the centre-snap fixture that hid the broken snapping
+// until it was measured in the browser.
+//
+// These tests use the real payloads. If the tools ever rename `path` or `ring`,
+// these fail and the tools fail with them, which is the point.
+describe('the payload the drawing tools actually emit', () => {
+  beforeEach(() => {
+    sent.length = 0
+    setActivePinia(createPinia())
+  })
+
+  it('reads the vertices out of properties.path, as line, trace and measure send them', async () => {
+    await useMapStore().createObject({
+      type: 'line',
+      name: 'Linea',
+      latitude: -34.6,
+      longitude: -58.4,
+      properties: { path: [[-34.6, -58.4], [-34.5, -58.3], [-34.4, -58.2]] },
+    })
+    expect(sent.length).toBe(1)
+    expect(sent[0].geometry.type).toBe('LineString')
+    expect(sent[0].geometry.coordinates).toHaveLength(3)
+    // Still [lon, lat], the same swap the `latlngs` path does.
+    expect(sent[0].geometry.coordinates[0]).toEqual([-58.4, -34.6])
+  })
+
+  it('reads the ring out of properties.ring, as polygon and coverage send them', async () => {
+    await useMapStore().createObject({
+      type: 'polygon',
+      name: 'Poligono',
+      latitude: -34.9,
+      longitude: -58.9,
+      properties: { ring: [[-34.9, -58.9], [-34.8, -58.9], [-34.8, -58.8]] },
+    })
+    expect(sent[0].geometry.type).toBe('Polygon')
+    const ring = sent[0].geometry.coordinates[0]
+    // The tool sends an open ring; GeoJSON needs it closed.
+    expect(ring).toHaveLength(4)
+    expect(ring[0]).toEqual(ring[ring.length - 1])
+    expect(ring[0]).toEqual([-58.9, -34.9])
+  })
+
+  it.each([
+    ['line', 'path', 'LineString'],
+    ['trace', 'path', 'LineString'],
+    ['measurement', 'path', 'LineString'],
+    ['polygon', 'ring', 'Polygon'],
+    ['coverage', 'ring', 'Polygon'],
+  ])('does not downgrade a %s to a point on its first vertex', async (type, key, esperado) => {
+    // The failure this guards against is silent: the request succeeded, an id
+    // came back and a "Creado" notice appeared, while the stored shape was a
+    // single vertex. Asserting the geometry type is what catches it.
+    const vertices = [[-34.6, -58.4], [-34.5, -58.3], [-34.4, -58.2]]
+    await useMapStore().createObject({
+      type,
+      latitude: -34.6,
+      longitude: -58.4,
+      properties: { [key]: vertices },
+    })
+    expect(sent[0].geometry, `${type} debe llegar con geometria`).toBeTruthy()
+    expect(sent[0].geometry.type, `${type} no debe guardarse como Point`).not.toBe('Point')
+    expect(sent[0].geometry_type).toBe(esperado)
+
+    // The vertex count, which is where the two GeoJSON shapes differ: a
+    // LineString's `coordinates` is the list of positions, while a Polygon's is
+    // a list of rings and the positions are one level in. A three-vertex ring
+    // becomes four positions because GeoJSON requires it closed.
+    const positions =
+      esperado === 'Polygon' ? sent[0].geometry.coordinates[0] : sent[0].geometry.coordinates
+    expect(positions, `${type}: ${vertices.length} vertices`).toHaveLength(
+      esperado === 'Polygon' ? vertices.length + 1 : vertices.length,
+    )
+    expect(positions[0], `${type}: la primera posicion`).toEqual([-58.4, -34.6])
+  })
+
+  it('prefers latlngs when both keys are present', async () => {
+    // The two orders can disagree, and `latlngs` is the store's own spelling, so
+    // it wins. Asserted so the fallback never quietly takes precedence.
+    await useMapStore().createObject({
+      type: 'line',
+      latlngs: [[-1, -1], [-2, -2]],
+      properties: { path: [[-9, -9], [-9, -9], [-9, -9]] },
+    })
+    expect(sent[0].geometry.coordinates).toHaveLength(2)
+    expect(sent[0].geometry.coordinates[0]).toEqual([-1, -1])
+  })
+
+  it('still sends a circle as centre plus radius, not as a vertex list', async () => {
+    // The fallback must not reach circles: a circle has no `path` and no
+    // `ring`, and its truth is the centre and the radius. A Point geometry on
+    // the centre is what this write path has always sent and what the engine
+    // dispatches on; what must not happen is a LineString or a Polygon.
+    await useMapStore().createObject({
+      type: 'circle', name: 'Circulo', latitude: -34.6, longitude: -58.4,
+      radius: 20, radius_unit: 'nm', radius_m: 37040,
+    })
+    expect(sent[0].geometry.type).toBe('Point')
+    expect(sent[0].radius_m).toBe(37040)
+    expect(sent[0].latlngs).toBeUndefined()
+  })
+})

@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="menu.open"
-      class="aerorf-context fixed z-[1250] min-w-[13rem] rounded-lg border border-slate-700 bg-slate-900/98 py-1 shadow-2xl backdrop-blur"
+      class="aerorf-context fixed z-[1250] min-w-[13rem] rounded-lg border py-1 shadow-2xl"
       :style="style"
       @click.stop
     >
@@ -211,3 +211,25 @@ onBeforeUnmount(() => {
   if (mapStore.contextMenu.open) mapStore.closeContextMenu()
 })
 </script>
+
+<style scoped>
+/**
+ * The right-click menu's ground.
+ *
+ * It was written as `bg-slate-900/98` in the template. Tailwind's opacity scale
+ * is 0, 5, 10 ... 95, 100 — **98 is not a step**, so the class was never
+ * generated and the menu had no background at all. The operator saw a menu
+ * floating over the map with only the map showing through behind its text,
+ * which is what "the background is very transparent and cannot be seen" is.
+ *
+ * Checked against the built CSS: `.bg-slate-900\/98` is absent, and the only
+ * `.bg-slate-900\/N` rule in the whole bundle is `/60`. A dead utility class is
+ * invisible in the source and in a unit test; it is only visible in the output,
+ * which is why the ground of anything that has to be legible is pinned here in
+ * CSS rather than left to an opacity step that may not exist.
+ */
+.aerorf-context {
+  background: #0f172a;
+  border-color: #334155;
+}
+</style>

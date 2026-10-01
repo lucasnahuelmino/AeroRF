@@ -70,6 +70,36 @@ revertida puede dar verde sin motivo.
 
 ---
 
+## 0.29.1 — Las cinco herramientas que no guardaban la forma
+
+**El hallazgo de fondo, y no era de aspecto.** `stores/map.js` traducía a GeoJSON
+leyendo solo `latlngs`, pero `draw.js` emite los vértices como
+`properties.path` (línea, traza, medición) o `properties.ring` (polígono,
+cobertura). Para esas cinco, la traducción tomaba la salida temprana: **línea,
+polígono, cobertura y traza se guardaban como `Point` en su primer vértice, y
+medición sin geometría ninguna.** El pedido era exitoso y aparecía «Creado», así
+que se leía como «no guarda» en vez de como un error. Círculos y radiales
+funcionaban porque llevan centro y medida.
+
+Ahora `toApiPayload` busca `path` y luego `ring` si no hay `latlngs`.
+
+**Once tests de `objects.spec.js` estaban en verde sobre esto**, porque sus
+fixtures usan `latlngs`: un campo real que la traducción maneja bien, y la forma
+que **nada en la aplicación produce**. Nueve pruebas nuevas con los payloads
+reales; siete fallan al revertir el arreglo.
+
+Las otras tres cosas del mismo lote: las cinco pestañas de la barra lateral —el
+strip necesitaba 312 px y tenía 215, y con `flex: 1 1 0` «Expediente» quedaba
+completamente fuera— ahora son icono + rótulo corto; el menú de clic derecho **no
+tenía fondo**, porque `bg-slate-900/98` no es un paso de opacidad de Tailwind y la
+clase nunca se generó; y el cursor del mapa es `crosshair` en vez de la mano que
+tapaba el punto del clic.
+
+**355 tests frontend en verde.** Detalle en `AERORF_CHANGELOG.md`, sección
+0.29.1.
+
+---
+
 ## Lo que queda pendiente
 
 - **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
@@ -87,10 +117,13 @@ revertida puede dar verde sin motivo.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **342 pasan**, 27 archivos |
+| Frontend (vitest) | **355 pasan**, 27 archivos |
 | Python (no integración) | **382 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
+
+Objetos en la base: **3, los del operador** — un círculo (id 1), un radial (id 2) y
+una anotación (id 3). Los 17 que se crearon al verificar se borraron.
 
 ---
 

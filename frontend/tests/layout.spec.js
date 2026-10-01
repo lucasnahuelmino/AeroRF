@@ -265,6 +265,61 @@ describe('The brand mark cannot size itself again', () => {
       .toMatch(/height:\s*calc\([^}]*var\(--brandbar-h[^}]*var\(--footerbar-h/)
   })
 
+  it('replaces Leaflet\'s grab hand with a crosshair over the map', () => {
+    // Leaflet's own stylesheet sets `cursor: grab` on the map container, so the
+    // pointer over open ground was an open hand — and a hand hides the exact
+    // point under the cursor, which is the whole job on a map.
+    //
+    // The selector needs two classes to beat Leaflet's rule no matter which
+    // stylesheet is emitted last, so the test requires the qualifier rather
+    // than just any cursor declaration.
+    expect(css, 'el mapa debe definir su cursor').toMatch(
+      /\.gis-map-area[^{]*\.leaflet-container[^{]*\{[^}]*cursor:\s*crosshair/i,
+    )
+  })
+
+  it('keeps the pointer on interactive objects, so a clickable thing still says so', () => {
+    expect(css).toMatch(/\.gis-map-area[^{]*\.leaflet-interactive[^{]*\{[^}]*cursor:\s*pointer/i)
+  })
+
+  it('gives the right-click menu a solid ground of its own', () => {
+    // It was `bg-slate-900/98` in the template. Tailwind's opacity scale stops at
+    // 95, so **98 was never generated**: the menu had no background at all and
+    // the map showed through its text. Checked against the built CSS — the only
+    // `.bg-slate-900/N` rule in the bundle was `/60`.
+    const menu = ruleFor(css, 'aerorf-context')
+    expect(menu, 'falta .aerorf-context').toBeTruthy()
+
+    // Six hex digits and no more. The lookahead matters and was found by
+    // reverting: the minifier turns `rgba(15, 23, 42, 0.45)` into the 8-digit
+    // `#0f172a73`, and a plain `/#[0-9a-f]{6}/` matches the first six of those
+    // and passes a menu that is 45% opaque. A negative lookahead for another hex
+    // digit is what tells an opaque colour from a translucent one.
+    expect(menu, 'el menu necesita un fondo opaco').toMatch(
+      /background(-color)?:\s*#(?:[0-9a-f]{6})(?![0-9a-f])/i,
+    )
+    expect(menu, 'un fondo con alfa no se ve sobre el mapa').not.toMatch(
+      /background(-color)?:\s*#[0-9a-f]{8}(?![0-9a-f])/i,
+    )
+    // Belt and braces: if the output ever keeps the functional notation instead
+    // of the 8-digit hex, a fractional alpha is still a translucent colour.
+    expect(menu).not.toMatch(/rgba\([^)]*,\s*0?\.\d+\s*\)/i)
+  })
+
+  it('lets the five panel tabs keep their own width instead of shrinking out of sight', () => {
+    // `flex: 1 1 0` let all five shrink below what their text needed, and the
+    // last one — Expediente — was pushed off the strip entirely: the strip
+    // needed 312px and the sidebar has 215. `flex: 0 1 auto` plus a `nowrap`
+    // label makes the five fit or visibly truncate, which is a different and
+    // recoverable failure.
+    const tab = ruleFor(css, 'gis-tab')
+    expect(tab, 'falta .gis-tab').toBeTruthy()
+    expect(tab).toMatch(/flex:\s*0 1 auto/)
+    const label = ruleFor(css, 'gis-tab-label')
+    expect(label, 'falta .gis-tab-label').toBeTruthy()
+    expect(label, 'el rotulo no debe partirse en dos lineas').toMatch(/white-space:\s*nowrap/)
+  })
+
   it('ships a small logo, not the 1.4 MB master', () => {
     const src = join(frontend, 'src', 'assets', 'aerorf-128.png')
     expect(existsSync(src), 'falta aerorf-128.png').toBe(true)

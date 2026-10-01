@@ -447,9 +447,22 @@ describe('GisShell boots', () => {
 
     // The tool palette and the side-panel tab strip must be present. The
     // panels themselves sit behind tabs, so only one is mounted at a time.
-    for (const label of ['Herramientas', 'Capas', 'Vuelos', 'Expediente']) {
-      expect(w.text()).toContain(label)
+    //
+    // The full names live in each tab's `title` and `aria-label`, because the
+    // visible label is abbreviated: the five full names need 312px and the
+    // sidebar has 215, and `flex: 1 1 0` shrank them until Expediente fell off
+    // the strip entirely. Asserted on the accessible name so a rename of the
+    // abbreviation cannot quietly take a section with it.
+    for (const label of ['Herramientas', 'Capas', 'Vuelos', 'Aeropuertos', 'Expediente']) {
+      const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === `Panel ${label}`)
+      expect(tab, `falta la pestana ${label}`).toBeTruthy()
+      expect(tab.attributes('aria-label'), `${label} sin nombre accesible`).toBe(`Panel ${label}`)
+      // An icon and a short label, so the strip is a diagram and not a row of
+      // words that may or may not fit.
+      expect(tab.find('.gis-tab-icon').exists(), `${label} sin icono`).toBe(true)
+      expect(tab.find('.gis-tab-label').exists(), `${label} sin rotulo`).toBe(true)
     }
+    expect(w.findAll('.gis-tab')).toHaveLength(5)
     expect(w.findComponent(ToolOptions).exists()).toBe(true)
     expect(w.findComponent(CoordinateBar).exists()).toBe(true)
 
@@ -474,7 +487,9 @@ describe('GisShell boots', () => {
     expect(w.findComponent(LayerPanel).exists()).toBe(false)
 
     // Clicking "Capas" must swap the panel, not just change a label.
-    const tab = w.findAll('button').find((b) => b.text().trim() === 'Capas')
+    // Matched on the full name, which the tab carries as its accessible name;
+    // the visible label is the abbreviation.
+    const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === 'Panel Capas')
     expect(tab).toBeTruthy()
     await tab.trigger('click')
     await flushPromises()
