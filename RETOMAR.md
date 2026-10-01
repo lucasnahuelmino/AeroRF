@@ -237,10 +237,25 @@ pruebas que estaban en verde.
   datos del operador y la decisión es suya. El código ya no genera más.
 - **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
   conversación de las últimas sesiones. Está en `.env`, ignorado por git, y en
-  ningún archivo versionado.
+  ningún archivo versionado. Hay que generar una clave nueva en OpenSky y
+  reemplazar la vieja; eso requiere entrar a la cuenta, así que no se puede hacer
+  desde acá.
 - **`npm run lint` no funciona**: no hay configuración de ESLint en el
   repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
   falso. La comprobación real es el build.
+
+### Si algo reaparece al cambiar una visibilidad
+
+Lo que se corrigió en 0.29.3, 0.29.4 y 0.29.5 fue que las capas **no se quedaran
+atadas al `LayerGroup`**: `layer.remove()` las saca del mapa pero no del grupo, y
+`LayerGroup.onAdd` reagrega todo lo que todavía tenga.
+
+Eso está resuelto en los cuatro caminos (`_detach` en el renderizador de
+aeronaves, `removeObject`/`clearObjects` en el motor del mapa). **Lo que no se
+tocó es el `restack()` en sí**: sigue invocándose desde la lógica de capas, y es
+lo que reagregan los hijos de un grupo. Si alguna vez reaparece algo al cambiar
+una visibilidad, el sitio a mirar es quién llama a `restack()` y con qué estado,
+no la remoción.
 
 ---
 
