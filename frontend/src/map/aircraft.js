@@ -71,6 +71,11 @@ export class AircraftRenderer {
         this.handlers.onContext?.(state.icao24, e.latlng)
       })
       marker.addTo(this.markerGroup)
+      // Remembered so `_detach` can let go of the group as well as of the map.
+      // Without it an aircraft that left the watchlist came back the next time
+      // the category was shown — the operator's "I deleted every flight and the
+      // aeroplane is still there".
+      marker._aerorfHost = this.markerGroup
       entry = { marker, color }
       this.markers.set(key, entry)
     } else if (entry.color !== color) {
@@ -251,6 +256,10 @@ export class AircraftRenderer {
     )
 
     layer.addTo(this.trackGroup)
+    // Remembered so `_detach` can let go of the group as well as of the map.
+    // Without it the trajectory stayed in `trackGroup` and came back on the next
+    // restack — and the group has no way to find its members otherwise.
+    layer._aerorfHost = this.trackGroup
     this.tracks.set(track.icao24 || 'current', layer)
     return layer
   }
@@ -278,33 +287,43 @@ export class AircraftRenderer {
     const key = icao24 || 'current'
     const layer = this.tracks.get(key)
     if (layer) {
-      if (this.trackGroup && typeof this.trackGroup.removeLayer === 'function') {
-        this.trackGroup.removeLayer(layer)
-      }
-      layer.remove()
+      this._detach(layer)
       this.tracks.delete(key)
     }
     return Boolean(layer)
   }
 
   clearTracks() {
-    this.tracks.forEach((layer) => {
-      if (this.trackGroup && typeof this.trackGroup.removeLayer === 'function') {
-        this.trackGroup.removeLayer(layer)
-      }
-      layer.remove()
-    })
+    this.tracks.forEach((layer) => this._detach(layer))
     this.tracks.clear()
   }
 
   // ─── Housekeeping ────────────────────────────────────────────────────────
+
+  /**
+   * Take a layer off the map *and* let go of it.
+   *
+   * `layer.remove()` only does the first. Both the markers and the trajectories
+   * live in a per-category `LayerGroup`, so the group keeps the reference and
+   * `LayerGroup.onAdd` re-adds every child it still holds the next time that
+   * category is shown. That is what put aircraft back on the map after "Quitar
+   * todas", and what stacked trajectories of the same aircraft in 0.29.4.
+   *
+   * Four call sites needed this and each got it wrong on its own once already,
+   * so it is one method now: a layer is detached here or nowhere.
+   */
+  _detach(layer) {
+    const group = layer?._aerorfHost
+    if (group && typeof group.removeLayer === 'function') group.removeLayer(layer)
+    layer?.remove()
+  }
 
   /** Remove markers for aircraft no longer tracked. */
   syncMarkers(activeIcao24s) {
     const active = new Set((activeIcao24s || []).map((c) => c))
     this.markers.forEach((entry, icao24) => {
       if (!active.has(icao24)) {
-        entry.marker.remove()
+        this._detach(entry.marker)
         this.markers.delete(icao24)
       }
     })
@@ -318,7 +337,7 @@ export class AircraftRenderer {
   }
 
   clear() {
-    this.markers.forEach((entry) => entry.marker.remove())
+    this.markers.forEach((entry) => this._detach(entry.marker))
     this.markers.clear()
     this.clearTracks()
   }

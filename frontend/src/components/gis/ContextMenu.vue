@@ -165,10 +165,11 @@ const createItems = [
   { type: 'annotation', icon: '✎', label: 'Crear anotación' },
 ]
 
+// Polígono and traza are gone here too, and for the same reason as in the
+// palette: they duplicated línea and cobertura. See `HIDDEN_TOOLS` in
+// `GisShell.vue` — the object types still exist, the tools do not.
 const toolItems = [
   { id: TOOLS.LINE, icon: '╱', label: 'Dibujar línea' },
-  { id: TOOLS.POLYGON, icon: '⬠', label: 'Dibujar polígono' },
-  { id: TOOLS.TRACE, icon: '∿', label: 'Dibujar traza' },
   { id: TOOLS.COVERAGE, icon: '▩', label: 'Área de cobertura' },
 ]
 

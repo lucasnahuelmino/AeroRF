@@ -1116,6 +1116,124 @@ describe('the application draws its own confirmations', () => {
   })
 })
 
+describe('the drawing palette', () => {
+  it('offers eight tools, without polígono and traza', async () => {
+    // The operator: polígono does what cobertura does and traza does what línea
+    // does, so two of the ten buttons were a duplicate. Four ways to draw two
+    // shapes is one too many on a strip the width of a hand.
+    //
+    // The *types* stay: an object saved as `polygon` or `trace` earlier has to
+    // keep rendering, labelling and exporting. Dropping the type would orphan
+    // whatever is already in the database. `TOOL_META` still carries both; only
+    // `HIDDEN_TOOLS` in `GisShell.vue` keeps them off the palette.
+    const pinia = makePinia()
+    const router = makeRouter()
+    await router.push('/')
+    await router.isReady()
+    const w = mount(GisShell, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+
+    const titles = w.findAll('.gis-tool').map((b) => b.attributes('title') || '')
+    expect(titles.length, 'la paleta tiene que tener botones').toBe(8)
+    expect(titles.join(' ')).not.toMatch(/Polígono/)
+    expect(titles.join(' ')).not.toMatch(/Traza/)
+    // And the ones that stay are all there.
+    for (const label of ['Punto', 'Línea', 'Círculo', 'Radial', 'Medir', 'Cobertura']) {
+      expect(titles.join(' '), `falta ${label}`).toContain(label)
+    }
+    w.unmount()
+  })
+})
+
+describe('clicking an aircraft fills the inspector', () => {
+  it('shows the live position, its provenance and the basics', async () => {
+    // The click used to set `selectedIcao24` and nothing displayed it: the panel
+    // went on saying "select an object" while the operator had just picked a
+    // flight. The information was fetched and then nowhere.
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+    flights.selectedIcao24 = 'e02659'
+    flights.liveStates = {
+      e02659: {
+        icao24: 'e02659', callsign: 'ARG1763', latitude: -34.6, longitude: -58.4,
+        altitude: 34000, heading: 95, velocity: 242, on_ground: false,
+        time_position: 1_758_000_000, position_source: 'ADS-B',
+        origin_country: 'Argentina', position_age_s: 4,
+      },
+    }
+    const w = mountComponent(InspectorPanel, { pinia })
+    await flushPromises()
+
+    const texto = w.text()
+    expect(texto).toContain('ARG1763')
+    expect(texto).toContain('e02659')
+    expect(texto).toContain('34000')
+    expect(texto).toContain('242')
+    expect(texto).toContain('95')
+    // Provenance is stated, not implied.
+    expect(texto).toContain('posición en vivo')
+    expect(texto).toContain('ADS-B')
+    expect(texto).toContain('hace 4 s')
+    w.unmount()
+  })
+
+  it('says so when the position is old, rather than implying it is live', async () => {
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+    flights.selectedIcao24 = 'e02659'
+    flights.liveStates = {
+      e02659: { icao24: 'e02659', latitude: -34.6, longitude: -58.4, position_age_s: 600 },
+    }
+    const w = mountComponent(InspectorPanel, { pinia })
+    await flushPromises()
+    expect(w.text()).toContain('última posición conocida')
+    expect(w.text()).not.toContain('posición en vivo')
+    w.unmount()
+  })
+
+  it('renders the object panel and nothing of the aircraft when an object is selected', async () => {
+    // The bug this file's other tests were hiding: `v-else` pairs with the
+    // immediately preceding conditional sibling. A second `v-if` between them
+    // steals it, both blocks render, and the object panel reads `object.color` off
+    // a null object — which took the whole map shell down with it.
+    const pinia = makePinia()
+    const map = useMapStore()
+    const flights = useFlightsStore()
+    flights.selectedIcao24 = 'e02659'
+    flights.liveStates = { e02659: { icao24: 'e02659', latitude: -34.6, longitude: -58.4 } }
+    map.upsert({
+      id: 11, type: 'circle', name: 'Radio 20 NM', status: 'Activo',
+      geometry_type: 'Polygon', latlng: [-34.6, -58.4], latlngs: [[-34.6, -58.4]],
+      latitude: -34.6, longitude: -58.4, radius: 20, radius_unit: 'nm',
+      metrics: { radius_km: 37.04, radius_nm: 20 }, visible: true, locked: false,
+      layer: 'circles', provenance: 'user', properties: { layer_name: 'Círculos' },
+      created_at: '2026-09-25T10:00:00', updated_at: '2026-09-25T10:00:00',
+    })
+    map.select(11)
+    const w = mountComponent(InspectorPanel, { pinia })
+    await flushPromises()
+    expect(w.text(), 'el panel del objeto manda cuando hay objeto').toContain('Inspector')
+    expect(w.text()).not.toContain('Procedencia:')
+    w.unmount()
+  })
+
+  it('never implies that an aircraft caused an RF event', async () => {
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+    flights.selectedIcao24 = 'e02659'
+    flights.liveStates = { e02659: { icao24: 'e02659', latitude: -34.6, longitude: -58.4 } }
+    flights.aircraftDistances = [
+      { id: 3, name: 'Fuente A', latitude: -34.61, longitude: -58.41, distance_km: 1.2, radius_nm: 5 },
+    ]
+    const w = mountComponent(InspectorPanel, { pinia })
+    await flushPromises()
+    const texto = w.text()
+    expect(texto).toContain('Objetos RF cercanos')
+    expect(texto).toContain('No implica causalidad')
+    w.unmount()
+  })
+})
+
 describe('AircraftRenderer in jsdom', () => {
   let container
   let engine
@@ -1249,6 +1367,44 @@ describe('AircraftRenderer in jsdom', () => {
     // Two segments, one per source, plus start/end markers.
     expect(renderer.tracks.size).toBe(1)
     expect(renderer.tracks.get('abc123').getLayers().length).toBeGreaterThan(2)
+  })
+
+  // The operator: "I deleted every flight and the aeroplane is still there."
+  //
+  // `syncMarkers` and `clear` called `marker.remove()`, which takes the marker off
+  // the map and leaves it in the `aircraft` `LayerGroup`. `LayerGroup.onAdd`
+  // re-adds every child it still holds, so any restack brought the aircraft back.
+  describe('an aircraft marker must also leave its group', () => {
+    const hijos = () => {
+      const g = engine.categoryLayers.get('aircraft')
+      return g && g._layers ? Object.keys(g._layers).length : 0
+    }
+
+    it('syncMarkers empties the group for aircraft that went away', () => {
+      renderer.updateAircraft(STATE, '#22c55e')
+      renderer.updateAircraft({ ...STATE, icao24: 'def456' }, '#22c55e')
+      expect(hijos()).toBe(2)
+
+    renderer.syncMarkers(['abc123']) // only the first survives
+      expect(hijos(), 'el que dejo de estar seguido no debe quedar en el grupo').toBe(1)
+
+      renderer.syncMarkers([])
+      expect(hijos(), 'syncMarkers([]) debe vaciar el grupo').toBe(0)
+      expect(renderer.markers.size).toBe(0)
+    })
+
+    it('clear empties the group, and a restack does not bring them back', () => {
+      renderer.updateAircraft(STATE, '#22c55e')
+      renderer.updateAircraft({ ...STATE, icao24: 'def456' }, '#22c55e')
+      expect(hijos()).toBe(2)
+
+      renderer.clear()
+
+      expect(hijos(), 'clear debe soltar los marcadores de su grupo').toBe(0)
+      engine.restack()
+      expect(hijos(), 'un restack no debe resucitar ningun avion').toBe(0)
+      expect(document.querySelectorAll('.aerorf-aircraft-marker').length).toBe(0)
+    })
   })
 
   it('removes markers for aircraft that are no longer tracked', () => {

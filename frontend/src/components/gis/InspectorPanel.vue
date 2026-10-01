@@ -3,21 +3,157 @@
     <header class="flex flex-0 items-center justify-between border-b border-slate-800 px-3 py-2">
       <h2 class="text-xs font-semibold uppercase tracking-widest text-slate-300">Inspector</h2>
       <button
-        v-if="object"
+        v-if="object || aircraft"
         class="gis-mini-btn"
         title="Cerrar inspección"
-        @click="mapStore.clearSelection()"
+        @click="closeInspection()"
       >
         ✕
       </button>
     </header>
 
     <div class="flex-1 overflow-y-auto">
-      <!-- Nothing selected -->
-      <div v-if="!object" class="p-4 text-center text-xs text-slate-500">
+      <!--
+        Nothing selected. An aircraft counts as something selected: clicking one on
+        the map fills this panel in. Before, the click set a value in the flights
+        store that nothing displayed, so the panel kept saying "select an object"
+        while the operator had just clicked an aeroplane.
+      -->
+      <div v-if="!object && !aircraft" class="p-4 text-center text-xs text-slate-500">
         <div class="mb-2 text-2xl opacity-40">◎</div>
-        Seleccione un objeto en el mapa para ver sus propiedades, notas e historial.
+        Seleccione un objeto o una aeronave en el mapa.
       </div>
+
+      <!--
+        The aircraft. Everything the map knows about the one that was clicked, in
+        one place, so the operator does not have to keep the flights panel open
+        beside the map to read what they just picked.
+
+        `v-else-if`, not `v-if`. `v-else` pairs with the *immediately preceding*
+        conditional sibling, so a second `v-if` in between steals it: with
+        nothing selected the "select an object" block and the object inspector
+        both rendered, and the object inspector read `object.color` off a null
+        `object`. That crashed the panel and took the whole map shell down with
+        it — the map was not drawn at all, which is how it showed up.
+      -->
+      <template v-else-if="!object && aircraft">
+        <section class="border-b border-slate-800 p-2.5">
+          <div class="mb-2 flex items-start gap-2">
+            <span class="mt-0.5 text-base leading-none text-sky-400">✈</span>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-[13px] font-semibold text-slate-100">
+                {{ aircraft.callsign || aircraft.icao24 }}
+              </div>
+              <div class="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                {{ aircraft.icao24 }} · {{ aircraft.origin_country || 'origen desconocido' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Provenance first: it says where every number below came from. -->
+          <p class="mb-2 rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-400">
+            <span class="text-slate-500">Procedencia:</span>
+            <span :class="aircraftIsLive ? 'text-emerald-300' : 'text-amber-300'">
+              {{ aircraftIsLive ? 'posición en vivo' : 'última posición conocida' }}
+            </span>
+            <template v-if="aircraft.position_source">
+              · fuente {{ aircraft.position_source }}
+            </template>
+            <template v-if="aircraft.position_age_s != null">
+              · hace {{ fmtAge(aircraft.position_age_s) }}
+            </template>
+          </p>
+
+          <dl class="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+            <dt class="text-slate-500">Altitud</dt>
+            <dd class="text-right font-mono text-slate-200">
+              {{ aircraft.altitude != null ? fmt(aircraft.altitude, ' m') : '—' }}
+            </dd>
+            <dt class="text-slate-500">Velocidad</dt>
+            <dd class="text-right font-mono text-slate-200">
+              {{ aircraft.velocity != null ? fmt(aircraft.velocity, ' m/s') : '—' }}
+            </dd>
+            <dt class="text-slate-500">Rumbo</dt>
+            <dd class="text-right font-mono text-slate-200">
+              {{ aircraft.heading != null ? fmt(aircraft.heading, '°') : '—' }}
+            </dd>
+            <dt class="text-slate-500">En tierra</dt>
+            <dd class="text-right text-slate-200">{{ aircraft.on_ground ? 'Sí' : 'No' }}</dd>
+            <dt class="text-slate-500">Posición</dt>
+            <dd class="text-right font-mono text-slate-200">
+              <template v-if="aircraft.latitude != null">
+                {{ aircraft.latitude.toFixed(4) }}, {{ aircraft.longitude.toFixed(4) }}
+              </template>
+              <template v-else>—</template>
+            </dd>
+            <dt class="text-slate-500">Visto</dt>
+            <dd class="text-right font-mono text-slate-200">
+              {{ aircraft.time_position ? fmtTime(aircraft.time_position) : '—' }}
+            </dd>
+          </dl>
+        </section>
+
+        <!-- The trajectory, which is what the aeroplane was clicked for. -->
+        <section
+          v-if="trajectory"
+          class="border-b border-slate-800 p-2.5"
+        >
+          <h3 class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            Trayectoria
+          </h3>
+          <dl class="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+            <dt class="text-slate-500">Puntos</dt>
+            <dd class="text-right font-mono text-slate-200">{{ trajectoryPoints }}</dd>
+            <dt class="text-slate-500">Procedencia</dt>
+            <dd class="text-right text-slate-200">{{ trajectoryProvenance }}</dd>
+            <dt class="text-slate-500">Longitud</dt>
+            <dd class="text-right font-mono text-slate-200">{{ trajectoryLength }}</dd>
+          </dl>
+          <p
+            v-for="note in provenanceNotes"
+            :key="note.text"
+            class="mt-1 text-[10px] leading-snug text-slate-500"
+          >
+            {{ note.text }}
+          </p>
+        </section>
+
+        <!--
+          Distances to RF objects. The header says what this is and is not:
+          a geometric proximity, never a cause.
+        -->
+        <section v-if="distances.length" class="border-b border-slate-800 p-2.5">
+          <h3 class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            Objetos RF cercanos
+          </h3>
+          <ul class="space-y-1">
+            <li
+              v-for="row in distances"
+              :key="row.id"
+              class="flex items-baseline justify-between gap-2 text-[11px]"
+            >
+              <button
+                class="truncate text-left text-sky-300 hover:underline"
+                :title="`Ir a ${row.name}`"
+                @click="centerOn(row)"
+              >
+                {{ row.name }}
+              </button>
+              <span class="flex-none font-mono text-slate-400">{{ fmt(row.distance_km, ' km') }}</span>
+            </li>
+          </ul>
+          <p class="mt-2 text-[10px] leading-snug text-slate-500">
+            Proximidad geométrica a un radio de {{ distancesRadius }}. No implica causalidad: que un
+            objeto esté cerca no dice que haya interferido con esta aeronave.
+          </p>
+        </section>
+
+        <div class="p-3">
+          <button class="gis-mini-btn w-full" @click="openFlights">
+            Ver en el panel de vuelos
+          </button>
+        </div>
+      </template>
 
       <template v-else>
         <!-- Identity -->
@@ -392,14 +528,151 @@ import { haversine } from '@/map/geo'
 import { describeError, mapObjects, updateTyped } from '@/api/client'
 import { useMapStore, typeName } from '@/stores/map'
 import { useSystemStore } from '@/stores/system'
+import { useFlightsStore } from '@/stores/flights'
 import { useExpedientesStore } from '@/stores/expedientes'
+import { formatDistance } from '@/map/geo'
 
 const mapStore = useMapStore()
 const systemStore = useSystemStore()
+const flightsStore = useFlightsStore()
 const expedientesStore = useExpedientesStore()
 
 const object = computed(() => mapStore.selected)
 const locked = computed(() => object.value?.locked === true)
+
+// ─── The aircraft that was clicked ────────────────────────────────────────────
+//
+// Clicking an aeroplane on the map has always set `selectedIcao24`; nothing
+// displayed it, so the panel went on saying "select an object" while the operator
+// had just picked a flight. Everything below exists to put that selection on
+// screen.
+//
+// Live state is preferred over the cached trajectory, because the marker the
+// operator clicked *is* the live position and showing the older one next to it
+// would put two different positions in the same panel.
+const aircraft = computed(() => {
+  const icao = flightsStore.selectedIcao24
+  if (!icao) return null
+  const key = String(icao).trim().toLowerCase()
+  return flightsStore.liveStates?.[key] || flightsStore.liveStates?.[icao] || null
+})
+
+/**
+ * Whether the position is live rather than remembered.
+ *
+ * `position_age_s` is how old the state is. Under a minute is a position the
+ * operator is watching arrive; anything older is a last-known fix, and the panel
+ * says so instead of implying the aeroplane is still there.
+ */
+const aircraftIsLive = computed(
+  () => aircraft.value?.position_age_s != null && aircraft.value.position_age_s < 60,
+)
+
+const trajectory = computed(() => {
+  const icao = flightsStore.selectedIcao24
+  if (!icao) return null
+  return flightsStore.trackFor(icao)
+})
+
+const trajectoryPoints = computed(() => trajectory.value?.points?.length ?? 0)
+
+const trajectoryProvenance = computed(() => {
+  const points = trajectory.value?.points || []
+  const counts = {}
+  points.forEach((p) => {
+    const key = p.provenance || 'other'
+    counts[key] = (counts[key] || 0) + 1
+  })
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, n]) => `${provenanceLabel(key)} ${n}`)
+    .join(' · ') || '—'
+})
+
+const trajectoryLength = computed(() => {
+  const points = trajectory.value?.points || []
+  let total = 0
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]
+    const b = points[i]
+    if (a.latitude == null || b.latitude == null) continue
+    total += haversine(a.latitude, a.longitude, b.latitude, b.longitude)
+  }
+  return points.length > 1 ? formatDistance(total) : '—'
+})
+
+const distances = computed(() => flightsStore.aircraftDistances || [])
+
+const distancesRadius = computed(
+  () => distances.value[0]?.radius_nm ?? distances.value[0]?.radii_nm ?? 50,
+)
+
+/**
+ * What is observed and what is not, said plainly.
+ *
+ * The project's rule from the start: never imply that an aircraft caused an RF
+ * event. The counts are per source so the operator can see that the historical
+ * part came from OpenSky and the AeroRF part from this application's own
+ * recordings, which are not the same kind of evidence.
+ */
+const provenanceNotes = computed(() => {
+  const points = trajectory.value?.points || []
+  if (!points.length) return []
+  const counts = {}
+  points.forEach((p) => {
+    const key = p.provenance || 'other'
+    counts[key] = (counts[key] || 0) + 1
+  })
+  const notes = []
+  if (counts.historical) {
+    notes.push({
+      text:
+        `${counts.historical} puntos históricos de OpenSky: son los reportes de la ` +
+        'fuente, no mediciones propias.',
+    })
+  }
+  if (counts.aerorf) {
+    notes.push({
+      text: `${counts.aerorf} puntos grabados por AeroRF en esta estación.`,
+    })
+  }
+  if (counts.live) {
+    notes.push({ text: `${counts.live} puntos en vivo de la posición actual.` })
+  }
+  return notes
+})
+
+function fmtAge(seconds) {
+  const s = Number(seconds)
+  if (!Number.isFinite(s)) return '—'
+  if (s < 60) return `${Math.round(s)} s`
+  if (s < 3600) return `${Math.round(s / 60)} min`
+  if (s < 86400) return `${Math.round(s / 3600)} h`
+  return `${Math.round(s / 86400)} d`
+}
+
+function fmtTime(unixSeconds) {
+  const n = Number(unixSeconds)
+  if (!Number.isFinite(n)) return '—'
+  return new Date(n * 1000).toLocaleTimeString('es-AR')
+}
+
+/** Close whichever thing is being inspected, not just an object. */
+function closeInspection() {
+  mapStore.clearSelection()
+  flightsStore.selectedIcao24 = null
+}
+
+/** Send the operator to the aircraft in the flights panel. */
+function openFlights() {
+  systemStore.setPanel('flights')
+}
+
+/** Centre the map on an RF object listed as near this aircraft. */
+function centerOn(row) {
+  if (row.latitude == null) return
+  mapStore.engine?.setView(row.latitude, row.longitude, Math.max(mapStore.engine.getZoom(), 11))
+}
 
 const notes = ref([])
 const history = ref([])

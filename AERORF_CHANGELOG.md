@@ -2909,3 +2909,106 @@ de vuelta **1 falla** y nombra `ContextMenu.vue:228`; sin el reset de `query` **
 falla**.
 
 **382 Python · 675 de paridad · build limpio.**
+---
+
+## 0.29.5 — El avión que no se iba, ocho herramientas, medir en vivo, y el inspector de aeronaves
+
+Cuatro cosas del operador.
+
+### 1. EL AVIÓN SE QUEDABA TRAS BORRAR TODOS LOS VUELOS
+
+**Tercera instancia del mismo bug.** `syncMarkers` y `clear` llamaban
+`marker.remove()`, que saca el marcador del mapa pero **no lo suelta del
+`LayerGroup` `aircraft`**. `LayerGroup.onAdd` reagregan sus hijos.
+
+Verificado en el navegador: dibujadas 2 aeronaves, al vaciar `liveStates` quedan
+**0 en el mapa y 0 en el grupo**, y un `restack()` ya no las devuelve.
+
+Ahora los cuatro caminos de baja pasan por un solo `_detach(layer)`, que suelta
+del grupo y saca del mapa. Cuatro lugares lo hicieron mal por separado una vez
+cada uno; que sea un método es lo que evita que vuelvan a divergir.
+
+**Y un bug que encontró su propia guarda:** al refactorizar, `clear()` se quedó
+con el `entry.marker.remove()` viejo — el reemplazo por script no aplicó — y la
+prueba nueva lo cazó (`expected 2 to be +0`).
+
+### 2. TRAZA Y POLÍGONO, FUERA
+
+El operador: hacen lo mismo que línea y cobertura. Cuatro formas de dibujar dos
+figuras es una de más en una barra del ancho de una mano.
+
+**Se van de la paleta, no del sistema.** Siguen en `TOOL_META`: un objeto guardado
+como `polygon` o `trace` tiene que seguir dibujándose, etiquetándose y
+exportándose, y borrar el **tipo** dejaría huérfano lo que ya está en la base. La
+herramienta es lo que sobraba, no el dato. Se filtran con `HIDDEN_TOOLS`, y del
+menú de clic derecho también salen.
+
+La paleta queda con **8 botones**, verificado en el navegador.
+
+### 3. MEDIR: LECTURA EN VIVO
+
+Medí lo que pasaba: MEDIR **sí** creaba el objeto entre dos puntos, pero
+**no mostraba ninguna cifra mientras el operador se movía**. El número solo
+existía después, que es justo el momento en que no sirve.
+
+Añadido `_renderLiveDistance()`: una caja en el punto medio del segmento que el
+puntero está extendiendo, con la distancia del tramo y, desde el tercer punto, el
+total. Medido:
+
+- 1 punto: nada, todavía no hay nada que medir;
+- 2 puntos: `977.8 m · 0.528 NM · 0.978 km`;
+- 3 puntos: `811.2 m · 0.438 NM · 0.811 km · total 1.789 km · 0.966 NM`.
+
+**Dos cosas que estaban mal y no se veían en el código:**
+
+Las etiquetas de medición vivían en el `<style scoped>` de `GisShell.vue`. Son
+contenido de `divIcon`, y Leaflet construye ese elemento en tiempo de ejecución:
+nunca recibe el `data-v-…` que necesita un selector con scope. Medidas: **10×19 px,
+sin fondo, sin borde, sin color** — texto pelado. Movidas al bloque global, junto
+a `.aerorf-popup`.
+
+Y el `span` era `display: block` dentro de una caja de icono de tamaño cero, así
+que tomaba el ancho 0 del padre y colapsaba a su relleno. Con `inline-block`
+mide **169×19 px** con su fondo.
+
+### 4. EL INSPECTOR AL HACER CLIC EN UN AVIÓN
+
+El clic **siempre** puso `selectedIcao24`; nada lo mostraba. El panel seguía
+diciendo «Seleccione un objeto» con el avión ya elegido: la información se pedía
+y no aparecía en ninguna parte.
+
+Ahora el clic abre el inspector, y el panel tiene una sección de aeronave:
+identidad, **procedencia** (posición en vivo o última conocida, fuente y edad),
+altitud, velocidad, rumbo, en tierra, posición, hora, la trayectoria con su
+desglose por procedencia y su longitud, y los objetos RF cercanos.
+
+La procedencia va **primero**, y es texto: si la posición tiene más de un minuto,
+el panel dice «última posición conocida» en vez de dar a entender que el avión
+sigue ahí.
+
+**La nota de causalidad se mantiene**, junto a los objetos RF: proximidad
+geométrica, y que eso no dice que haya interferido con la aeronave.
+
+**Un error mío, grave.** Añadí el bloque de aeronave con `v-if`, y eso **le robó
+el `v-else` al panel del objeto**: `v-else` se empareja con el condicional
+hermano *inmediatamente anterior*. Con nada seleccionado se renderizaban los dos, y
+el del objeto leía `object.color` sobre un `object` nulo. **Eso tumbaba el shell
+del mapa entero**: el mapa no se dibujaba. Lo encontré porque el navegador dejó de
+arrastrar y `engine` era `null`, y lo confirmaron ocho pruebas que ya estaban en
+verde. Ahora es `v-else-if`, y hay una prueba que monta el panel con objeto **y**
+aeronave a la vez.
+
+### Pruebas
+
+**386 en verde**, 27 archivos, contra 379.
+
+Siete pruebas nuevas: la paleta con 8 botones y sin los dos duplicados; el
+inspector de aeronave con sus campos, su procedencia y su frase de causalidad; el
+objeto mandando sobre la aeronave; y los marcadores soltándose de su grupo.
+
+Verificadas revirtiendo: `clear()` viejo y la paleta completa, **2 de 66 fallan**.
+El conteo de `active-tool.spec.js` pasó de 10 a 8 botones, con el motivo anotado:
+afirmar sobre el número y no sobre «más de uno» hace que una herramienta que
+desaparezca tenga que ser una edición deliberada.
+
+**382 Python · 675 de paridad · build limpio.**

@@ -386,8 +386,25 @@ const airportMeasureArmed = ref(false)
 const airportMeasureCode = ref(null)
 const airportMeasureResult = ref(null)
 
+/**
+ * The drawing palette.
+ *
+ * `POLYGON` and `TRACE` are no longer offered. The operator's point was that they
+ * do the same as `COVERAGE` and `LINE` respectively, and four ways to draw two
+ * shapes is one too many on a strip that is already ten buttons wide — and every
+ * extra tool is another thing to read before drawing.
+ *
+ * They stay in `TOOL_META` on purpose. That is the *tool* list; an object saved
+ * as `polygon` or `trace` earlier has to keep rendering, labelling, exporting and
+ * showing up in the inspector, and dropping the type would orphan whatever is
+ * already in the database. The tool is what was redundant, not the data.
+ */
+const HIDDEN_TOOLS = new Set([TOOLS.POLYGON, TOOLS.TRACE])
+
 const tools = computed(() =>
-  Object.entries(TOOL_META).map(([id, meta]) => ({ id, ...meta })),
+  Object.entries(TOOL_META)
+    .filter(([id]) => !HIDDEN_TOOLS.has(id))
+    .map(([id, meta]) => ({ id, ...meta })),
 )
 
 // The left panel's five sections.
@@ -483,6 +500,13 @@ onMounted(async () => {
       onSelect: (icao24) => {
         flightsStore.selectedIcao24 = icao24
         flightsStore.loadAircraftDistances(icao24)
+        // Open the inspector. The click used to set a value nothing displayed, so
+        // the panel went on saying "select an object" while the operator had just
+        // picked an aeroplane — the information was fetched and then nowhere.
+        if (!systemStore.inspectorOpen) systemStore.toggleInspector()
+        // A stale object selection would win the panel and hide the aircraft, and
+        // the operator clicked the aeroplane, not the circle next to it.
+        if (mapStore.selectedId != null) mapStore.clearSelection()
       },
     }),
   )
@@ -1303,16 +1327,13 @@ watch(
 .gis-tab:hover { color: #cbd5e1; }
 .gis-tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
 
-.aerorf-measure-label span {
-  background: rgba(15, 23, 42, 0.9);
-  color: #fde68a;
-  border: 1px solid rgba(250, 204, 21, 0.4);
-  border-radius: 0.25rem;
-  padding: 1px 4px;
-  font-size: 10px;
-  font-family: ui-monospace, monospace;
-  white-space: nowrap;
-}
+/*
+ * The measurement labels moved to the global block below, and that is not a
+ * style choice. Both are `divIcon` content: Leaflet builds the element at run
+ * time, so it never receives the `data-v-…` attribute a scoped rule requires —
+ * these labels rendered as unstyled 10px text with no ground. Anything drawn by
+ * Leaflet has to be styled outside the scoped block, next to `.aerorf-popup`.
+ */
 
 /*
  * The live radius shown while sizing a circle or a radial. Rendered as a
@@ -1346,6 +1367,42 @@ watch(
   font-weight: 500;
   font-size: 10px;
   padding: 1px 4px;
+}
+
+/* Measurement labels, live and committed.
+ *
+ * Global on purpose. Leaflet creates `divIcon` content at run time, so it never
+ * gets the `data-v-…` attribute a scoped selector needs — inside `<style scoped>`
+ * these labels rendered as unstyled 10px text with no ground and no border,
+ * which is how they were found: measured at 10×19px with no background.
+ */
+.aerorf-measure-label span,
+.aerorf-measure-live span {
+  background: rgba(15, 23, 42, 0.9);
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: 0.25rem;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+/* The live readout's icon box is zero-sized, so Leaflet positions its top-left
+   corner on the point. Centring the span by hand puts it on the midpoint of the
+   segment instead, and keeps it off the crosshair being aimed with. */
+.aerorf-measure-live {
+  background: none;
+  border: none;
+}
+.aerorf-measure-live span {
+  /* `inline-block`, not `block`: the icon box is zero-sized, so a block-level
+     span takes the parent's width of 0 and collapses to its padding — measured
+     at 10×19px with the text spilling out of it. An inline box sizes to its
+     content, and the transform below then centres that content on the point. */
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.6);
 }
 
 .aerorf-popup { min-width: 210px; font-size: 12px; }

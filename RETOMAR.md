@@ -195,6 +195,42 @@ uno de los siete lugares renderiza algo pasaría igual con un octavo.
 
 ---
 
+## 0.29.5 — El avión que no se iba, ocho herramientas, medir en vivo, inspector
+
+**Tercera instancia del bug del `LayerGroup`:** `syncMarkers` y `clear` llamaban
+`marker.remove()`, que saca el marcador del mapa pero no lo suelta del grupo. Los
+cuatro caminos de baja pasan ahora por un solo `_detach(layer)`.
+
+**TRAZA y POLÍGONO fuera de la paleta**, que queda con 8 botones. Se van de las
+herramientas, **no** de los tipos: un objeto guardado como `polygon` o `trace`
+tiene que seguir dibujándose y exportándose, y borrar el tipo dejaría huérfano lo
+que ya está en la base.
+
+**MEDIR ahora lee en vivo.** Antes creaba el objeto pero **no mostraba ninguna
+cifra** mientras el operador se movía. Ahora hay una caja en el punto medio del
+segmento: `977.8 m · 0.528 NM · 0.978 km`, y con tres puntos el total. De paso,
+las etiquetas de medición estaban en el `<style scoped>` de `GisShell.vue`, y
+Leaflet construye el `divIcon` en tiempo de ejecución: nunca reciben el
+`data-v-…` de un selector con scope. Medidas en **10×19 px sin fondo**; ahora
+**169×19 px** con su estilo, en el bloque global junto a `.aerorf-popup`.
+
+**El clic en un avión llena el inspector.** El clic siempre puso
+`selectedIcao24` y nada lo mostraba. Ahora abre el panel con identidad,
+**procedencia**, altitud, velocidad, rumbo, trayectoria con su desglose, y los
+objetos RF cercanos con la nota de que proximidad no es causalidad. Si la
+posición tiene más de un minuto, dice «última posición conocida».
+
+**Un error mío que tumbó el mapa entero:** añadí el bloque de aeronave con
+`v-if`, y eso le **robó el `v-else` al panel del objeto**. `v-else` se empareja con
+el condicional hermano inmediatamente anterior; con nada seleccionado se
+renderizaban los dos y el del objeto leía `object.color` sobre un `object` nulo.
+Lo detectó que `engine` fuera `null` en el navegador, y lo confirmaron ocho
+pruebas que estaban en verde.
+
+**386 tests frontend · 382 Python · 675 paridad · build limpio.**
+
+---
+
 ## Lo que queda pendiente
 
 - **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
@@ -212,7 +248,7 @@ uno de los siete lugares renderiza algo pasaría igual con un octavo.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **379 pasan**, 27 archivos |
+| Frontend (vitest) | **386 pasan**, 27 archivos |
 | Python (no integración) | **382 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |

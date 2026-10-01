@@ -20,6 +20,7 @@ import {
   arcPoints,
   bearing as bearingBetween,
   destination,
+  formatDistance,
   formatRadius,
   fromMetres,
   haversine,
@@ -483,12 +484,13 @@ export class ToolManager {
     }
 
     if (this.active === TOOLS.MEASURE) {
-      // A dashed path plus per-vertex handles.
+      // A dashed path, per-vertex handles, and a live readout.
       this.engine.setDraft(
         'measure',
         L.polyline(points, { color: '#facc15', weight: 2, dashArray: '5,5' }),
       )
       this._renderVertices(points, '#facc15')
+      this._renderLiveDistance(points)
       this._emitPreview({ type: 'measure', points: [...points] })
       return
     }
@@ -498,6 +500,64 @@ export class ToolManager {
       L.polyline(points, { color: '#22d3ee', weight: 3, dashArray: '6,4' }),
     )
     this._renderVertices(points)
+  }
+
+  /**
+   * The live distance for the MEASURE tool, as a small box on the map.
+   *
+   * The tool already drew the dashed path and the vertex handles, and already
+   * created the measurement object when finished — but it never showed a number
+   * while the operator was still moving. Measured in the browser: arming MEDIR,
+   * clicking two points and reading the screen gave **no labels at all**, only
+   * the "Creado: Medición" notice afterwards. The number only ever existed after
+   * the fact, which is the one moment it is not wanted.
+   *
+   * `MeasureEngine` has its own midpoint labels, but this tool is drawn by
+   * `ToolManager`/`draw.js`, not by `MeasureEngine` — which is why those labels
+   * never ran. So the readout lives here, next to the path it describes.
+   *
+   * The last point of `points` is the pointer, not a committed vertex, so the
+   * segment being reported is the one the pointer is currently extending. It is
+   * placed at that segment's midpoint rather than under the pointer, so the box
+   * does not sit on top of the crosshair the operator is aiming with.
+   */
+_renderLiveDistance(points) {
+    const key = 'measure-live'
+    this.engine.clearDraft(key)
+    if (points.length < 2) return
+
+    const [aLat, aLon] = points[points.length - 2]
+    const [bLat, bLon] = points[points.length - 1]
+    const distanceM = haversine(aLat, aLon, bLat, bLon)
+    if (!Number.isFinite(distanceM)) return
+
+    const total = points.length > 2 ? this._pathLength(points.slice(0, -1)) : 0
+    const text =
+      total > 0
+        ? `${formatDistance(distanceM)} · total ${formatDistance(total + distanceM)}`
+        : formatDistance(distanceM)
+
+    this.engine.setDraft(
+      key,
+      L.marker([(aLat + bLat) / 2, (aLon + bLon) / 2], {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'aerorf-measure-live',
+          html: `<span>${text}</span>`,
+          iconSize: [0, 0],
+        }),
+      }),
+    )
+  }
+
+  /** Great-circle length of a path already in `[lat, lon]` pairs. */
+  _pathLength(points) {
+    let total = 0
+    for (let i = 1; i < points.length; i++) {
+      total += haversine(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1])
+    }
+    return total
   }
 
   _renderVertices(points, color = '#22d3ee') {

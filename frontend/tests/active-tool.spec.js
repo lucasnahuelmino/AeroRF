@@ -97,7 +97,11 @@ describe('the pressed tool', () => {
 
   it('marks exactly one tool when the shell opens', () => {
     // The select tool is the default, so it starts marked.
-    expect(w.findAll('.gis-tool').length).toBe(10)
+    // Eight, not ten: poligono and traza were taken off the palette at the
+      // operator's request, because they duplicated cobertura and linea. The
+      // assertion is on the count rather than on 'more than one', so a tool
+      // going missing has to be a deliberate edit here too.
+      expect(w.findAll('.gis-tool').length).toBe(8)
     expect(pressed().length, 'mas de un boton apretado, o ninguno').toBe(1)
   })
 
