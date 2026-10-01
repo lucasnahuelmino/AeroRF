@@ -23,6 +23,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import L from 'leaflet'
 import { MapEngine } from '@/map/MapEngine'
 import { ToolManager, TOOLS } from '@/map/draw'
 
@@ -49,14 +50,22 @@ afterEach(() => {
   container?.remove()
 })
 
-/** A stored 10 NM circle, which the sizing click used to snap to. */
+/**
+ * A stored 10 NM circle, which the sizing click used to snap to.
+ *
+ * The position is a real `L.LatLng`, not a plain `{lat, lng}`, because that is
+ * what production stores: `MapEngine` publishes `centreLatLng`, and the snapping
+ * code reads it as `centre[0]` and `centre[1]`. Handed a plain object those are
+ * `undefined`, the distance comes out `NaN`, and nothing snaps — which looks
+ * exactly like a broken feature and is not one.
+ */
 function addCircle(id = 6, radiusNm = 10) {
   return engine.renderObject({
     id,
     type: 'circle',
     name: 'Círculo',
     geometry_type: 'Point',
-    latlng: CENTRE,
+    latlng: L.latLng(CENTRE.lat, CENTRE.lng),
     radius: radiusNm,
     radius_unit: 'nm',
     metrics: { radius_m: radiusNm * 1852 },
@@ -145,6 +154,48 @@ describe('sizing a circle from the panel value', () => {
     expect(done[0].length_m).toBeCloseTo(12 * 1852, -1)
     expect(done[0].azimuth).toBeCloseTo(90, 1)
   })
+
+  it('committing a shape does not touch the click subscription', () => {
+    // The engine emits by walking a `Set` with `forEach`, and `forEach` visits
+    // entries added during the iteration. So a commit that unsubscribes and
+    // subscribes again, from inside the click handler, hands the click
+    // straight back to its replacement: which commits, subscribes again, and
+    // the walk never ends. The tab locks up on the first click.
+    //
+    // Asserted on a commit driven directly rather than through a click. That
+    // is deliberate: with the re-subscription in place, driving it through a
+    // click does not fail the test, it **hangs the whole run**, and a guard
+    // that wedges the suite is not a guard. Calling the commit by hand runs the
+    // same code and reports a number.
+    tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 5, useTyped: true })
+    const registered = () => [...(engine._listeners?.get('click') ?? [])]
+    const armed = registered()
+    expect(armed.length, 'una herramienta armada escucha una vez').toBe(1)
+
+    // Start and commit a shape without going through `_onClick`.
+    tools._startCircle([CENTRE.lat, CENTRE.lng])
+    tools.commitCircle({ keepTool: true })
+
+    const after = registered()
+    // The size alone cannot catch this: unsubscribing and subscribing again
+    // leaves the count at one. What changes is *which* function is registered.
+    expect(after.length, 'confirmar no debe volver a suscribir').toBe(1)
+    expect(after[0], 'el listener registrado debe ser el mismo de siempre')
+      .toBe(armed[0])
+    expect(tools.active, 'la herramienta sigue armada').toBe(TOOLS.CIRCLE)
+  })
+
+  it('four circles in a row take one click each', () => {
+    const done = []
+    tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 5, useTyped: true })
+    tools.handlers.onComplete = (payload) => done.push(payload)
+    for (let i = 0; i < 4; i += 1) {
+      engine.map.fire('click', { latlng: { lat: CENTRE.lat - i * 0.05, lng: CENTRE.lng } })
+    }
+    expect(done.length, 'cuatro clics, cuatro circulos').toBe(4)
+    for (const d of done) expect(d.radius_m).toBeCloseTo(5 * 1852, -1)
+    expect(tools.active).toBe(TOOLS.CIRCLE)
+  })
 })
 
 describe('the original two-click sizing still works', () => {
@@ -182,27 +233,28 @@ describe('the original two-click sizing still works', () => {
 
 describe('the click that sizes a shape is taken where it landed', () => {
   it('is not snapped to the centre of a nearby circle', () => {
-    // The circle's centre is exactly where the operator is about to click, so
-    // the snap moved the sizing click onto it and the stored radius came from a
-    // point they never aimed at: 4.866 NM instead of the 5 NM they asked for.
+    // The circle's centre is a few hundred metres from where the sizing click
+    // lands, well inside the ten-pixel snap, so a snapped click would report a
+    // radius of a few hundred metres instead of 5 NM. That is the bug: the
+    // operator asked for 5 NM and got 0.16 NM, off by a factor of 30.
     addCircle(6, 10)
     const done = []
     tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 5 })
     tools.handlers.onComplete = (payload) => done.push(payload)
 
-    // First click: the centre, which *should* snap, and is placed elsewhere so
-    // the two are not the same point.
-    engine.map.fire('click', { latlng: { lat: CENTRE.lat - 0.3, lng: CENTRE.lng } })
-    // Second click: 5 NM north of that centre, and also within the snap radius
+    // First click: the centre, placed clear of the existing circle.
+    const centre = { lat: CENTRE.lat - 0.3, lng: CENTRE.lng }
+    engine.map.fire('click', { latlng: centre })
+    // Second click: 5 NM north of that centre, and also inside the snap radius
     // of the existing circle's centre.
-    const sizingClick = northOf({ lat: CENTRE.lat - 0.3, lng: CENTRE.lng }, 5 * 1852)
-    engine.map.fire('click', { latlng: sizingClick })
+    engine.map.fire('click', { latlng: northOf(centre, 5 * 1852) })
 
     expect(done.length).toBe(1)
-    expect(
-      done[0].radius_m,
-      'el radio debe salir del clic, no del centro de otra figura',
-    ).toBeCloseTo(5 * 1852, -1)
+    const wanted = 5 * 1852
+    // `metres / 111320` degrees is an approximation of the meridian arc and
+    // comes out about 0.1% short, so the check is 1%. A snap would be off by
+    // 30 times that, so it still cannot pass by accident.
+    expect(Math.abs(done[0].radius_m - wanted) / wanted).toBeLessThan(0.01)
   })
 
   it('the first click still snaps, because that is what snapping is for', () => {
@@ -210,9 +262,17 @@ describe('the click that sizes a shape is taken where it landed', () => {
     const done = []
     tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 5, useTyped: true })
     tools.handlers.onComplete = (payload) => done.push(payload)
-    // A hair off the existing circle's own centre: within the snap radius.
-    engine.map.fire('click', { latlng: { lat: CENTRE.lat + 0.0001, lng: CENTRE.lng } })
+    // 100 m east of the existing circle's own centre. The snap reaches ten
+    // screen pixels, which at this zoom is about 315 m, so 100 m sits well
+    // inside it: what is under test is whether snapping happens, not how close
+    // to the edge of the tolerance it happens.
+    const east = {
+      lat: CENTRE.lat,
+      lng: CENTRE.lng + 100 / (111_320 * Math.cos((CENTRE.lat * Math.PI) / 180)),
+    }
+    engine.map.fire('click', { latlng: east })
     expect(done.length).toBe(1)
-    expect(done[0].latitude).toBeCloseTo(CENTRE.lat, 4)
+    expect(Math.abs(done[0].latitude - CENTRE.lat)).toBeLessThan(1e-5)
+    expect(Math.abs(done[0].longitude - CENTRE.lng)).toBeLessThan(1e-5)
   })
 })

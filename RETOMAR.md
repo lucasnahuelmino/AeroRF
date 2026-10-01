@@ -1,20 +1,57 @@
 # Punto de retorno — AeroRF
 
 **Fecha:** 2026-09-30
-**Estado:** hay un commit a medio terminar y verificado a medias.
-Rama `main` en `origin/main`, commit `57ba41e`, árbol limpio. Se puede cerrar
-la máquina.
+**Estado:** funcional y verificado. Rama `main` en `origin/main`, árbol limpio.
 
 ---
 
-## Lo primero al volver: correr los tests que no llegaron
+## Lo que se resolvió al final del 0.28
 
-**Esto es lo único que bloquea.** La máquina se quedó sin memoria (0,7 GB
-libres) y vitest se colgaba al arrancar, así que la última tanda no llegó a
-correr. No es un fallo del código: es la máquina.
+Verificar el modo «Usar el valor del panel» destapó **dos bugs más**, ambos
+presentes desde antes y ambos del mismo tipo: una suposición que nadie comprobó.
 
-Antes de nada, matar procesos vitest viejos, que se acumulan y son la causa de
-que la cosa empeore:
+**Un clic congelaba la pestaña.** El motor emite recorriendo un `Set` con
+`forEach`, y `forEach` visita las entradas agregadas durante el propio recorrido.
+Al dejar la herramienta armada, cada confirmación se desuscribía del clic y se
+volvía a suscribir, así que la suscripción nueva entraba en el `Set` mientras se
+recorría: confirmaba, se suscribía otra vez, y el recorrido no terminaba jamás.
+No lanzaba, no fallaba un test: solo colgaba el hilo principal. Ahora la
+suscripción no se toca nunca — un handler estable, suscrito una vez al armar la
+herramienta — y `cleanup()` se partió en `_clearDrawing()`.
+
+**El enganche al centro nunca funcionó.** `centreLatLng` es lo que venga de la
+API, un objeto `{lat, lng}`, y el código lo leía como `centre[0]` y `centre[1]`:
+`undefined`, distancia `NaN`, `NaN <= tolerancia` falso, y nada se enganchaba
+nunca. La función tenía un bug desde 0.27.0. Los tests lo daban por bueno porque
+su fixture arma el círculo con `latlng` como **array**, y un array sí tiene
+índices. Ahora `_collectCentres()` normaliza a `[lat, lng]`.
+
+**Verificado en el navegador:** 4 clics → 4 círculos de exactamente 5 NM
+(9260 m), la herramienta sigue armada después de cada uno, sin fuga de
+listeners, 2,36 s. Y el modo de siempre sigue igual: el primer clic fija el
+centro, el segundo crea con la distancia entre ambos, y la herramienta se
+desarma después.
+
+**Una lección sobre las guardas:** con el bucle puesto, el test que hace clic
+**cuelga la corrida** en lugar de fallar. Un guard que cuelga el proceso no puede
+avisar. Por eso el test confirma la figura a mano, sin pasar por el clic, y
+comprueba que el handler registrado es **la misma función** que antes:
+desuscribirse y volver a suscribirse deja el conteo en uno igual, y el conteo no
+ve nada.
+
+Detalle en `AERORF_CHANGELOG.md`, secciones 0.28.0 y 0.28.1.
+
+---
+
+## Aviso sobre la memoria de la máquina
+
+Vitest se colgaba al arrancar y parecía un problema del código. No lo era: la
+máquina se había quedado con **0,7 GB libres de 5,8**, y las ejecuciones en
+segundo plano dejaban procesos vitest zombis que lo empeoraban. Al matarlos y
+cerrar el navegador, todo corrió normal.
+
+**Si vitest se cuelga en «RUN» y no imprime nada, no es el código.** Es memoria.
+Matar primero:
 
 ```powershell
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
@@ -22,117 +59,13 @@ Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 ```
 
-Si sigue colgado, cerrar el navegador y el dev server de AeroRF, y mirar la
-memoria libre. El proyecto hermano `rni-app-4.0` tiene su dev server en 8000:
-**no tocarlo**.
-
-Luego:
-
-```powershell
-cd frontend
-npx vitest run tests/typed-sizing.spec.js
-npx vitest run
-npm run build
-```
-
-### Qué esperar de `typed-sizing.spec.js`
-
-11 tests. Corrieron **una vez**: 8 pasaron, 3 fallaron.
-
-- **Uno era un bug real y ya está corregido.** La herramienta quedaba armada
-  pero sorda: `cleanup()` cancela la suscripción a los clics, así que el
-  segundo círculo de la misma serie nunca llegaba. Ahora se re-suscribe en
-  `_emitComplete` con `keepTool`.
-- **Los otros dos son precisión de los propios tests, no del código.** Uno
-  espera 9260 m exactos y el código da 9249,6: `metres / 111320` grados es una
-  aproximación de la distancia en latitud. El otro espera un snap con
-  tolerancia de 0,00005 grados cuando hace falta más. Si fallan, ajustar el
-  test, no `draw.js`.
-
-Hay que confirmar también que el arreglo del snap **sigue fallando el test si
-se revierte** — es la única forma de saber que el test guarda algo.
+Y no tocar el dev server del proyecto hermano `rni-app-4.0`, que tiene el 8000.
 
 ---
 
-## Lo que quedó hecho
+## Lo que falta maquetar
 
-### Aeropuertos
-
-- Las etiquetas del mapa muestran el **IATA** (EZE, AEP). Antes el ICAO.
-  `airportCode()` degrada a ICAO → gps → local → nombre recortado.
-- **105 aeropuertos, antes 67.** El criterio es objetivo y está escrito en el
-  generador: entra todo aeropuerto argentino que la fuente tipea
-  `medium_airport`, o `small_airport` con vuelo regular, y siga en servicio.
-  Entra además **Jujuy**, que era un `large_airport` con vuelo regular y faltaba.
-- **El Palomar** está en la fuente como `SADP`, IATA `EPA`. **San Fernando**
-  publica ningún ICAO ni IATA: solo `gps_code` SADF y `local_code` FDO. Por eso
-  no estaban, no por un olvido. El generador resuelve contra `icao_code` y
-  después contra `gps_code`, e informa en pantalla cuáles se resolvieron por la
-  segunda vía.
-- **Nada inventado:** un token que no coincide se reporta y se deja fuera. El
-  generador avisó de cuatro que la fuente no publica: `SCQN`, `SGCI`, `SGPP`,
-  `SUCU`. Quedan fuera y son pendientes de decidir.
-- **Colores:** azul relleno con vuelo regular, ámbar hueco para los menores
-  activos. El panel lleva leyenda, porque si no el color no informa de nada.
-- La capa **sigue sin persistirse**.
-
-### Los acentos — la explicación real
-
-No era corrupción al escribir el archivo, como dije ayer. Era una línea del
-generador, `name.encode("ascii", "ignore")`, puesta a propósito. El archivo se
-escribe en UTF-8 y el navegador lo lee en UTF-8. Ahora quedan los acentos:
-"Martín Miguel de Güemes", 26 nombres con acento.
-
-### El radio que no se respetaba
-
-Escribías 5 NM, apretabas el mapa, y salía un círculo de 2,987 NM. Reproducido
-en el navegador: el radio salía de la distancia entre los dos clics y el valor
-escrito se descartaba. **No había forma de decir "este número, un clic".**
-
-Ahora hay dos modos, y el que existía sigue siendo el default:
-
-- **Ajustar con el cursor** (default, lo de antes): primer clic el centro,
-  segundo el borde.
-- **Usar el valor del panel:** un clic y el número escrito es el que se guarda.
-  Y la herramienta **sigue armada**, para poner cuatro círculos de 5 NM con
-  cuatro clics.
-
-El otro reclamo —«al crear un elemento se oculta el panel»— no era que se
-ocultara: se **desarmaba la herramienta** y con ella desaparecían los campos.
-Mismo arreglo.
-
-Además el clic que dimensiona **ya no hace snap** al centro de otra figura. El
-centro ya estaba puesto, ese clic solo lleva una distancia, y el snap lo movía
-a donde el operador no apuntó: 4,866 NM donde había pedido 5.
-
-### Las grabaciones
-
-**Se guardaron. Cada una, dos o tres veces.** 34 filas con 8 grupos de
-duplicados exactos.
-
-La causa: `_store_track` insertaba siempre, sin preguntar si esa trayectoria ya
-estaba. Pedir dos veces el mismo vuelo insertaba una fila nueva cada vez.
-
-Ahora se busca primero. La coincidencia es la misma aeronave, el mismo vuelo
-sobre ella y el mismo número de puntos. Dos cosas **no** son repetidas, a
-propósito:
-
-- una trayectoria más escasa sobre la misma ventana, que son los datos
-  distintos de una grabación parcial;
-- otro vuelo de la misma aeronave: `callsign` y `flight_id` son parte de la
-  clave, porque colapsarlos colgaba el segundo bajo el callsign del primero, que
-  es una etiqueta incorrecta y segura, no una duplicata inofensiva. **Eso lo
-  encontró un test mío, no la inspección.**
-
-**Las 16 filas duplicadas que ya hay en la base NO se borraron.** Son datos del
-operador y la decisión es suya. Si las quiere limpiar, se puede hacer con un
-script que conserve la de menor `id` de cada grupo.
-
----
-
-## Lo que NO se hizo
-
-De lo que pidió el operador, quedó pendiente:
+De lo que pidió el operador, queda pendiente:
 
 1. **El contenedor del mapa más ancho**, a todo el ancho de la pantalla.
 2. **Los paneles más compactos**, en información, utilidades y espacio.
@@ -141,13 +74,12 @@ De lo que pidió el operador, quedó pendiente:
    `frontend/src/assets/logoenacom.png`, con un pie de página abajo que diga
    "Dirección Nacional de Control y Fiscalización" y el logo más pequeño.
 
-El archivo `logoenacom.png` **ya está commiteado** (estaba sin versionar), así
-que no se pierde.
+El `logoenacom.png` ya está versionado, que estaba sin seguimiento.
 
-**Un dato que hay que tener antes de maquetar el logo:** el archivo es azul
-oscuro —RGB(11, 23, 66)— sobre fondo transparente. Sobre la barra oscura
-(`#070d1a`) **no se ve**. Hay que ponerlo sobre un blanco redondeado, que es lo
-que respeta los colores oficiales, y no invertirlo con un filtro.
+**Un dato medido sobre el logo, antes de maquetarlo:** es RGB(11, 23, 66) sobre
+fondo transparente. Sobre la barra oscura (`#070d1a`) **no se ve**. Hay que
+ponerlo sobre un blanco redondeado —que respeta los colores oficiales— y **no**
+invertirlo con un filtro.
 
 Los estilos `.aerorf-popup*` viven en el bloque `<style>` **global** de
 `GisShell.vue` (línea 1193), no en el `scoped`, y los necesitan los popups de
@@ -156,31 +88,35 @@ así que su globo es el único sitio donde se lee esa información.
 
 ---
 
+## Lo que también queda pendiente
+
+- **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
+  datos del operador y la decisión es suya. El código ya no genera más.
+- **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
+  conversación de las últimas sesiones. Está en `.env`, ignorado por git, y en
+  ningún archivo versionado. Re-verificado en este commit.
+- **`npm run lint` no funciona**: no hay configuración de ESLint en el
+  repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
+  falso. La comprobación real es el build.
+
+---
+
 ## Verificación
 
 | Suite | Estado |
 |---|---|
+| Frontend (vitest) | **335**, 334 en verde |
 | Python (no integración) | **382 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
-| `tests/airports.spec.js` | **39 pasan** (31 antes, 8 nuevos) |
-| `tests/test_track_dedup.py` | **6 pasan** |
-| `frontend/tests/typed-sizing.spec.js` | **sin confirmar** — ver arriba |
-| Frontend completo | **sin ejecutar** — falta memoria |
-| Build | **sin ejecutar** — falta memoria |
+| Build | limpio, ~39 s |
 
-El arreglo de deduplicación **sí** se verificó revirtiéndolo: 3 de sus 6 tests
-fallan sin él.
+El único fallo es el `flight-history.spec.js` de siempre por timeout con la suite
+entera en paralelo; aislado pasa en 6,7 s. Es saturación, no un fallo.
 
----
-
-## Otros dos pendientes de siempre
-
-- **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
-  conversación. Está en `.env`, ignorado por git, y en ningún archivo
-  versionado. Re-verificado en este commit.
-- **`npm run lint` no funciona**: no hay configuración de ESLint en el
-  repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
-  falso.
+**Nota sobre la base:** al verificar en el navegador el backend estaba caído y
+parecía que la base estaba vacía. No lo estaba. Los objetos del operador siguen
+ahí (ids 5, 6, 10, 11, 14); los cinco círculos que creé para probar el radio los
+borré.
 
 ---
 
@@ -191,5 +127,5 @@ fallan sin él.
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.27.4) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.28.1) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |

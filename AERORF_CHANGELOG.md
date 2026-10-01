@@ -2294,3 +2294,86 @@ pasan, y el arreglo de deduplicación **sí** se verificó revirtiéndolo: 3 de 
 6 tests fallan sin él.
 
 **Totales en verde: 382 + 7 Python, 39 de aeropuertos, 675 de paridad.**
+
+---
+
+## 0.28.1 — Dos bugs que la suite no veía, y uno congelaba la aplicación
+
+Encontrados al verificar el 0.28.0. Los dos están en el camino de dibujo, los
+dos estaban presentes desde antes, y los dos son del mismo tipo: **una suposición
+que nadie comprobó**.
+
+### 1. Un clic en modo panel congelaba la pestaña
+
+**Síntoma:** con «Usar el valor del panel» activado, el primer clic colgaba el
+navegador. No se veía nada: ni un círculo, ni un error, ni forma de
+cerrar la pestaña.
+
+**Causa:** el motor emite eventos recorriendo un `Set` con `forEach`, y `forEach`
+**visita las entradas agregadas durante el propio recorrido**. Al dejar la
+herramienta armada, cada confirmación se desuscribía del clic y se volvía a
+suscribir — y como la suscripción nueva entraba en el `Set` mientras se recorría,
+era visitada en esa misma vuelta. Confirmaba, se suscribía otra vez, y el
+recorrido no terminaba jamás.
+
+Es el peor tipo de bug: no lanza, no falla un test, simplemente el hilo principal
+se queda dentro de un bucle.
+
+**Arreglo:** la suscripción no se toca nunca. Un handler estable, suscrito una
+sola vez al armar la herramienta, que se queda mientras la herramienta esté
+armada. Lo que cambia entre una figura y la siguiente es el borrador, y el
+borrador no es la suscripción. `cleanup()` se partió en `_clearDrawing()` —que
+limpia borradores, teclado y cursor— y la desuscripción se quedó en el camino de
+desarme, que es donde corresponde.
+
+**Cómo se verifica sin colgar la suite:** con el arreglo puesto y un clic, la
+pestaña se congela y la corrida **no termina nunca**. Un test que cuelga el
+proceso no es una guarda, es una guarda que no puede avisar. Así que el test
+confirma una figura llamando al commit a mano, sin pasar por el clic: ejecuta el
+mismo código y devuelve un número. Comprueba que el handler registrado es **la
+misma función** que antes, no solo que haya uno: desuscribirse y volver a
+suscribirse deja el conteo en uno igual, y el conteo no ve nada.
+
+### 2. El enganche al centro nunca funcionó
+
+**Síntoma:** hacer clic cerca del centro de un círculo o un radial no lo tomaba.
+La función se agregó en 0.27.0 y llevaba rota desde entonces.
+
+**Causa:** `centreLatLng` es lo que venga en `latlng` desde la API, que es un
+objeto `{lat, lng}`. El código de enganche lo leía como `centre[0]` y
+`centre[1]`, que en un objeto da `undefined`: la distancia salía `NaN`,
+`NaN <= tolerancia` es falso, y **nada se enganchaba nunca**.
+
+**Por qué los tests lo daban por bueno:** el fixture que usa `centre-snap.spec.js`
+arma su círculo con `latlng` como **array**. Un array sí tiene índices. El test
+pasaba con una forma de dato que la aplicación nunca usa.
+
+**Arreglo:** `_collectCentres()` normaliza a `[lat, lng]` y descarta lo que no
+venga en números. Acepta las dos formas, así que un `L.LatLng` real también
+funciona.
+
+**Verificado revirtiendo cada arreglo:**
+
+| Arreglo revertido | Qué pasa |
+|---|---|
+| Normalización de `_collectCentres` | 1 test falla: el enganche no ocurre |
+| Re-suscripción al confirmar | 1 test falla con la identidad del listener |
+
+Con la re-suscripción puesta y el test viejo —que sí hacía clic— la corrida se
+cuelgaba en lugar de fallar. Por eso el test se reescribió.
+
+### Verificado en el navegador real
+
+Con «Usar el valor del panel» y radio 5 NM: **cuatro clics, cuatro círculos, los
+cuatro de 5 NM (9260 m)**, la herramienta sigue armada después de cada uno, el
+número de listeners no cambia y los cuatro clics toman 2,36 s. No hay congelamiento.
+
+Con el modo de siempre, «Ajustar con el cursor»: el primer clic solo fija el
+centro y no crea nada, el segundo crea el círculo con el radio que marca la
+distancia entre los dos clics —4,495 NM para dos clics separados 0,09° de
+longitud— y la herramienta se desarma después, como antes.
+
+**Totales: 335 tests de frontend, 334 en verde.** El que falla es el
+`flight-history.spec.js` de siempre, por timeout con la suite entera en
+paralelo; aislado pasa en 6,7 s. **382 + 7 Python, 675 de paridad, build limpio
+en 39 s.**

@@ -139,7 +139,11 @@ export class ToolManager {
     this.engine.suppressClicks(false)
     this._setCursor(TOOL_META[name].cursor)
 
-    this._unsubscribe = this.engine.on('click', (payload) => this._onClick(payload))
+    // One stable handler, subscribed once. It stays subscribed for as long as
+    // the tool is armed, including between one committed shape and the next,
+    // so that finishing a circle does not have to touch the subscription.
+    this._onEngineClick = (payload) => this._onClick(payload)
+    this._unsubscribe = this.engine.on('click', this._onEngineClick)
 
     const onKey = (event) => this._onKey(event)
     window.addEventListener('keydown', onKey)
@@ -286,17 +290,38 @@ export class ToolManager {
     this._emitChange()
   }
 
-  cleanup() {
+  /**
+   * Clear what a finished shape leaves behind, without touching the
+   * subscription.
+   *
+   * Split out of `cleanup()` for one specific reason. The engine emits by
+   * walking a `Set` with `forEach`, and `forEach` visits entries **added during
+   * the iteration**. So a click handler that unsubscribes and re-subscribes
+   * while it is being called hands the event straight back to its replacement,
+   * which commits, re-subscribes again, and the walk never ends: the tab locks
+   * up on the first click.
+   *
+   * That is what leaving the tool armed looked like when it was first written.
+   * The fix is not to defer the subscription — it is not to change it at all.
+   * One handler, subscribed once when the tool is armed, left in place for as
+   * long as the tool is armed. What changes between one shape and the next is
+   * the draft, and the draft is not the subscription.
+   */
+  _clearDrawing() {
     this.engine.clearDrafts()
-    if (this._unsubscribe) {
-      this._unsubscribe()
-      this._unsubscribe = null
-    }
     if (this._keyHandler) {
       window.removeEventListener('keydown', this._keyHandler)
       this._keyHandler = null
     }
     this._restoreCursor()
+  }
+
+  cleanup() {
+    this._clearDrawing()
+    if (this._unsubscribe) {
+      this._unsubscribe()
+      this._unsubscribe = null
+    }
   }
 
   get isDrawing() {
@@ -574,17 +599,34 @@ export class ToolManager {
   }
 
   /**
-   * Centres of the measured shapes on the map, keyed by object id.
+   * Centres of the measured shapes on the map, keyed by object id, as
+   * `[lat, lng]` pairs.
    *
    * Read from the engine's own layers, which already know where every centre
    * is, rather than from a second copy of the data. A duplicate list would be
    * one more thing to keep in step.
+   *
+   * The pair is built here rather than read straight off the layer because
+   * `centreLatLng` is whatever the API sent in `latlng`, and that is a
+   * `{lat, lng}` object, not an array. The snapping code read it as
+   * `centre[0]` and `centre[1]`, which on an object is `undefined`: the
+   * distance came out `NaN`, `NaN <= tolerance` is false, and **no placement
+   * ever snapped to anything**. The feature had been inert since it was added
+   * in 0.27.0. It looked fine because the tests that cover it build their
+   * fixture with an array `latlng`, and an array does have indices.
+   *
+   * Both shapes are accepted, so a caller that hands over a real `L.LatLng`
+   * works too.
    */
   _collectCentres() {
     const out = new Map()
     this.engine.featureLayers?.forEach?.((layer, id) => {
-      const centre = layer?.centreLatLng
-      if (centre) out.set(String(id), centre)
+      const c = layer?.centreLatLng
+      if (!c) return
+      const lat = Array.isArray(c) ? c[0] : c.lat
+      const lng = Array.isArray(c) ? c[1] : c.lng
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+      out.set(String(id), [lat, lng])
     })
     return out
   }
@@ -825,21 +867,20 @@ export class ToolManager {
    * 5 NM, and having to re-pick the tool and retype the number after each one
    * is what made the panel look like it had vanished — the fields disappear
    * with the tool.
+   *
+   * The click subscription is deliberately left alone here. See
+   * `_clearDrawing()`: re-subscribing from inside the handler deadlocks the
+   * engine's own event walk.
    */
   _emitComplete(payload, { keepTool = false } = {}) {
-    this.cleanup()
+    this._clearDrawing()
     this.draft = null
     if (keepTool) {
       this._pointer = null
-      // `cleanup()` unsubscribed from the map's clicks, so a tool left armed
-      // but unsubscribed is deaf: the second click of the same radius never
-      // arrives and the operator concludes the feature is broken. Listen again
-      // before drawing the ghost for the next one.
-      this.engine.suppressClicks(false)
-      this._setCursor(TOOL_META[this.active]?.cursor || 'crosshair')
-      this._unsubscribe = this.engine.on('click', (next) => this._onClick(next))
       this._renderGhost()
     } else {
+      this._unsubscribe?.()
+      this._unsubscribe = null
       this.active = null
     }
     this.handlers.onComplete?.(payload)
