@@ -7,7 +7,7 @@
       </span>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-3 space-y-3">
+    <div class="flex-1 overflow-y-auto p-2 space-y-3">
       <!-- OpenSky not configured (honest degradation, spec §18) -->
       <div
         v-if="!flightsStore.openskyConfigured"
@@ -124,7 +124,7 @@
           </button>
         </div>
 
-        <p v-if="!flightsStore.watchlist.length" class="rounded-lg border border-dashed border-slate-800 p-3 text-center text-[11px] text-slate-500">
+        <p v-if="!flightsStore.watchlist.length" class="rounded-lg border border-dashed border-slate-800 p-2 text-center text-[11px] text-slate-500">
           Sin aeronaves en seguimiento. Busque un vuelo y use «Seguir».
         </p>
 

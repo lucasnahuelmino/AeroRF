@@ -27,11 +27,20 @@ export const useSystemStore = defineStore('system', () => {
   const coordinateFormat = ref(localStorage.getItem('aerorf:coord-format') || 'dd')
 
   // ─── UI state ────────────────────────────────────────────────────────────
-  // The map is the point of the application, so the two side panels are
-  // sized well under a third of the viewport between them and both can be
-  // collapsed to give the map the whole width. The widths are remembered
-  // because an operator who works at a particular size should not have to
-  // drag the edges again on every reload.
+  // The map is the point of the application, so the two side panels are sized
+  // well under a third of the viewport between them and both can be collapsed
+  // to give the map the whole width. The widths are remembered because an
+  // operator who works at a particular size should not have to drag the edges
+  // again on every reload.
+  //
+  // They were 268 and 300, which is 568px of chrome: on a 1600px screen the map
+  // got 1032px, and the operator asked for the map to take the full width.
+  // 216 and 256 is 472, ninety-six pixels less of chrome and of panel.
+  //
+  // The old value is kept as the *maximum* rather than thrown away: someone who
+  // dragged a panel wide on purpose can still have it wide. Only the default
+  // moved, and only for a first visit — a stored width wins over the fallback,
+  // so nobody who already has a size loses it.
   const _num = (key, fallback, min, max) => {
     const raw = Number(localStorage.getItem(key))
     return Number.isFinite(raw) && raw >= min ? Math.min(raw, max) : fallback
@@ -40,10 +49,10 @@ export const useSystemStore = defineStore('system', () => {
 
   const sidebarOpen = ref(localStorage.getItem('aerorf:sidebar-open') !== '0')
   const leftPanel = ref('tools')
-  const sidebarWidth = ref(_num('aerorf:sidebar-width', 268, 220, 460))
+  const sidebarWidth = ref(_num('aerorf:sidebar-width', 216, 200, 460))
 
   const inspectorOpen = ref(localStorage.getItem('aerorf:inspector-open') !== '0')
-  const inspectorWidth = ref(_num('aerorf:inspector-width', 300, 260, 520))
+  const inspectorWidth = ref(_num('aerorf:inspector-width', 256, 240, 520))
 
   const showTimeline = ref(false)
 

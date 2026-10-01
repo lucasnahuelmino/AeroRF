@@ -21,6 +21,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { useSystemStore } from '@/stores/system'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -177,7 +178,15 @@ describe('the institutional lockup', () => {
     const { w } = await mountApp({ path: '/dashboard' })
     const lock = w.find('.brandbar-enacom')
     expect(lock.exists(), 'sin lockup institucional').toBe(true)
-    expect(lock.text()).toContain('ENACOM')
+    // The mark is the institution's own file now, so the name ENACOM is carried
+    // by the image's accessible name rather than by a run of text. Asserting
+    // `text()` here failed the moment the official mark was used, which said
+    // nothing true: what has to be readable is the name, and an `alt` is read by
+    // a screen reader exactly as text would be.
+    const img = lock.find('img')
+    expect(img.exists(), 'el logo oficial debe estar presente').toBe(true)
+    expect(img.attributes('alt')).toContain('ENACOM')
+    // The full name is still text, and is still on screen.
     expect(lock.text()).toContain('Dirección Nacional de Control')
     expect(lock.text()).toContain('Fiscalización')
     w.unmount()
@@ -189,15 +198,44 @@ describe('the institutional lockup', () => {
     w.unmount()
   })
 
-  it('does not draw an imitation of the official mark', async () => {
-    // The lockup is typographic on purpose: an official logotype is protected,
-    // and shipping an imitation inside a tool carrying the institution's name
-    // would be wrong. If a file is ever supplied, the switch flips and this
-    // test is what makes that change deliberate.
+  it('sits the official mark on white, because the mark is dark navy', async () => {
+    // Measured off the supplied file: RGB(11, 23, 66) on a transparent
+    // ground. On this bar's near-black that is invisible, so the mark goes on a
+    // white chip. A filter that lightened it instead would be a different logo,
+    // and "put the logo correctly" means the colours as they are.
     const { w } = await mountApp({ path: '/' })
-    const lock = w.find('.brandbar-enacom')
-    // Either the acronym as text, or an explicitly supplied image.
-    expect(lock.find('.brandbar-enacom-mark').exists() || lock.find('img').exists()).toBe(true)
+    const chip = w.find('.brandbar-enacom-chip')
+    expect(chip.exists(), 'el logo debe ir sobre un fondo blanco').toBe(true)
+    expect(chip.find('img').attributes('src')).toContain('logoenacom')
+    w.unmount()
+  })
+})
+
+describe('the institutional footer', () => {
+  it('names the Directorate and repeats the mark, smaller', async () => {
+    const { w } = await mountApp({ path: '/dashboard' })
+    const foot = w.find('.footerbar')
+    expect(foot.exists(), 'sin pie institucional').toBe(true)
+    expect(foot.text()).toContain('Dirección Nacional de Control y Fiscalización')
+    const img = foot.find('img')
+    expect(img.exists()).toBe(true)
+    expect(img.attributes('alt')).toContain('ENACOM')
+    expect(img.attributes('src')).toContain('logoenacom')
+    w.unmount()
+  })
+
+  it('is on the map too, where the operator spends the day', async () => {
+    // It costs the map 26px, which was accepted. A footer that only existed on
+    // the screens the operator visits least would be the one missing when it
+    // is needed.
+    const { w } = await mountApp({ path: '/' })
+    expect(w.find('.footerbar').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('repeats the mark on a white chip, as the header does', async () => {
+    const { w } = await mountApp({ path: '/' })
+    expect(w.find('.footerbar .footerbar-chip').exists()).toBe(true)
     w.unmount()
   })
 })

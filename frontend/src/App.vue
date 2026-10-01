@@ -1,5 +1,5 @@
 <template>
-  <div class="app-root">
+  <div class="app-root" :class="{ 'app-root-shell': isShell }">
     <!--
       One header for the whole application, thin and always present.
 
@@ -10,6 +10,14 @@
     <BrandBar :compact="isShell" />
 
     <router-view />
+
+    <!--
+      The institutional footer, on every screen including the map: the
+      attribution belongs somewhere permanent, and a footer that only existed on
+      the document views would be missing exactly where the operator spends the
+      day. 26px out of the map's height is the price.
+    -->
+    <FooterBar />
   </div>
 </template>
 
@@ -31,6 +39,7 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 
 import BrandBar from '@/components/BrandBar.vue'
+import FooterBar from '@/components/FooterBar.vue'
 import { useSystemStore } from '@/stores/system'
 import { useFlightsStore } from '@/stores/flights'
 import { useMapStore } from '@/stores/map'
@@ -67,6 +76,19 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   background: #020617;
   color: #e2e8f0;
+}
+
+/* The two fixed bars, as numbers the map's height can be computed from.
+   Without this the shell asked for a full viewport *and* sat below a 48px
+   header and above a 26px footer, so the page grew by 74px and the map's bottom
+   edge fell off the screen — a scrolling map, on a screen meant to be one
+   fixed view. 48px is the compact header, which is the one the map uses. */
+.app-root {
+  --brandbar-h: 56px;
+  --footerbar-h: 26px;
+}
+.app-root-shell {
+  --brandbar-h: 48px;
 }
 </style>
 

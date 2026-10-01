@@ -10,7 +10,7 @@
     shell, which owns the layer, does it. That keeps the same rule as the rest
     of the app: the map engine holds Leaflet, the components hold the DOM.
   -->
-  <div class="flex flex-col gap-3 p-3">
+  <div class="flex flex-col gap-3 p-2">
     <label class="flex items-center gap-2 text-[11px] text-slate-300">
       <input
         type="checkbox"

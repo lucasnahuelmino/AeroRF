@@ -21,7 +21,7 @@
 
       <template v-else>
         <!-- Identity -->
-        <section class="border-b border-slate-800 p-3">
+        <section class="border-b border-slate-800 p-2.5">
           <div class="mb-2 flex items-start gap-2">
             <span
               class="mt-1 h-3 w-3 flex-none rounded-full"
@@ -76,7 +76,7 @@
         </section>
 
         <!-- General properties (spec §9) -->
-        <section class="border-b border-slate-800 p-3">
+        <section class="border-b border-slate-800 p-2.5">
           <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
             Propiedades generales
           </h3>
@@ -131,7 +131,7 @@
         </section>
 
         <!-- Geometry -->
-        <section v-if="hasGeometry" class="border-b border-slate-800 p-3">
+        <section v-if="hasGeometry" class="border-b border-slate-800 p-2.5">
           <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
             Geometría
           </h3>
@@ -247,7 +247,7 @@
         </section>
 
         <!-- Type-specific payload -->
-        <section v-if="typePayload" class="border-b border-slate-800 p-3">
+        <section v-if="typePayload" class="border-b border-slate-800 p-2.5">
           <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
             {{ typePayload.title }}
           </h3>
@@ -290,7 +290,7 @@
         </section>
 
         <!-- Distances to this object (spec §30) -->
-        <section v-if="object.latitude != null" class="border-b border-slate-800 p-3">
+        <section v-if="object.latitude != null" class="border-b border-slate-800 p-2.5">
           <div class="mb-2 flex items-center justify-between">
             <h3 class="text-[10px] uppercase tracking-widest text-slate-500">
               Distancia desde el cursor
@@ -306,7 +306,7 @@
         </section>
 
         <!-- Notes (spec §14, §42) -->
-        <section class="border-b border-slate-800 p-3">
+        <section class="border-b border-slate-800 p-2.5">
           <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
             Notas (append-only)
           </h3>
@@ -337,7 +337,7 @@
         </section>
 
         <!-- History (spec §41) -->
-        <section class="p-3">
+        <section class="p-2">
           <div class="mb-2 flex items-center justify-between">
             <h3 class="text-[10px] uppercase tracking-widest text-slate-500">
               Historial ({{ history.length }})

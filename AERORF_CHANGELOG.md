@@ -2377,3 +2377,116 @@ longitud— y la herramienta se desarma después, como antes.
 `flight-history.spec.js` de siempre, por timeout con la suite entera en
 paralelo; aislado pasa en 6,7 s. **382 + 7 Python, 675 de paridad, build limpio
 en 39 s.**
+
+---
+
+## 0.29.0 — El mapa toma el ancho que le dan, y los logos donde deben
+
+Pediido por el operador: el mapa mas ancho, a todo el ancho de la pantalla; los
+paneles mas compactos; el logo de AeroRF mas grande; y el logo de ENACOM puesto
+correctamente, con un pie de pagina abajo con el nombre de la Direccion y el
+logo mas pequeno.
+
+### El hallazgo: el mapa no se enteraba de su propio espacio
+
+**Este es el que de verdad explica lo del ancho, y no era cosa de los paneles.**
+
+`MapEngine.invalidateSize()` existia y no lo llamaba nadie. Abrir o cerrar un
+panel, o arrastrar su borde, dejaba el mapa con el tamano que tenia al cargar la
+pagina.
+
+Medido en el navegador: con el sidebar abierto, el contenedor del mapa mide
+**584px** y Leaflet sigue dibujando en **800px**. Los 216px del sidebar quedan
+muertos y el mapa se ve aplastado a la izquierda. Ese desacuerdo es exactamente
+lo que el operador describe como "el contenedor del mapa debe ser mas grande", y
+por mas que se agranden los paneles no se arregla: el mapa no se redibuja en el
+espacio que le acaban de dar.
+
+**Arreglo:** un watcher en el shell que avisa al motor cuando cambia cualquiera
+de las cuatro cosas que mueven el espacio —los dos anchos y las dos Aperturas—
+con `flush: 'post'` y un retraso corto, para que no mida una anchura a medio
+transicionar.
+
+**Verificado revirtiendo el arreglo, en el navegador:** con el watcher
+neutralizado, contenedor 584 y Leaflet 800. Con el watcher, los cuatro estados
+comprobados cuadran: 584, 328, 544 y 800, y en todos el tamano de Leaflet
+coincide con su contenedor.
+
+Este arreglo se verifico en el navegador y no con un test, a proposito: el shell
+del mapa no se monta en los archivos de prueba de la cabecera —el `router-view`
+de la ruta `/` no llega a renderizarlo alli—, y forzar la prueba por el store
+terminaba midiendo el store equivocado. Un test que pasa por una via que la
+aplicacion no usa es la misma trampa del fixture en array del enganche al
+centro.
+
+### Paneles: menos cromo, mas mapa
+
+Los anchos por defecto bajan de **268 y 300** a **216 y 256**. Noventa y seis
+pixeles menos de cromo. El maximo no se toca, asi que alguien que haya
+arrastrado un panel a lo ancho lo sigue teniendo ancho, y un ancho guardado
+gana siempre al valor por defecto: nadie pierde el tamano que ya tenia.
+
+El padding de las tarjetas de los paneles baja de `p-3` a `p-2` en las ocho
+secciones de herramientas, y de `p-3` a `p-2` la raiz de los cinco paneles
+laterales: de 12px a 8px, cuatro pixeles por lado que vuelven al contenido. El
+Inspector baja a `p-2.5`, que es lo que ya usaban el de vuelos y el de capas.
+
+### El alto: el shell se salia de la pantalla
+
+Al anadir el pie, el shell del mapa pedia `100vh` **y** estaba debajo de una
+cabecera de 48px y encima de un pie de 26px. La pagina crecia 74px y el borde
+inferior del mapa —con el, la barra de estado— se caia fuera de la pantalla: un
+mapa que scrollea en una pantalla pensada para ser una vista fija.
+
+Las dos barras ahora son variables, `--brandbar-h` y `--footerbar-h`, puestas en
+`App.vue` junto a las barras que las miden, y el shell pide
+`calc(100dvh - var(--brandbar-h) - var(--footerbar-h)`. Comprobado en el
+navegador: 48 + 508 + 26 = 582, que es exactamente la altura de la ventana, sin
+desborde.
+
+### Los logos
+
+**El de AeroRF, de 30px a 34px.** La barra compacta mide 48px, asi que deja 7px
+arriba y abajo: la marca crece sin que la cabecera crezca, y en el mapa la
+altura de la cabecera sale del mapa.
+
+**El de ENACOM, el oficial.** El archivo mide 267x68 y es RGB(11, 23, 66) sobre
+fondo transparente, medido sobre el propio archivo. Sobre la barra casi negra
+**no se ve**. Va sobre una ficha blanca redondeada, que es lo que conserva los
+colores oficiales tal cual; un filtro que lo aclarara para que combinara con el
+fondo seria otro logo, y eso no es "poner el logo correctamente".
+
+El comentario del archivo decia antes que no se dibujaba ninguna marca porque los
+logotipos oficiales estan protegidos y una imitacion dentro de una herramienta
+que lleva el nombre de la institucion estaria mal. El archivo existe porque la
+institucion lo aporta, asi que la imitacion no es el caso. El comentario se
+corrige y dice por que se usa el que se usa.
+
+**El pie de pagina** es un componente propio, `FooterBar.vue`, 26px, con el logo
+en 12px —mas pequeno que el de la cabecera, que es lo pedido— y el nombre
+completo de la Direccion al lado. Sale en **todas** las pantallas, incluida el
+mapa. Se podria haber hecho solo para las vistas de documento, con el argumento
+de que el mapa ya tiene su barra de estado: no. Un pie que existe unicamente en
+las pantallas que el operador menos visita es justo el que falta cuando hace
+falta. Los 26px son el precio y son un precio conocido, y estan anotados como
+tal en el propio componente.
+
+### Pruebas
+
+342 en verde, 27 archivos, contra 335 de antes.
+
+El test de la cabecera afirmaba que el lockup **contenga el texto "ENACOM"**, y
+dejo de cumplirlo en cuanto la marca paso a ser una imagen. No es un problema:
+comprobaba la forma, no el hecho. Ahora afirma que la imagen lleva
+`alt="ENACOM"`, que es como lo lee un lector de pantalla, y que el nombre
+completo sigue estando como texto en pantalla. El test que decía "no dibuja una
+imitacion de la marca oficial" se sustituyo por el que afirma lo que ahora
+importa: que la imagen es el archivo que aporta la institucion y que va sobre
+fondo blanco.
+
+Siete pruebas nuevas en `layout.spec.js` y `brandbar.spec.js`, que leen el CSS
+construido, que es el unico sitio donde un tamano existe de verdad. Las cuatro
+nuevas de layout se verificaron revirtiendo: shell a `100vh` falla, logo a 30px
+falla, sin la ficha blanca falla.
+
+**Totales: 342 frontend, 382 + 7 Python, 675 de paridad, build limpio.**

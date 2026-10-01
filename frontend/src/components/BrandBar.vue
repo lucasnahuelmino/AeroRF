@@ -20,12 +20,18 @@
  * the map almost nothing.
  *
  * ── The institutional lockup ───────────────────────────────────────────────
- * ENACOM's mark is not drawn here. Official logotypes are protected, and
- * shipping an imitation of one inside a tool that carries its name would be
- * wrong. What is here is a typographic lockup: the acronym in the
- * institution's weight with its full name beneath. If ENACOM supplies the
- * official file, drop it at `src/assets/enacom.svg` and set `hasLogo` to true
- * here; the layout does not change.
+ * ENACOM's official mark is used here, from `src/assets/logoenacom.png`, which
+ * the institution supplies. The image is a dark navy — RGB(11, 23, 66) measured
+ * off the file — on a transparent ground, so it cannot sit directly on this
+ * bar's near-black: it would be invisible. It goes on a white rounded chip
+ * instead, which is what keeps the official colours exactly as they are. A CSS
+ * filter that inverted it to suit the background would be a different mark, and
+ * that is not what "put the logo correctly" means.
+ *
+ * An earlier version drew no mark at all, reasoning that official logotypes are
+ * protected and an imitation inside a tool carrying the institution's name would
+ * be wrong. The file exists because the institution supplies it, so the question
+ * of an imitation does not arise.
  */
 
 <template>
@@ -70,11 +76,12 @@
       <span class="brandbar-dot" :class="dotClass('off', flightsStore.socketState === 'connected')" :title="`Vivos: ${flightsStore.socketState}`" />
     </div>
 
-    <!-- Institutional lockup. Typographic, not a drawn mark; see the note
-         at the top of this file. -->
+    <!-- Institutional lockup. The official mark, on a white chip: see the note
+         at the top of this file about why it is not on the bar directly. -->
     <div class="brandbar-enacom" title="Dirección Nacional de Control y Fiscalización">
-      <img v-if="hasEnacomLogo" :src="enacomLogo" alt="ENACOM" class="brandbar-enacom-img" />
-      <span v-else class="brandbar-enacom-mark" aria-label="ENACOM">ENACOM</span>
+      <span class="brandbar-enacom-chip">
+        <img :src="enacomLogo" alt="ENACOM" class="brandbar-enacom-img" />
+      </span>
       <span v-if="!compact" class="brandbar-enacom-full">
         Dirección Nacional de Control<br />y Fiscalización
       </span>
@@ -87,6 +94,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import logo from '@/assets/aerorf-128.png'
+import enacomLogo from '@/assets/logoenacom.png'
 import { useSystemStore } from '@/stores/system'
 import { useFlightsStore } from '@/stores/flights'
 
@@ -99,13 +107,6 @@ const route = useRoute()
 const router = useRouter()
 const systemStore = useSystemStore()
 const flightsStore = useFlightsStore()
-
-/**
- * Set to true once ENACOM supplies the official file at
- * `src/assets/enacom.svg`. Until then the lockup is typographic.
- */
-const hasEnacomLogo = false
-const enacomLogo = null
 
 const sections = [
   { path: '/', label: 'Mapa', icon: '◈' },
@@ -266,28 +267,36 @@ function go(path) {
 .brandbar-dot-off { background: #3b4a63; }
 
 /* ─── ENACOM lockup ────────────────────────────────────────────────────────
- * The acronym set in the institution's weight, with the full name beside it.
- * Deliberately not a drawn mark: see the note at the top of the file.
+ * The official mark on a white chip, with the institution's full name beside
+ * it. The chip is not decoration: the mark is dark navy and the bar is
+ * near-black, so without it the logo would be there and unreadable.
  * ------------------------------------------------------------------------- */
 
 .brandbar-enacom {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding-left: 0.75rem;
+  padding-left: 0.625rem;
   border-left: 1px solid #1b2740;
   flex: 0 0 auto;
 }
 
-.brandbar-enacom-mark {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: #c7d6ea;
-  white-space: nowrap;
+/* White ground, so the official colours are the ones on screen. A filter that
+   lightened the mark instead would be a different logo. */
+.brandbar-enacom-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #ffffff;
+  flex: 0 0 auto;
 }
 
-.brandbar-enacom-img { height: 26px; width: auto; }
+.brandbar-enacom-img {
+  height: 17px;
+  width: auto;
+  display: block;
+}
 
 .brandbar-enacom-full {
   font-size: 0.5rem;

@@ -1,7 +1,7 @@
 <template>
-  <div class="p-3 space-y-4">
+  <div class="p-2 space-y-4">
     <!-- Active tool + hint -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
       <div class="mb-1 flex items-center gap-2">
         <span class="text-sm">{{ TOOL_META[mapStore.activeTool]?.icon }}</span>
         <h3 class="text-xs font-semibold uppercase tracking-widest text-slate-300">
@@ -21,7 +21,7 @@
     </section>
 
     <!-- Unit choice (spec §10, §13, §36) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Unidades
       </h3>
@@ -43,7 +43,7 @@
     </section>
 
     <!-- Circle radius (spec §10, §36) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Radio del círculo
       </h3>
@@ -100,7 +100,7 @@
     -->
     <section
       v-if="mapStore.activeTool === 'circle' || mapStore.activeTool === 'radial'"
-      class="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+      class="rounded-lg border border-slate-800 bg-slate-900/60 p-2"
     >
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Tamaño
@@ -126,7 +126,7 @@
     </section>
 
     <!-- Radial (spec §11, §37) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Radial
       </h3>
@@ -186,7 +186,7 @@
     </section>
 
     <!-- Quick create from the last click (spec §7 method B) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Crear en posición manual
       </h3>
@@ -224,7 +224,7 @@
     </section>
 
     <!-- Object census -->
-    <section v-if="mapStore.stats" class="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+    <section v-if="mapStore.stats" class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
         Objetos por tipo
       </h3>

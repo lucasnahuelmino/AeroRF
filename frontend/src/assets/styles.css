@@ -124,9 +124,13 @@ svg {
    utility class: a missing or renamed utility must never be able to put a
    1024px image on screen again. The header variant is larger, next to the
    wordmark. */
+/* 30px -> 34px a pedido del operador. La barra mide 48px en su version
+   compacta, asi que 34 deja 7px arriba y abajo: la marca crece para
+   verse mejor sin que la barra tenga que crecer, que en el mapa sale
+   directamente del alto del mapa. */
 .aerorf-logo {
-  height: 30px;
-  width: 30px;
+  height: 34px;
+  width: 34px;
   object-fit: contain;
   display: block;
   flex: 0 0 auto;

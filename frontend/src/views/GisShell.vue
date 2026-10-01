@@ -808,6 +808,30 @@ function confirmDelete() {
 // ─── Live aircraft on the map (spec §23) ────────────────────────────────────
 
 // Redraw markers whenever the WebSocket delivers new states.
+// Tell Leaflet when the panels change the space the map has.
+//
+// `MapEngine.invalidateSize()` existed and nothing called it, so the map kept
+// the size it had when the page loaded. Measured with the sidebar open: the
+// container was 544px wide and Leaflet still drew in 328 — the sidebar's 216px
+// dead, with the map squeezed to the left. Opening or closing a panel, and
+// dragging its edge, all left the operator looking at a map that was not
+// filling the space it was given. That is the "the map is not the width it
+// should be" complaint, and no amount of resizing the panels fixes it.
+//
+// `flush: 'post'` so it runs after the DOM has the new width, and the short
+// delay is for the panel's own transition: invalidating mid-transition resizes
+// to a width that is about to change again.
+watch(
+  () => [
+    systemStore.sidebarOpen,
+    systemStore.sidebarWidth,
+    systemStore.inspectorOpen,
+    systemStore.inspectorWidth,
+  ],
+  () => engine?.invalidateSize(140),
+  { flush: 'post' },
+)
+
 watch(
   () => flightsStore.liveStates,
   (states) => {
@@ -878,8 +902,14 @@ watch(
 .gis-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  /* The viewport minus the two fixed bars, not the whole viewport. The header
+     and the footer are outside this component, and asking for 100vh here made
+     the page 74px taller than the screen: the map's bottom edge — and with it
+     the status bar — fell off the bottom, and the operator scrolled a map that
+     is meant to be one fixed view. The two heights are variables set in
+     App.vue, because the numbers belong with the bars that have them. */
+  height: calc(100vh - var(--brandbar-h, 48px) - var(--footerbar-h, 26px));
+  height: calc(100dvh - var(--brandbar-h, 48px) - var(--footerbar-h, 26px));
   background: #020617;
   color: #e2e8f0;
   overflow: hidden;

@@ -1,5 +1,5 @@
 <template>
-  <div class="p-3 space-y-3">
+  <div class="p-2 space-y-3">
     <div class="flex items-center justify-between">
       <h3 class="text-xs font-semibold uppercase tracking-widest text-slate-300">Expedientes</h3>
       <button class="gis-mini-btn" title="Actualizar" @click="expedientesStore.fetchExpedientes()">↺</button>
