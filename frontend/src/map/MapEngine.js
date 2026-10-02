@@ -23,6 +23,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 import { haversine, radialPoints, toMetres } from './geo'
+import { token } from '../assets/tokens'
 
 /** Buenos Aires / EZE — the initial view. */
 export const DEFAULT_CENTER = [-34.603722, -58.381592]
@@ -455,7 +456,7 @@ export class MapEngine {
   }
 
   _buildLayer(object, style) {
-    const color = style.color || object.color || '#38bdf8'
+    const color = style.color || object.color || token('--trazo-observado', '#38bdf8')
     const weight = style.weight ?? object.weight ?? 3
     const opacity = style.opacity ?? object.opacity ?? 1
     const fillOpacity = style.fillOpacity ?? object.fill_opacity ?? 0.15
@@ -835,7 +836,7 @@ export class MapEngine {
     return style
   }
 
-  highlight(objectId, color = '#facc15') {
+  highlight(objectId, color = token('--medicion', '#facc15')) {
     // Only the previously highlighted one is restored. Rewriting every object's
     // weight on every selection meant one extra write per object per click, and
     // the weight it wrote came from `options`, which the last highlight had

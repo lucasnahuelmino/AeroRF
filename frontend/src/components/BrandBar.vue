@@ -150,8 +150,8 @@ function go(path) {
   gap: 0.75rem;
   height: 56px;
   padding: 0 0.875rem;
-  background: #070d1a;
-  border-bottom: 1px solid #1b2740;
+  background: var(--fondo);
+  border-bottom: 1px solid var(--borde);
   /* Above Leaflet's controls (1000) and below the nav overlay (1400). */
   z-index: 1150;
   flex: 0 0 auto;
@@ -174,7 +174,7 @@ function go(path) {
   flex: 0 0 auto;
   transition: background 0.12s, border-color 0.12s;
 }
-.brandbar-brand:hover { background: #0f1a30; border-color: #24344f; }
+.brandbar-brand:hover { background: var(--panel-alto); border-color: var(--borde-fuerte); }
 
 /* The mark is 30px, so the 48px compact bar has little room for padding
    around it. Keeping the brand flush keeps the logo as large as it can be. */
@@ -190,13 +190,13 @@ function go(path) {
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: #e6edf7;
+  color: var(--texto);
 }
 .brandbar-name i {
   font-style: normal;
   font-size: 0.5625rem;
   letter-spacing: 0.04em;
-  color: #5b6b85;
+  color: var(--texto-invisible);
   text-transform: uppercase;
 }
 
@@ -224,18 +224,18 @@ function go(path) {
   gap: 0.375rem;
   padding: 0 0.625rem;
   font-size: 0.75rem;
-  color: #8fa3bf;
+  color: var(--texto-tenue);
   text-decoration: none;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition: color 0.12s, border-color 0.12s, background 0.12s;
   touch-action: manipulation;
 }
-.brandbar-link:hover { color: #dbe6f5; background: #0f1a30; }
+.brandbar-link:hover { color: var(--texto); background: var(--panel-alto); }
 
 .brandbar-link-on {
-  color: #7dd3fc;
-  border-bottom-color: #38bdf8;
+  color: var(--trazo-observado);
+  border-bottom-color: var(--trazo-observado);
 }
 
 .brandbar-link-icon { font-size: 0.8125rem; line-height: 1; opacity: 0.85; }
@@ -262,9 +262,9 @@ function go(path) {
   border-radius: 9999px;
   flex: 0 0 auto;
 }
-.brandbar-dot-ok { background: #34d399; }
-.brandbar-dot-warn { background: #fbbf24; }
-.brandbar-dot-off { background: #3b4a63; }
+.brandbar-dot-ok { background: var(--risk-ok); }
+.brandbar-dot-warn { background: var(--risk-mid); }
+.brandbar-dot-off { background: var(--borde); }
 
 /* ─── ENACOM lockup ────────────────────────────────────────────────────────
  * The official mark on a white chip, with the institution's full name beside
@@ -277,7 +277,7 @@ function go(path) {
   align-items: center;
   gap: 0.5rem;
   padding-left: 0.625rem;
-  border-left: 1px solid #1b2740;
+  border-left: 1px solid var(--borde);
   flex: 0 0 auto;
 }
 
@@ -302,7 +302,7 @@ function go(path) {
   font-size: 0.5rem;
   line-height: 1.25;
   letter-spacing: 0.02em;
-  color: #5b6b85;
+  color: var(--texto-invisible);
   white-space: nowrap;
 }
 

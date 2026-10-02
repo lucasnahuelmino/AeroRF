@@ -3012,3 +3012,167 @@ afirmar sobre el número y no sobre «más de uno» hace que una herramienta que
 desaparezca tenga que ser una edición deliberada.
 
 **382 Python · 675 de paridad · build limpio.**
+---
+
+## 0.30.0 — La paleta institucional: azul oscuro, la misma familia
+
+El operador pidió «misma familia» que `rni-app-4.0` (2026-10-01). Esto es esa
+paleta, y el motivo por el que es la correcta está en un dato.
+
+### EL AZUL DE LA FAMILIA ES EL DEL LOGO DE ENACOM
+
+`rni-app-4.0` lo dice en su propio archivo, y es lo que lo hace institucional y
+no una preferencia:
+
+> `--ink` es **EXACTAMENTE** el azul del logo oficial (`logoenacom.png`,
+> monocromático `#0B1742`); el resto son azules derivados de ese.
+
+`--ink` es `#0b1742` = **RGB(11, 23, 66)**, que es exactamente lo que medí del
+logo cuando tuve que ponerle la ficha blanca porque sobre fondo oscuro no se veía.
+No es parecido: es el mismo color.
+
+Por eso el logo sobre la barra no es una excepción. Es el color de la familia, y
+por eso va sobre una ficha blanca y nunca invertido con un filtro — un filtro haría
+otro logo.
+
+### LOS TOKENS
+
+`src/assets/tokens.css`, copiado **por nombre** del proyecto hermano. Si allá
+cambia un token, hay que cambiarlo acá: es el mismo sistema, no una paleta
+parecida.
+
+Los doce de la familia: `--ink`, `--ink-soft`, `--paper`, `--surface`, `--line`,
+`--signal`, `--signal-deep`, `--signal-on-ink`, `--risk-ok`, `--risk-mid`,
+`--risk-high`, `--sin-dato`. Más los derivados de texto sobre fondo oscuro
+(`--on-ink`, `--on-ink-soft`, `-faint`, `-wash`).
+
+**`--signal-on-ink` existe por una razón medida.** `--signal` sobre `--ink` da
+2.52:1, por debajo del mínimo de 3:1 que WCAG pide para elementos gráficos;
+`--signal-on-ink` da 6.15:1. En AeroRF el fondo oscuro está en todas partes —la
+barra, el panel, el inspector—, así que usar `--signal` sobre `--ink` haría
+invisible justo lo que tiene que verse: la pestaña activa, el botón apretado, el
+anillo de foco.
+
+Y los **quince propios**, porque un mapa es una superficie oscura permanente con
+capas dibujadas una sobre otra, y eso necesita su propia escala de profundidad y
+sus propios colores de trazo: `--fondo`, `--panel`, `--panel-alto`,
+`--panel-hondo`; `--texto` en cuatro niveles; `--borde` en dos; y los de trazo
+(`--trazo`, `--trazo-medido`, `--trazo-observado`, `--trazo-vuelo`,
+`--trazo-borrador`, `--trazo-fin`, `--medicion`, `--seleccion`).
+
+Medido en el navegador, después: fondo y barra `rgb(11, 23, 66)`, panel lateral
+`rgb(16, 29, 77)`, pestaña activa `rgb(110, 150, 255)`.
+
+### LEAFLET NO PUEDE LEER `var(--x)`
+
+Es la razón de que exista `src/assets/tokens.js`: Leaflet pasa el color tal cual
+al atributo `stroke` o al canvas, y ahí no hay nada que resuelva una variable.
+
+`token(nombre, fallback)` lee la variable del `:root` y la cachea —los tokens son
+constantes, no hay theming—, y `tokenConAlfa()` convierte un hex para los rellenos
+que esperan `rgba(...)`. Los **27 colores que se le pasan a Leaflet** salen de ahí.
+
+### EL PUENTE, Y LO QUE CUESTA
+
+Las plantillas llevan **642** clases `slate-N` y **194** de otros colores: más de
+800 referencias, ninguna por token. Reescribirlas a nombres semánticos es el
+estado final y sigue pendiente; hacerlo en la misma pasada que el cambio de color
+hubiera significado 800 ediciones sin forma de distinguir un cambio de una errata,
+el mismo día que toda la interfaz cambia de color.
+
+Así que hay un bloque de unas treinta reglas que hace que todas esas utilidades
+resuelvan a la paleta nueva, sin tocar una sola plantilla.
+
+**El costo es real y hay que decirlo: los nombres ahora mienten.** `bg-slate-900`
+es azul. Un desarrollador que escriba `bg-slate-900` mañana obtiene `--panel` y no va a
+saber por qué, y el nombre de Tailwind no dice nada sobre la paleta institucional.
+
+Se escribió así —después de `@tailwind utilities`, misma especificidad, más abajo
+en el archivo— en vez de redefinir la paleta `slate` de Tailwind, por dos razones
+que importan más que la prolijidad: redefinir `slate` sería una mentira mayor
+(la rampa es semántica, no una escala 50→900, así que habría que inventar once
+pasos), y un bloque con nombre se puede **borrar**. Cuando las plantillas migren,
+esta sección se va con ellas y nadie más tiene que saber que existió.
+
+### TRES FALLOS REALES EN EL CAMINO
+
+**El `@import` estaba en el lugar inválido y el build salió limpio igual.** El
+import de `tokens.css` quedó después de las tres directivas `@tailwind`, que es
+inválido: un `@import` que sigue a cualquier otra sentencia se descarta, y PostCSS
+lo deja pasar. El build no se quejó —nada de lo que produce está mal, la hoja de
+estilos resultante es válida—, pero en pantalla `getComputedStyle` devolvía vacío y
+`body` caía a transparente sobre negro. **Nada en el código fuente dice que falta
+un token: hay que preguntarle al navegador.** Eso motivó `tests/tokens.spec.js`.
+
+**Había un segundo juego de tokens, y `--surface` significaba lo contrario.**
+Existía un `:root` pequeño en `styles.css` (`--bg`, `--surface`, `--muted`, …) con
+`--surface: #0f1724`, un panel **oscuro**, mientras que `--surface` en la familia es
+`#ffffff`, una superficie **clara**. Dos `:root` en una hoja no pueden definir el
+mismo nombre, y el que estaba después ganaba: `--on-ink`, que se construye sobre
+`--surface`, iba a resolver a un azul oscuro y todo el texto sobre los fondos
+oscuros iba a ser oscuro sobre oscuro. Medido antes de borrarlo: de sus ocho
+nombres, **solo `--muted` se usaba**, dos veces, en ese mismo archivo.
+
+Esto **corrige lo que dije el 2026-10-01**: afirmé que en AeroRF no había
+variables de token. Había un bloque chico, casi muerto. Lo que no había —y sigue
+sin haber— es un sistema que las plantillas usaran.
+
+**Dos pruebas comparaban hex literales.** `layout.spec.js` exigía que el menú de
+clic derecho tuviera `background:#xxxxxx`, y `active-tool.spec.js` que el botón
+apretado tuviera fondo y borde en hex. Con los tokens, las dos fellaron contra
+cosas **correctas**: un menú perfectamente opaco y un botón pintando bien. Esa es
+la forma de aserción que se borra en vez de arreglarse, y por la que el defecto
+original vuelve a entrar por la misma puerta. Ahora ambas **resuelven el token y
+comprueban el color que llega a pantalla**, así que la opacidad se sigue
+comprobando y un token inexistente sigue fallando.
+
+### UN INCIDENTE QUE MERECE QUEDAR ESCRITO
+
+Escribí código con backticks a través de PowerShell, que es el carácter de escape
+de ese intérprete. Cada backtick se comió el carácter siguiente: `assets/` quedó
+como `ssets/` y **dejó dos caracteres BEL (U+0007) dentro del archivo de pruebas**,
+que dejó de parsear. Se detectó porque la corrida dio «no tests» en lugar de un
+fallo.
+
+Se reparó, y además se pasó un barrido por los 21 archivos modificados buscando
+caracteres de control: **solo ese archivo tenía**, dos. La lección ya estaba en las
+notas del proyecto y se incumplió igual: para cualquier cosa con acentos o
+backticks, la herramienta de escritura, no PowerShell.
+
+También rompí la aplicación a mitad de camino: reemplacé los 27 colores de Leaflet
+por `token(...)` **sin importar `token`** en los cinco archivos. El build lo
+detectó recién después de agregar los imports.
+
+### Pruebas
+
+**430 en verde**, 28 archivos, contra 386.
+
+`tests/tokens.spec.js` es nuevo, con 44 pruebas. Las que importan:
+
+- **El bundle tiene que contener los tokens.** Leen el CSS **construido**, no el
+  fuente: el fuente puede contener un token que nunca llega. Ycomparan los
+  **valores** de la familia, no solo los nombres, porque un token con el nombre
+  correcto y el valor desviado es peor que uno ausente: parece deliberado.
+- **El `@import` tiene que ir antes de `@tailwind`**, que es el defecto exacto que
+  Provocó esta sección. Se afirma contra la regla real y no «que sea la línea 1»,
+  porque el archivo también importa las fuentes web y dos `@import` seguidos son
+  válidos.
+- **El puente gana sobre lo que generó Tailwind.** Misma especificidad, así que
+  decide la posición en el archivo: si alguien mueve el bloque arriba, todas las
+  reglas siguen siendo correctas y todas pierden.
+- **Cada utilidad de color que una plantilla usa está remapeada.** Así un
+  `bg-slate-700` nuevo no sale gris sin que nadie lo note hasta que alguien mira la
+  pantalla.
+- **Solo un bloque de tokens**, para que ningún nombre pueda quedar definido dos
+  veces con significados distintos.
+
+**382 Python · 675 de paridad · build limpio.**
+
+### Lo que queda
+
+- **Migrar las plantillas** de `slate-N` a nombres semánticos, y borrar el puente.
+  Es lo que hace que los nombres dejen de mentir.
+- **Las tipografías.** `rni-app-4.0` usa Space Grotesk, IBM Plex Sans e IBM Plex
+  Mono; AeroRF usa Inter y JetBrains Mono. Queda por decidir: IBM Plex Sans no
+  tiene mayúsculas tan esbeltas como las del panel de 9 px, así que la barra
+  lateral y la de herramientas necesitarían un peldaño más de tamaño.

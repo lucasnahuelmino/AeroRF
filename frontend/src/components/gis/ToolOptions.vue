@@ -435,7 +435,7 @@ async function createManually(preset) {
 }
 
 function colorOf(type) {
-  return mapStore.objects.find((o) => o.type === type)?.color || '#64748b'
+  return mapStore.objects.find((o) => o.type === type)?.color || 'var(--texto-tenue)'
 }
 
 function round(value, digits) {

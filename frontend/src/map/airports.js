@@ -19,6 +19,7 @@
 import L from 'leaflet'
 import { AIRPORTS, AIRPORT_COUNTRIES, findAirport, airportCode, isMajor } from '@/data/airports'
 import { haversine, haversineKm, bearing, normaliseAzimuth } from './geo'
+import { token } from '../assets/tokens'
 
 export const AIRPORT_LAYER_KEY = 'airports'
 
@@ -39,7 +40,7 @@ export const AIRPORT_LAYER_KEY = 'airports'
  */
 const SYMBOL_MAJOR = {
   radius: 7,
-  color: '#38bdf8',
+  color: token('--trazo-observado', '#38bdf8'),
   weight: 2,
   fillColor: '#0ea5e9',
   fillOpacity: 0.5,

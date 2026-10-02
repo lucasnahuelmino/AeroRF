@@ -172,11 +172,11 @@ function setBasemap(kind) {
 
 function provenanceColor(key) {
   return {
-    observed: '#f97316',
+    observed: 'var(--risk-mid)',
     historical: '#8b5cf6',
-    live: '#22c55e',
-    calculated: '#3b82f6',
-    user: '#e2e8f0',
-  }[key] || '#64748b'
+    live: 'var(--trazo-medido)',
+    calculated: 'var(--signal-on-ink)',
+    user: 'var(--texto)',
+  }[key] || 'var(--texto-tenue)'
 }
 </script>

@@ -16,6 +16,7 @@
 
 import L from 'leaflet'
 import { formatDistance as formatMetres, haversine, NM_TO_M } from './geo'
+import { token } from '../assets/tokens'
 
 export const MEASURE_MODES = { SINGLE: 'single', MULTI: 'multi' }
 
@@ -177,7 +178,7 @@ export class MeasureEngine {
       this.engine.setDraft(
         'measure',
         L.polyline(this.points, {
-          color: '#facc15',
+          color: token('--medicion', '#facc15'),
           weight: 3,
           opacity: 0.95,
           dashArray: '8,5',
@@ -192,7 +193,7 @@ export class MeasureEngine {
         this.points.map((p, i) =>
           L.circleMarker(p, {
             radius: 5,
-            color: '#facc15',
+            color: token('--medicion', '#facc15'),
             fillColor: '#0f172a',
             fillOpacity: 1,
             weight: 2,
@@ -232,7 +233,7 @@ export class MeasureEngine {
         (from[1] + this.previewTo[1]) / 2,
       ]
       const line = L.polyline([from, this.previewTo], {
-        color: '#facc15',
+        color: token('--medicion', '#facc15'),
         weight: 2,
         opacity: 0.75,
         dashArray: '3,5',

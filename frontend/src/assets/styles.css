@@ -15,6 +15,21 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
 
+/*
+ * The design tokens, and they have to be **first**.
+ *
+ * `@import` is only valid before any other rule. This one sat after the three
+ * `@tailwind` directives, so it was silently dropped: the build succeeded, every
+ * utility resolved to the compatibility layer below, and every `var(--ink)` in the
+ * application resolved to nothing — `getComputedStyle` returned empty strings and
+ * `body` fell back to transparent over black. Nothing in the source says a token
+ * is missing; the browser has to be asked.
+ *
+ * `tests/tokens.spec.js` reads the built stylesheet and fails if a token is
+ * absent, because "the build was clean" is not evidence that a token arrived.
+ */
+@import './tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,8 +44,11 @@
 
 body {
   font-family: 'Inter', sans-serif;
-  background-color: #0f172a;
-  color: #e2e8f0;
+  /* `--ink`, not a hand-written navy. `--ink` is exactly the ENACOM mark's blue,
+     so the window's ground is the institution's own colour rather than something
+     chosen to look like it. See `assets/tokens.css`. */
+  background-color: var(--ink);
+  color: var(--texto);
   line-height: 1.6;
   /* No page-level overflow lock here. The GIS shell is exactly 100dvh and
      scrolls inside its own panels, but the document views (dashboard,
@@ -38,17 +56,21 @@ body {
      normally. */
 }
 
-:root {
-  --bg: #0b1220;
-  --surface: #0f1724;
-  --muted: #94a3b8;
-  --text: #e6eef8;
-  --card-bg: #071026;
-  --card-border: rgba(255, 255, 255, 0.04);
-  --primary: #2563eb;
-  --primary-600: #1e40af;
-  --accent: #06b6d4;
-}
+/*
+ * There used to be a second, small token block here — `--bg`, `--surface`,
+ * `--muted`, `--text`, `--card-bg`, `--card-border`, `--primary`, `--accent` —
+ * written when the application was first assembled. It is gone, and it had to go:
+ * its `--surface` was `var(--panel)`, a *dark* panel, while `--surface` in
+ * `tokens.css` is `#ffffff`, a light surface, following `rni-app-4.0`. Two
+ * `:root` blocks in one stylesheet cannot both define the same name, and this one
+ * came second in the file, so it won: `--on-ink`, which is built on `--surface`,
+ * would have resolved to a dark navy instead of white, and every text token over
+ * the dark backgrounds would have been dark-on-dark.
+ *
+ * Measured before deleting it: of its eight names, only `--muted` was used, twice,
+ * both here in this file. The other seven were dead. Those two usages now name
+ * `--texto-tenue` directly, which is what they meant.
+ */
 
 /* ─── Content pages ──────────────────────────────────────────────────────────
  * The management views (dashboard, expedientes, spectrum) read as documents
@@ -81,7 +103,7 @@ nav {
 
 nav a,
 nav .router-link-active {
-  color: var(--muted);
+  color: var(--texto-tenue);
   text-decoration: none;
 }
 
@@ -92,7 +114,7 @@ nav .router-link-active {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: var(--texto-invisible) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -103,11 +125,11 @@ nav .router-link-active {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--borde-fuerte);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--texto-invisible);
 }
 
 /* ─── Map cursor ─────────────────────────────────────────────────────────────
@@ -179,6 +201,75 @@ svg {
   flex: 0 0 auto;
 }
 
+/* ═══ Compatibility: `slate-*` → the institutional palette ═══════════════════
+ *
+ * What this is
+ * ────────────
+ * The templates carry **642** `slate-N` utilities and **194** more of other
+ * Tailwind colours. That is over eight hundred references, and none of them goes
+ * through a token: `bg-slate-900` was Tailwind's grey-blue, written into a
+ * template by name.
+ *
+ * Rewriting all of them to semantic names is the right end state and it is
+ * still to do. Doing it in the same pass as the palette change would have meant
+ * eight hundred edits with no way to tell a deliberate change from a typo, on the
+ * same day the whole interface changes colour.
+ *
+ * So this block bridges it instead: about thirty rules that make every one of
+ * those utilities resolve to the new palette, so the application changes
+ * appearance without a single template edit. `bg-slate-900` becomes `--panel`.
+ *
+ * How to read this honestly
+ * ─────────────────────────
+ * **The class names now lie.** `bg-slate-900` is blue. That is a real cost: a
+ * developer who writes `bg-slate-900` tomorrow gets `--panel` and will not know
+ * why, and the stock Tailwind name carries no information about the institutional
+ * palette. This is a bridge, not a design.
+ *
+ * It is written this way — appended after `@tailwind utilities`, same
+ * specificity, later in the file — rather than by redefining Tailwind's `slate`
+ * palette, for two reasons that matter more than tidiness:
+ *
+ *   - Redefining `slate` would make `slate` genuinely be the new ramp, and that
+ *     is a bigger lie: the ramp is semantic (`--ink`, `--signal`, `--borde`), not
+ *     a 50→900 scale, so eleven steps would have to be invented from nothing.
+ *   - A named block can be deleted. When the templates are migrated, this section
+ *     goes with it, and nothing else has to know it existed.
+ *
+ * `tests/layout.spec.js` asserts every colour utility used in a template is
+ * remapped here, so a new `slate-700` cannot appear and quietly stay grey.
+ */
+
+/* Surfaces, darkest to lightest. */
+.bg-slate-900 { background-color: var(--panel); }
+.bg-slate-950 { background-color: var(--panel-hondo); }
+.bg-slate-950\/60 { background-color: var(--on-ink-wash); }
+.bg-slate-900\/60 { background-color: var(--on-ink-wash); }
+.bg-slate-800\/60 { background-color: var(--on-ink-wash); }
+
+/* Text. Four steps, and the two lightest are not used for text on purpose. */
+.text-slate-100 { color: var(--texto); }
+.text-slate-200 { color: var(--texto); }
+.text-slate-300 { color: var(--texto-medio); }
+.text-slate-400 { color: var(--texto-tenue); }
+.text-slate-500 { color: var(--texto-tenue); }
+.text-slate-600 { color: var(--texto-invisible); }
+
+/* Borders and separators. */
+.border-slate-700 { border-color: var(--borde-fuerte); }
+.border-slate-800 { border-color: var(--borde); }
+.border-b-slate-800 { border-bottom-color: var(--borde); }
+.border-t-slate-800 { border-top-color: var(--borde); }
+.divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: var(--borde); }
+
+/* Inputs. */
+.border-slate-600 { border-color: var(--borde-fuerte); }
+.placeholder\:text-slate-500::placeholder { color: var(--texto-invisible); }
+
+/* Rings: the focus outline has to be visible on `--ink`, so it uses
+   `--signal-on-ink` and not `--signal`. See `tokens.css`. */
+.ring-slate-700 { --tw-ring-color: var(--signal-on-ink); }
+
 /* ─── Tables ─────────────────────────────────────────────────────────────── */
 
 table {
@@ -191,7 +282,7 @@ table td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 table thead th {
-  color: var(--muted);
+  color: var(--texto-tenue);
   font-size: 0.85rem;
   font-weight: 600;
 }
@@ -205,7 +296,7 @@ table thead th {
 
 .leaflet-container {
   font-family: inherit;
-  background: #0b1220;
+  background: var(--panel);
 }
 
 /* ─── Aerodrome reference layer ─────────────────────────────────────────────
@@ -218,14 +309,14 @@ table thead th {
   background: transparent;
   border: 0;
   box-shadow: none;
-  color: #93c5fd;
+  color: var(--signal-on-ink);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   letter-spacing: 0.02em;
   text-shadow:
-    0 0 3px #020617,
-    0 0 3px #020617,
-    0 0 3px #020617;
+    0 0 3px var(--fondo),
+    0 0 3px var(--fondo),
+    0 0 3px var(--fondo);
   padding: 0 2px;
 }
 
@@ -239,20 +330,20 @@ table thead th {
    of regional strips does not read as loud as the hubs. Same hue as the symbol
    in map/airports.js — the two are the same distinction, stated twice. */
 .aerorf-airport-label-minor {
-  color: #d9a441;
+  color: var(--risk-mid);
   font-size: 8px;
   opacity: 0.72;
 }
 
 .aerorf-airport-tip {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  color: #e2e8f0;
+  background: var(--panel);
+  border: 1px solid var(--panel-alto);
+  color: var(--texto);
   font-size: 11px;
   box-shadow: 0 4px 12px rgba(2, 6, 23, 0.8);
 }
 .aerorf-airport-tip i {
-  color: #64748b;
+  color: var(--texto-tenue);
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -261,14 +352,14 @@ table thead th {
 /* Leaflet closes the popup with its own padding; the class is there so the
    map engine's own styling can be scoped away from third-party popups. */
 .aerorf-popup-wrap .leaflet-popup-content-wrapper {
-  background: #0b1220;
-  border: 1px solid #1e293b;
-  color: #e2e8f0;
+  background: var(--panel);
+  border: 1px solid var(--panel-alto);
+  color: var(--texto);
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.9);
 }
 .aerorf-popup-wrap .leaflet-popup-tip {
-  background: #0b1220;
-  border: 1px solid #1e293b;
+  background: var(--panel);
+  border: 1px solid var(--panel-alto);
 }
 .aerorf-popup-wrap .leaflet-popup-content {
   margin: 8px 10px;
@@ -277,32 +368,32 @@ table thead th {
 /* Leaflet's own zoom control is larger than it needs to be next to a compact
    toolbar. */
 .leaflet-bar {
-  border: 1px solid #1e293b !important;
+  border: 1px solid var(--panel-alto) !important;
   box-shadow: 0 2px 8px rgba(2, 6, 23, 0.6) !important;
 }
 .leaflet-bar a {
-  background: #0f172a !important;
-  color: #cbd5e1 !important;
-  border-bottom-color: #1e293b !important;
+  background: var(--panel) !important;
+  color: var(--texto-medio) !important;
+  border-bottom-color: var(--panel-alto) !important;
   width: 26px !important;
   height: 26px !important;
   line-height: 26px !important;
   font-size: 15px !important;
 }
 .leaflet-bar a:hover {
-  background: #1e293b !important;
+  background: var(--panel-alto) !important;
   color: #fff !important;
 }
 .leaflet-control-attribution {
   background: rgba(11, 18, 32, 0.75) !important;
-  color: #64748b !important;
+  color: var(--texto-tenue) !important;
   font-size: 9px !important;
 }
 .leaflet-control-attribution a {
-  color: #94a3b8 !important;
+  color: var(--texto-tenue) !important;
 }
 .leaflet-control-scale-line {
   background: rgba(11, 18, 32, 0.7) !important;
-  border-color: #475569 !important;
-  color: #cbd5e1 !important;
+  border-color: var(--texto-invisible) !important;
+  color: var(--texto-medio) !important;
 }

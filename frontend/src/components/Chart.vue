@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-lg border border-slate-800 bg-[#070d1a] p-4">
+  <div class="rounded-lg border border-slate-800 bg-[var(--fondo)] p-4">
     <h3 v-if="title" class="mb-3 text-sm font-semibold text-slate-200">
       {{ title }}
     </h3>
@@ -101,21 +101,21 @@ const error = ref('')
 let library = null
 
 const LAYOUT = {
-  paper_bgcolor: '#070d1a',
-  plot_bgcolor: '#070d1a',
-  font: { color: '#cbd5e1', size: 11, family: 'Inter, sans-serif' },
+  paper_bgcolor: 'var(--fondo)',
+  plot_bgcolor: 'var(--fondo)',
+  font: { color: 'var(--texto-medio)', size: 11, family: 'Inter, sans-serif' },
   margin: { l: 56, r: 16, b: 40, t: 16 },
   hovermode: 'closest',
   xaxis: {
-    gridcolor: '#16233a',
-    zerolinecolor: '#16233a',
-    linecolor: '#24344f',
+    gridcolor: 'var(--panel-alto)',
+    zerolinecolor: 'var(--panel-alto)',
+    linecolor: 'var(--borde-fuerte)',
     tickfont: { size: 10 },
   },
   yaxis: {
-    gridcolor: '#16233a',
-    zerolinecolor: '#16233a',
-    linecolor: '#24344f',
+    gridcolor: 'var(--panel-alto)',
+    zerolinecolor: 'var(--panel-alto)',
+    linecolor: 'var(--borde-fuerte)',
     tickfont: { size: 10 },
   },
 }
@@ -130,7 +130,7 @@ function buildTraces() {
         x: d.map((p) => p.label),
         y: d.map((p) => p.value),
         type: 'bar',
-        marker: { color: '#3b82f6' },
+        marker: { color: 'var(--signal-on-ink)' },
         hovertemplate: '<b>%{x}</b><br>%{y}<extra></extra>',
       },
     ]
@@ -141,8 +141,8 @@ function buildTraces() {
         x: d.map((p) => p.x),
         y: d.map((p) => p.y),
         mode: 'lines+markers',
-        line: { color: '#38bdf8', width: 2 },
-        marker: { size: 5, color: '#0ea5e9' },
+        line: { color: 'var(--trazo-observado)', width: 2 },
+        marker: { size: 5, color: 'var(--trazo-observado)' },
         text: d.map((p) => p.label || ''),
         hovertemplate: '<b>%{text}</b><br>%{x} MHz<br>%{y}<extra></extra>',
       },
@@ -153,7 +153,7 @@ function buildTraces() {
       x: d.map((p) => p.x),
       y: d.map((p) => p.y),
       mode: 'markers',
-      marker: { color: '#3b82f6', size: 8 },
+      marker: { color: 'var(--signal-on-ink)', size: 8 },
       text: d.map((p) => p.label || ''),
       hovertemplate: '<b>%{text}</b><br>%{x} MHz<br>%{y}<extra></extra>',
     },

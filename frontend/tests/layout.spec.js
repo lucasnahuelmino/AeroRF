@@ -57,6 +57,41 @@ function ruleFor(css, className) {
   return m ? m[1] : null
 }
 
+/**
+ * The value a property ends up with, following `var(--token)` to its declaration.
+ *
+ * Every colour now goes through `assets/tokens.css`, so a test that reads the
+ * built stylesheet finds `background:var(--panel)` and not a colour. Asserting on
+ * the literal a property used to carry is how a test ends up protecting the
+ * spelling instead of the thing: the right-click menu test failed the moment its
+ * background became a token, against a menu that was perfectly opaque.
+ *
+ * Resolution takes one hop, and a second if the token is itself a reference.
+ * Anything it cannot resolve comes back as the raw string, so a typo shows up as a
+ * wrong value rather than as null.
+ */
+function tokenValue(css, className, property) {
+  const cuerpo = ruleFor(css, className)
+  if (!cuerpo) return null
+  const bruto = cuerpo.match(new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;}]+)`))
+  if (!bruto) return null
+  const valor = bruto[1].trim()
+
+  const ref = valor.match(/^var\(\s*(--[a-z-]+)\s*(?:,\s*([^)]+))?\)$/i)
+  if (!ref) return valor
+  const buscar = (nombre) => {
+    const m = css.match(new RegExp(`${nombre}\\s*:\\s*([^;}]+)`))
+    return m ? m[1].trim() : null
+  }
+  const declarada = buscar(ref[1])
+  if (!declarada) return ref[2] || null
+  if (/^var\(/i.test(declarada)) {
+    const otra = declarada.match(/^var\(\s*(--[a-z-]+)\s*\)$/i)
+    if (otra) return buscar(otra[1]) ?? ref[2] ?? null
+  }
+  return declarada
+}
+
 describe('Tailwind is actually generating utilities', () => {
   let css = null
 
@@ -290,20 +325,20 @@ describe('The brand mark cannot size itself again', () => {
     const menu = ruleFor(css, 'aerorf-context')
     expect(menu, 'falta .aerorf-context').toBeTruthy()
 
-    // Six hex digits and no more. The lookahead matters and was found by
-    // reverting: the minifier turns `rgba(15, 23, 42, 0.45)` into the 8-digit
-    // `#0f172a73`, and a plain `/#[0-9a-f]{6}/` matches the first six of those
-    // and passes a menu that is 45% opaque. A negative lookahead for another hex
-    // digit is what tells an opaque colour from a translucent one.
-    expect(menu, 'el menu necesita un fondo opaco').toMatch(
-      /background(-color)?:\s*#(?:[0-9a-f]{6})(?![0-9a-f])/i,
-    )
-    expect(menu, 'un fondo con alfa no se ve sobre el mapa').not.toMatch(
-      /background(-color)?:\s*#[0-9a-f]{8}(?![0-9a-f])/i,
-    )
-    // Belt and braces: if the output ever keeps the functional notation instead
-    // of the 8-digit hex, a fractional alpha is still a translucent colour.
-    expect(menu).not.toMatch(/rgba\([^)]*,\s*0?\.\d+\s*\)/i)
+      // Resolved through its token, so this asserts the colour that reaches the
+      // screen and not how it was spelled. When the palette moved to tokens.css
+      // this background became a var() reference and the old hex test failed
+      // against a menu that was perfectly opaque. That is the shape of assertion
+      // that gets deleted rather than fixed, and the original bug then walks
+      // back in through it.
+      //
+      // Opacity is still checked, on the resolved colour: an eight-digit hex or a
+      // fractional rgba() would still fail, which is the defect this covered.
+      const fondo = tokenValue(css, 'aerorf-context', 'background')
+      expect(fondo, 'el menu necesita un fondo propio').toBeTruthy()
+      expect(fondo, 'el fondo debe ser opaco: seis digitos, sin canal alfa').toMatch(
+        /^#(?:[0-9a-f]{6})$/i,
+      )
   })
 
   it('lets the five panel tabs keep their own width instead of shrinking out of sight', () => {

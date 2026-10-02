@@ -889,7 +889,7 @@ watch(
     Object.entries(states || {}).forEach(([icao24, state]) => {
       const slot = tracked.find((s) => s.icao24 === icao24)
       if (slot && slot.show_marker === false) return
-      aircraftRenderer.updateAircraft(state, colors[icao24] || '#22c55e')
+      aircraftRenderer.updateAircraft(state, colors[icao24] || 'var(--trazo-medido)')
     })
     aircraftRenderer.syncMarkers(Object.keys(states || {}))
   },
@@ -955,8 +955,8 @@ watch(
      App.vue, because the numbers belong with the bars that have them. */
   height: calc(100vh - var(--brandbar-h, 48px) - var(--footerbar-h, 26px));
   height: calc(100dvh - var(--brandbar-h, 48px) - var(--footerbar-h, 26px));
-  background: #020617;
-  color: #e2e8f0;
+  background: var(--fondo);
+  color: var(--texto);
   overflow: hidden;
 }
 
@@ -967,8 +967,8 @@ watch(
   height: 46px;
   flex: 0 0 46px;
   padding: 0 0.625rem;
-  background: #0b1220;
-  border-bottom: 1px solid #1e293b;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-alto);
   z-index: 1100;
   /* The tool strip is allowed to scroll rather than push the status pills
      off the edge on a narrow window. min-width:0 is what makes that
@@ -989,7 +989,7 @@ watch(
   align-items: center;
   gap: 0.5rem;
   padding-right: 0.625rem;
-  border-right: 1px solid #1e293b;
+  border-right: 1px solid var(--panel-alto);
   flex: 0 0 auto;
 }
 
@@ -999,7 +999,7 @@ watch(
   font-size: 0.5625rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #64748b;
+  color: var(--texto-tenue);
   white-space: nowrap;
 }
 
@@ -1048,7 +1048,7 @@ watch(
   border: 1px solid transparent;
   border-radius: 0.375rem;
   background: transparent;
-  color: #94a3b8;
+  color: var(--texto-tenue);
   white-space: nowrap;
   /* The label is part of the button, not a text run to be selected. */
   user-select: none;
@@ -1057,10 +1057,10 @@ watch(
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.gis-tool:hover { background: #1e293b; color: #e2e8f0; }
-.gis-tool:active { background: #334155; }
+.gis-tool:hover { background: var(--panel-alto); color: var(--texto); }
+.gis-tool:active { background: var(--borde-fuerte); }
 .gis-tool:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--signal-on-ink);
   outline-offset: -2px;
 }
 
@@ -1074,10 +1074,10 @@ watch(
  * the operator whether the next click will draw a circle or drop a point.
  */
 .gis-tool.active {
-  background: #1d4ed8;
-  border-color: #60a5fa;
+  background: var(--signal);
+  border-color: var(--signal-on-ink);
   color: #fff;
-  box-shadow: inset 0 -2px 0 #7dd3fc;
+  box-shadow: inset 0 -2px 0 var(--trazo-observado);
 }
 .gis-tool.active .gis-tool-icon { transform: scale(1.08); }
 
@@ -1106,7 +1106,7 @@ watch(
   flex: 1 1 auto;
   min-width: 0;
   font-size: 0.6875rem;
-  color: #fcd34d;
+  color: var(--risk-mid);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -1125,7 +1125,7 @@ watch(
   gap: 0.25rem;
   flex: 0 0 auto;
   padding-left: 0.625rem;
-  border-left: 1px solid #1e293b;
+  border-left: 1px solid var(--panel-alto);
 }
 
 .gis-status {
@@ -1135,14 +1135,14 @@ watch(
   height: 24px;
   padding: 0 0.4375rem;
   border-radius: 0.375rem;
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background: var(--panel);
+  border: 1px solid var(--panel-alto);
 }
 .gis-status-label {
   font-size: 0.5625rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #94a3b8;
+  color: var(--texto-tenue);
   white-space: nowrap;
 }
 .gis-dot {
@@ -1151,15 +1151,15 @@ watch(
   border-radius: 9999px;
   flex: 0 0 auto;
 }
-.gis-dot.ok { background: #34d399; }
-.gis-dot.warn { background: #fbbf24; }
-.gis-dot.bad { background: #f43f5e; }
-.gis-dot.off { background: #475569; }
+.gis-dot.ok { background: var(--risk-ok); }
+.gis-dot.warn { background: var(--risk-mid); }
+.gis-dot.bad { background: var(--risk-high); }
+.gis-dot.off { background: var(--texto-invisible); }
 
 .gis-divider {
   width: 1px;
   height: 18px;
-  background: #1e293b;
+  background: var(--panel-alto);
   margin: 0 0.1875rem;
   flex: 0 0 auto;
 }
@@ -1172,12 +1172,12 @@ watch(
   padding: 0;
   border-radius: 0.375rem;
   background: transparent;
-  color: #94a3b8;
+  color: var(--texto-tenue);
   font-size: 0.8125rem;
   flex: 0 0 auto;
 }
-.gis-icon-btn:hover { background: #1e293b; color: #e2e8f0; }
-.gis-icon-btn.active { background: #1e293b; color: #60a5fa; }
+.gis-icon-btn:hover { background: var(--panel-alto); color: var(--texto); }
+.gis-icon-btn.active { background: var(--panel-alto); color: var(--signal-on-ink); }
 
 /* ─── Body ──────────────────────────────────────────────────────────────── */
 
@@ -1193,8 +1193,8 @@ watch(
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  background: #0b1220;
-  border-right: 1px solid #1e293b;
+  background: var(--panel);
+  border-right: 1px solid var(--panel-alto);
   min-width: 0;
   overflow: hidden;
 }
@@ -1202,7 +1202,7 @@ watch(
 .gis-tabs {
   display: flex;
   flex: 0 0 auto;
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid var(--panel-alto);
 }
 
 .gis-sidebar-body {
@@ -1229,7 +1229,7 @@ watch(
 .gis-map {
   position: absolute;
   inset: 0;
-  background: #0b1220;
+  background: var(--panel);
 }
 
 /* ─── Inspector ──────────────────────────────────────────────────────────── */
@@ -1239,8 +1239,8 @@ watch(
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  background: #0b1220;
-  border-left: 1px solid #1e293b;
+  background: var(--panel);
+  border-left: 1px solid var(--panel-alto);
   min-width: 0;
   overflow: hidden;
 }
@@ -1260,7 +1260,7 @@ watch(
   background: transparent;
   transition: background 0.12s;
 }
-.gis-resizer:hover { background: #3b82f6; }
+.gis-resizer:hover { background: var(--signal-on-ink); }
 .gis-resizer-r { right: -2px; }
 .gis-resizer-l { left: -2px; }
 </style>
@@ -1271,13 +1271,13 @@ watch(
   padding: 0.125rem 0.4375rem;
   font-size: 0.6875rem;
   border-radius: 0.25rem;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #cbd5e1;
+  border: 1px solid var(--borde-fuerte);
+  background: var(--panel);
+  color: var(--texto-medio);
 }
-.gis-mini-btn:hover { background: #1e293b; color: #fff; }
-.gis-mini-btn.danger { border-color: #7f1d1d; color: #fca5a5; }
-.gis-mini-btn.danger:hover { background: #7f1d1d; color: #fff; }
+.gis-mini-btn:hover { background: var(--panel-alto); color: #fff; }
+.gis-mini-btn.danger { border-color: var(--risk-high); color: var(--risk-high); }
+.gis-mini-btn.danger:hover { background: var(--risk-high); color: #fff; }
 
 /* A tab is an icon over a short label, in a column.
  *
@@ -1295,7 +1295,7 @@ watch(
   justify-content: center;
   gap: 2px;
   padding: 0.3rem 0.15rem 0.25rem;
-  color: #64748b;
+  color: var(--texto-tenue);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -1324,8 +1324,8 @@ watch(
   max-width: 100%;
 }
 
-.gis-tab:hover { color: #cbd5e1; }
-.gis-tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+.gis-tab:hover { color: var(--texto-medio); }
+.gis-tab.active { color: var(--signal-on-ink); border-bottom-color: var(--signal-on-ink); }
 
 /*
  * The measurement labels moved to the global block below, and that is not a
@@ -1341,8 +1341,8 @@ watch(
  * attached to is an invisible guide line, and an arrow would point at nothing.
  */
 .aerorf-draft-label {
-  background: #1d4ed8;
-  border: 1px solid #60a5fa;
+  background: var(--signal);
+  border: 1px solid var(--signal-on-ink);
   color: #fff;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 11px;
@@ -1361,9 +1361,9 @@ watch(
  * would compete with the value it exists to give meaning to.
  */
 .aerorf-draft-label--muted {
-  background: #1e293b;
-  border-color: #475569;
-  color: #cbd5e1;
+  background: var(--panel-alto);
+  border-color: var(--texto-invisible);
+  color: var(--texto-medio);
   font-weight: 500;
   font-size: 10px;
   padding: 1px 4px;
@@ -1379,7 +1379,7 @@ watch(
 .aerorf-measure-label span,
 .aerorf-measure-live span {
   background: rgba(15, 23, 42, 0.9);
-  color: #fde68a;
+  color: var(--seleccion);
   border: 1px solid rgba(250, 204, 21, 0.4);
   border-radius: 0.25rem;
   padding: 1px 4px;
@@ -1406,9 +1406,9 @@ watch(
 }
 
 .aerorf-popup { min-width: 210px; font-size: 12px; }
-.aerorf-popup-title { font-weight: 600; color: #0f172a; margin-bottom: 2px; }
-.aerorf-popup-desc { color: #475569; margin-bottom: 4px; font-style: italic; }
+.aerorf-popup-title { font-weight: 600; color: var(--panel); margin-bottom: 2px; }
+.aerorf-popup-desc { color: var(--texto-invisible); margin-bottom: 4px; font-style: italic; }
 .aerorf-popup-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
-.aerorf-popup-row span { color: #64748b; }
-.aerorf-popup-hint { margin-top: 6px; font-size: 10px; color: #94a3b8; }
+.aerorf-popup-row span { color: var(--texto-tenue); }
+.aerorf-popup-hint { margin-top: 6px; font-size: 10px; color: var(--texto-tenue); }
 </style>

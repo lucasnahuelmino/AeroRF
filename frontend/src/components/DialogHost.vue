@@ -138,38 +138,38 @@ if (typeof window !== 'undefined') window.addEventListener('keydown', onKey)
 .aerorf-dialog-btn {
   padding: 0.4rem 0.85rem;
   border-radius: 0.3rem;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: #cbd5e1;
+  border: 1px solid var(--borde-fuerte);
+  background: var(--panel-alto);
+  color: var(--texto-medio);
   font-size: 0.6875rem;
   letter-spacing: 0.03em;
   cursor: pointer;
 }
-.aerorf-dialog-btn:hover { background: #334155; color: #fff; }
+.aerorf-dialog-btn:hover { background: var(--borde-fuerte); color: #fff; }
 .aerorf-dialog-btn:focus-visible {
-  outline: 2px solid #38bdf8;
+  outline: 2px solid var(--trazo-observado);
   outline-offset: 1px;
 }
 
 .aerorf-dialog-btn-primary {
-  background: #1d4ed8;
-  border-color: #2563eb;
+  background: var(--signal);
+  border-color: var(--signal);
   color: #fff;
 }
-.aerorf-dialog-btn-primary:hover { background: #2563eb; }
+.aerorf-dialog-btn-primary:hover { background: var(--signal); }
 
 /* Destructive, and only destructive: an "Eliminar" box that looks like every
    other box is one more thing to read carefully before clicking. */
 .aerorf-dialog-btn-danger {
-  background: #7f1d1d;
-  border-color: #b91c1c;
-  color: #fee2e2;
+  background: var(--risk-high);
+  border-color: var(--risk-high);
+  color: var(--risk-high);
 }
-.aerorf-dialog-btn-danger:hover { background: #b91c1c; color: #fff; }
+.aerorf-dialog-btn-danger:hover { background: var(--risk-high); color: #fff; }
 
 .aerorf-notice {
   font-size: 0.6875rem;
-  color: #e2e8f0;
+  color: var(--texto);
   max-width: min(90vw, 32rem);
 }
 

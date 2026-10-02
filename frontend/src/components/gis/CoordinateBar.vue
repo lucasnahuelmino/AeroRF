@@ -114,7 +114,7 @@ const topTypes = computed(() => {
 
 function typeColor(type) {
   const obj = mapStore.objects.find((o) => o.type === type)
-  return obj?.color || '#64748b'
+  return obj?.color || 'var(--texto-tenue)'
 }
 
 async function copyCoordinates() {
@@ -152,8 +152,8 @@ onBeforeUnmount(() => clearInterval(timer))
   height: 26px;
   flex: 0 0 26px;
   padding: 0 0.6rem;
-  background: #0b1220;
-  border-top: 1px solid #1e293b;
+  background: var(--panel);
+  border-top: 1px solid var(--panel-alto);
   font-size: 0.7rem;
   overflow-x: auto;
   overflow-y: hidden;

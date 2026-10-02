@@ -240,14 +240,45 @@ describe('the pressed state is visible, not just a class', () => {
     // A class that changes nothing is not a state an operator can see. Read
     // the built CSS, because jsdom does not lay out.
     const dist = join(here, '..', 'dist', 'assets')
-    const file = readdirSync(dist).find((f) => /^GisShell-.*\.css$/.test(f))
-    const css = readFileSync(join(dist, file), 'utf8')
+    // Both built stylesheets, not just the map's.
+    // The `.gis-tool.active` rule lives in the route chunk, but every colour in
+    // the application now resolves through a token declared in the entry chunk.
+    // Reading only the route chunk found `var(--signal)` with nothing pointing at
+    // it, and the button looked like it had no background when it had one.
+    const css = readdirSync(dist)
+      .filter((f) => f.endsWith('.css'))
+      .map((f) => readFileSync(join(dist, f), 'utf8'))
+      .join('\n')
     const m = css.match(/\.gis-tool\.active(?:\[[^\]]*\])?[^{}]*\{([^}]*)\}/)
     expect(m, 'sin estado activo en el CSS construido').toBeTruthy()
     const body = m[1]
     // A filled ground, a bright border, and a lit bar under the label.
-    expect(body, 'sin fondo propio').toMatch(/background:\s*#[0-9a-f]{3,6}/i)
-    expect(body, 'sin borde propio').toMatch(/border-color:\s*#[0-9a-f]{3,6}/i)
+    //
+    // The value may be a hex or a token reference; what is required is that a
+    // colour is painted, not how it is spelled. When the palette moved to
+    // tokens.css these became var(--signal) and var(--signal-on-ink), and a
+    // hex-only assertion failed against a button that was painting perfectly.
+    // The token is followed and the colour it resolves to is what gets checked,
+    // so a reference to a token that does not exist still fails.
+    const colorOToken = (valor) => {
+      if (/^#(?:[0-9a-f]{3,8})$/i.test(valor)) return true
+      const ref = valor.match(/^var\(\s*(--[a-z-]+)\s*\)$/i)
+      if (!ref) return false
+      const decl = css.match(new RegExp(`${ref[1]}\\s*:\\s*([^;}]+)`))
+      return decl ? /^#(?:[0-9a-f]{3,8})$/i.test(decl[1].trim()) : false
+    }
+    const propiedad = (nombre) => {
+      const p = body.match(new RegExp(`(?:^|;)\\s*${nombre}\\s*:\\s*([^;}]+)`))
+      return p ? p[1].trim() : ''
+    }
+    expect(
+      colorOToken(propiedad('background')),
+      `sin fondo propio: ${propiedad('background') || '(nada)'}`,
+    ).toBe(true)
+    expect(
+      colorOToken(propiedad('border-color')),
+      `sin borde propio: ${propiedad('border-color') || '(nada)'}`,
+    ).toBe(true)
     expect(body, 'sin marca adicional bajo la etiqueta').toMatch(/box-shadow/i)
   })
 
@@ -255,8 +286,15 @@ describe('the pressed state is visible, not just a class', () => {
     // A "pressed" button that grows is a layout jump, and the operator's
     // pointer moves off it. The active state is paint only.
     const dist = join(here, '..', 'dist', 'assets')
-    const file = readdirSync(dist).find((f) => /^GisShell-.*\.css$/.test(f))
-    const css = readFileSync(join(dist, file), 'utf8')
+    // Both built stylesheets, not just the map's.
+    // The `.gis-tool.active` rule lives in the route chunk, but every colour in
+    // the application now resolves through a token declared in the entry chunk.
+    // Reading only the route chunk found `var(--signal)` with nothing pointing at
+    // it, and the button looked like it had no background when it had one.
+    const css = readdirSync(dist)
+      .filter((f) => f.endsWith('.css'))
+      .map((f) => readFileSync(join(dist, f), 'utf8'))
+      .join('\n')
     const m = css.match(/\.gis-tool\.active(?:\[[^\]]*\])?[^{}]*\{([^}]*)\}/)
     expect(m[1]).not.toMatch(/padding/i)
     expect(m[1]).not.toMatch(/font-size/i)

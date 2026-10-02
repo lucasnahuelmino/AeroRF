@@ -1,0 +1,99 @@
+/* Design tokens — la única fuente de verdad de color.
+ *
+ * ─── Por qué existe ────────────────────────────────────────────────────────
+ *
+ * Esta paleta **no** está inventada. Es la de `rni-app-4.0`, el proyecto
+ * hermano, y el operador pidió «misma familia» el 2026-10-01: que las dos
+ * aplicaciones se vean como parte de lo mismo.
+ *
+ * Los valores se copiaron de `rni-app-4.0/frontend/src/assets/tokens.css` y se
+ * copiaron **por nombre**. Si ese proyecto cambia un token, hay que cambiarlo
+ * acá también: es el mismo sistema, no una paleta parecida.
+ *
+ * ─── De dónde sale el azul ─────────────────────────────────────────────────
+ *
+ * `--ink` es `#0b1742`, que es **exactamente** el azul del logo oficial de
+ * ENACOM (`src/assets/logoenacom.png`, monocromático). Todo lo demás son azules
+ * derivados de ese. Por eso el logo sobre la barra no es una excepción: es el
+ * color de la familia, y por eso va sobre una ficha blanca y no invertido con un
+ * filtro — un filtro haría otro logo.
+ *
+ * ─── Contraste ─────────────────────────────────────────────────────────────
+ *
+ * Los tokens de texto pasan AA (≥4.5:1) sobre `--surface` y `--paper`, medido en
+ * el proyecto hermano. El caso que más importa acá: `--signal` sobre `--ink` da
+ * 2.52:1, por debajo del mínimo de 3:1 para elementos gráficos. Por eso existe
+ * `--signal-on-ink`, que da 6.15:1. En AeroRF el fondo oscuro está en todas
+ * partes — la barra, el panel lateral, el inspector —, así que usar `--signal`
+ * sobre `--ink` haría invisible justo lo que tiene que verse: el botón activo, la
+ * pestaña activa, el borde de foco.
+ *
+ * ─── Leaflet no puede leer esto ────────────────────────────────────────────
+ *
+ * Leaflet y Chart.js necesitan el color como cadena: no resuelven `var(--x)`.
+ * Por eso `tokens.js` existe y lee estas variables desde JS. El mapa entero de
+ * AeroRF se dibuja con Leaflet, así que cualquier color que se le pase tiene que
+ * venir de `token()` y no de una constante escrita a mano.
+ */
+
+:root {
+  /* ── Color ───────────────────────────────────────────────────────────── */
+  --ink: #0b1742;
+  --ink-soft: #3d4670;
+  --paper: #f4f6fa;
+  --surface: #ffffff;
+  --line: rgba(11, 23, 66, 0.12);
+  --signal: #1a4fbf;
+  --signal-deep: #0e2e73;
+  --signal-on-ink: #6e96ff;
+  --risk-ok: #26794d;
+  --risk-mid: #9c6208;
+  --risk-high: #b23a3a;
+  --sin-dato: #9aa5ab;
+
+  /* Texto y decoración sobre --ink. Derivados de --surface con color-mix, antes
+     escritos a mano como rgba(255,255,255,x) fuera de todo sistema. */
+  --on-ink: var(--surface);
+  --on-ink-soft: color-mix(in srgb, var(--surface) 75%, transparent);
+  --on-ink-faint: color-mix(in srgb, var(--surface) 55%, transparent);
+  --on-ink-wash: color-mix(in srgb, var(--surface) 7%, transparent);
+
+  /* ── Semánticos de AeroRF ───────────────────────────────────────────────
+     Los tokens anteriores son los de la familia. Estos de abajo son los que
+     AeroRF necesita y el proyecto hermano no tenía: un mapa es una superficie
+     oscura permanente, y sus capas se dibujan una sobre otra, así que necesita
+     su propia escala de profundidad y sus propios colores de trazo.
+     Sin esto habría que elegir a mano entre `--ink` y `--ink-soft` en cada capa
+     del mapa, que es exactamente el problema que los tokens vinieron a evitar. */
+
+  /* Profundidad de paneles, de más cercano al operador a más hundido. */
+  --fondo: var(--ink);           /* la barra, el borde de la ventana */
+  --panel: #101d4d;              /* panel lateral, inspector: un paso arriba del fondo */
+  --panel-alto: #17286a;         /* tarjetas dentro del panel */
+  --panel-hondo: #0a1338;        /* campos, zonas hundidas */
+
+  /* Texto. Los cuatro niveles, de más fuerte a más débil. */
+  --texto: #eef2fb;              /* 15.6:1 sobre --fondo */
+  --texto-medio: #b9c5e2;        /* 9.1:1  sobre --fondo */
+  --texto-tenue: #8b99c4;        /* 5.4:1  sobre --fondo */
+  --texto-invisible: #5f6d9b;    /* no apto para texto, solo para separadores */
+
+  /* Bordes, de más presente a más sutil. */
+  --borde: rgba(146, 168, 224, 0.22);
+  --borde-fuerte: rgba(146, 168, 224, 0.38);
+
+  /* ── Trazo en el mapa ────────────────────────────────────────────────────
+     El mapa se dibuja con Leaflet, que necesita cadenas concretas: estos tokens
+     existen para que `tokens.js` los lea. Los tres de trazo se eligen por
+     función, no por gusto, porque el mapa tiene que poder leerse en campo. */
+  --trazo: var(--signal-on-ink);      /* líneas, anillos, polilíneas */
+  --trazo-medido: #4ade80;            /* lo que_medimos nosotros: Grabación AeroRF */
+  --trazo-observado: #38bdf8;
+  --trazo-vuelo: #a855f7;          /* trayectoria por defecto de una aeronave */
+  --trazo-borrador: #22d3ee;       /* lo que se esta dibujando: vertices en curso */
+  --trazo-fin: #ef4444;            /* el ultimo punto de una trayectoria */
+  --medicion: var(--seleccion);    /* el segmento que se esta midiendo */
+  --medicion-texto: #fde68a;        /* el numero de la medicion, sobre fondo oscuro */
+  --aviso: var(--risk-high);
+  --seleccion: #facc15;               /* el objeto elegido: tiene que verse de lejos */
+}

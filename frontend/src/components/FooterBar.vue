@@ -47,8 +47,8 @@ import enacomLogo from '@/assets/logoenacom.png'
   height: 26px;
   flex: 0 0 auto;
   padding: 0 0.625rem;
-  background: #070d1a;
-  border-top: 1px solid #1b2740;
+  background: var(--fondo);
+  border-top: 1px solid var(--borde);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -74,7 +74,7 @@ import enacomLogo from '@/assets/logoenacom.png'
 .footerbar-name {
   font-size: 0.5625rem;
   letter-spacing: 0.03em;
-  color: #64748b;
+  color: var(--texto-tenue);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -85,7 +85,7 @@ import enacomLogo from '@/assets/logoenacom.png'
 .footerbar-app {
   font-size: 0.5625rem;
   letter-spacing: 0.08em;
-  color: #3f4d63;
+  color: var(--texto-invisible);
   white-space: nowrap;
 }
 

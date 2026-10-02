@@ -286,7 +286,7 @@ onBeforeUnmount(() => {
  * CSS rather than left to an opacity step that may not exist.
  */
 .aerorf-context {
-  background: #0f172a;
-  border-color: #334155;
+  background: var(--panel);
+  border-color: var(--borde-fuerte);
 }
 </style>

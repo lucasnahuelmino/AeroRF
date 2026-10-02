@@ -15,6 +15,7 @@
  * returned 12 waypoints, 12 vertices are drawn.
  */
 
+import { token } from '../assets/tokens'
 import L from 'leaflet'
 
 /** Longitudes beyond this are "over the pole" and break icon rotation. */
@@ -49,7 +50,7 @@ export class AircraftRenderer {
    * @param {object} state  a parsed state vector
    * @param {string} color  watchlist slot colour
    */
-  updateAircraft(state, color = '#22c55e') {
+  updateAircraft(state, color = token('--trazo-medido', '#22c55e')) {
     if (!state || state.latitude == null || state.longitude == null) return null
 
     const key = state.icao24
@@ -161,7 +162,7 @@ export class AircraftRenderer {
    * @param {object} track  the `/flights/{icao24}/track` response
    * @param {string} color
    */
-  drawTrack(track, color = '#a855f7') {
+  drawTrack(track, color = token('--trazo-vuelo', '#a855f7')) {
     if (!track) {
       this.clearTracks()
       return null
@@ -187,7 +188,7 @@ export class AircraftRenderer {
     if (groups.aerorf.length >= 2) {
       layer.addLayer(
         L.polyline(groups.aerorf, {
-          color: '#22c55e',
+          color: token('--trazo-medido', '#22c55e'),
           weight: 2.5,
           opacity: 0.9,
           dashArray: '7,5',
@@ -246,12 +247,12 @@ export class AircraftRenderer {
     const last = points[points.length - 1]
     layer.addLayer(
       L.circleMarker([first.latitude, first.longitude], {
-        radius: 5, color: '#22c55e', fillOpacity: 0.9, weight: 2,
+        radius: 5, color: token('--trazo-medido', '#22c55e'), fillOpacity: 0.9, weight: 2,
       }).bindTooltip('Inicio', { permanent: false }),
     )
     layer.addLayer(
       L.circleMarker([last.latitude, last.longitude], {
-        radius: 5, color: '#ef4444', fillOpacity: 0.9, weight: 2,
+        radius: 5, color: token('--trazo-fin', '#ef4444'), fillOpacity: 0.9, weight: 2,
       }).bindTooltip('Fin', { permanent: false }),
     )
 
@@ -329,7 +330,7 @@ export class AircraftRenderer {
     })
   }
 
-  highlight(icao24, color = '#facc15') {
+  highlight(icao24, color = token('--medicion', '#facc15')) {
     this.markers.forEach((entry, key) => {
       const size = key === icao24 ? [32, 32] : [26, 26]
       entry.marker.setIcon(this._aircraftIcon(key === icao24 ? color : entry.color, null, { callsign: key }))

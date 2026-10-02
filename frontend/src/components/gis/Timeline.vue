@@ -161,8 +161,8 @@ function formatClock(ts) {
   align-items: center;
   height: 48px;
   flex: 0 0 48px;
-  background: #0b1220;
-  border-top: 1px solid #1e293b;
+  background: var(--panel);
+  border-top: 1px solid var(--panel-alto);
   z-index: 1050;
 }
 </style>

@@ -14,6 +14,7 @@
  * what makes undo and cancellation straightforward.
  */
 
+import { token } from '../assets/tokens'
 import L from 'leaflet'
 
 import {
@@ -217,7 +218,7 @@ export class ToolManager {
         'ghost',
         L.circle(center, {
           radius: toMetres(radius, unit),
-          color: '#3b82f6',
+          color: token('--trazo', '#3b82f6'),
           weight: 1.5,
           fillOpacity: 0,
           opacity: 0.55,
@@ -243,7 +244,7 @@ export class ToolManager {
       this.engine.setDraft(
         'ghost',
         L.polyline(radialPoints(center, azimuth, toMetres(length, unit), 24), {
-          color: '#a855f7',
+          color: token('--trazo-vuelo', '#a855f7'),
           weight: 1.5,
           opacity: 0.55,
           dashArray: '2,6',
@@ -472,12 +473,12 @@ export class ToolManager {
         'polygon',
         points.length >= 3
           ? L.polygon(points, {
-              color: '#22d3ee',
+              color: token('--trazo-borrador', '#22d3ee'),
               weight: 2,
               fillOpacity: 0.15,
               dashArray: '4,4',
             })
-          : L.polyline(points, { color: '#22d3ee', weight: 2, dashArray: '4,4' }),
+          : L.polyline(points, { color: token('--trazo-borrador', '#22d3ee'), weight: 2, dashArray: '4,4' }),
       )
       this._renderVertices(points)
       return
@@ -487,9 +488,9 @@ export class ToolManager {
       // A dashed path, per-vertex handles, and a live readout.
       this.engine.setDraft(
         'measure',
-        L.polyline(points, { color: '#facc15', weight: 2, dashArray: '5,5' }),
+        L.polyline(points, { color: token('--medicion', '#facc15'), weight: 2, dashArray: '5,5' }),
       )
-      this._renderVertices(points, '#facc15')
+      this._renderVertices(points, token('--medicion', '#facc15'))
       this._renderLiveDistance(points)
       this._emitPreview({ type: 'measure', points: [...points] })
       return
@@ -497,7 +498,7 @@ export class ToolManager {
 
     this.engine.setDraft(
       'line',
-      L.polyline(points, { color: '#22d3ee', weight: 3, dashArray: '6,4' }),
+      L.polyline(points, { color: token('--trazo-borrador', '#22d3ee'), weight: 3, dashArray: '6,4' }),
     )
     this._renderVertices(points)
   }
@@ -560,7 +561,7 @@ _renderLiveDistance(points) {
     return total
   }
 
-  _renderVertices(points, color = '#22d3ee') {
+  _renderVertices(points, color = token('--trazo-borrador', '#22d3ee')) {
     this.engine.clearDraft('vertices')
     if (!points.length) return
     const group = L.layerGroup(
@@ -614,7 +615,7 @@ _renderLiveDistance(points) {
       'circle',
       L.circle(center, {
         radius: radiusM,
-        color: '#3b82f6',
+        color: token('--trazo', '#3b82f6'),
         weight: 2,
         fillOpacity: 0.12,
         dashArray: '5,5',
@@ -622,9 +623,9 @@ _renderLiveDistance(points) {
     )
     this.engine.setDraft(
       'center',
-      L.circleMarker(center, { radius: 5, color: '#3b82f6', fillOpacity: 1, weight: 2 }),
+      L.circleMarker(center, { radius: 5, color: token('--trazo', '#3b82f6'), fillOpacity: 1, weight: 2 }),
     )
-    this._renderEdge(this.draft.radius, this.draft.unit, '#3b82f6')
+    this._renderEdge(this.draft.radius, this.draft.unit, token('--trazo', '#3b82f6'))
     this._emitPreview({ type: 'circle', ...this.draft })
   }
 
@@ -816,7 +817,7 @@ _renderLiveDistance(points) {
     const arc = L.polyline(
       arcPoints(origin, reach * 0.35, 0, this.draft.azimuth, 24),
       {
-        color: '#a855f7',
+        color: token('--trazo-vuelo', '#a855f7'),
         weight: 1.5,
         opacity: 0.8,
         interactive: false,
@@ -838,7 +839,7 @@ _renderLiveDistance(points) {
     this.engine.setDraft(
       'radial',
       L.polyline(radialPoints(origin, azimuth, lengthM, 24), {
-        color: '#a855f7',
+        color: token('--trazo-vuelo', '#a855f7'),
         weight: 3,
         dashArray: '7,5',
       }).bindTooltip(`${azimuth.toFixed(1)}° · ${formatRadius(length, unit)}`, {
@@ -847,7 +848,7 @@ _renderLiveDistance(points) {
     )
     this.engine.setDraft(
       'origin',
-      L.circleMarker(origin, { radius: 5, color: '#a855f7', fillOpacity: 1, weight: 2 }),
+      L.circleMarker(origin, { radius: 5, color: token('--trazo-vuelo', '#a855f7'), fillOpacity: 1, weight: 2 }),
     )
     // The degrees at the far end, permanently. The tooltip on the line needs a
     // hover; this one is always there, which is what lets the operator read the
@@ -856,7 +857,7 @@ _renderLiveDistance(points) {
       'radial-end',
       L.circleMarker(radialPoints(origin, azimuth, lengthM, 1)[1], {
         radius: 3,
-        color: '#a855f7',
+        color: token('--trazo-vuelo', '#a855f7'),
         fillOpacity: 1,
         weight: 1,
         interactive: false,

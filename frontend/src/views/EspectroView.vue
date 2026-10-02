@@ -20,7 +20,7 @@
         />
         <div
           v-else
-          class="grid place-items-center rounded-lg border border-dashed border-slate-800 bg-[#070d1a] p-10 text-center"
+          class="grid place-items-center rounded-lg border border-dashed border-slate-800 bg-[var(--fondo)] p-10 text-center"
         >
           <div>
             <div class="mb-2 text-2xl opacity-30">∿</div>

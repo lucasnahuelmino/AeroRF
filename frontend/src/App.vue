@@ -83,8 +83,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #020617;
-  color: #e2e8f0;
+  background: var(--fondo);
+  color: var(--texto);
 }
 
 /* The two fixed bars, as numbers the map's height can be computed from.
@@ -123,25 +123,25 @@ onBeforeUnmount(() => {
   font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: #e6edf7;
+  color: var(--texto);
 }
 .page-doc-sub {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--texto-tenue);
 }
 
 /* A section card, used by the dashboard and the management views. */
 .card {
   border-radius: 0.625rem;
-  border: 1px solid #16233a;
-  background: #070d1a;
+  border: 1px solid var(--panel-alto);
+  background: var(--fondo);
   padding: 0.875rem 1rem;
 }
 .card-title {
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: #5b6b85;
+  color: var(--texto-invisible);
   margin-bottom: 0.5rem;
 }
 
