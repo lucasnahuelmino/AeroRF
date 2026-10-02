@@ -134,12 +134,14 @@ async def search(
     """Search a flight by callsign, ICAO24, date and approximate time.
 
     A callsign is resolved against current state vectors to obtain the
-    ICAO24, then the aircraft's flight history is queried. The response
-    states which route was used under ``resolved_via``.
+    ICAO24, then the aircraft's flight history is queried. If the callsign
+    is not flying, this installation's own archive of followed aircraft is
+    consulted before answering that nothing was found. The response states
+    which route was used under ``resolved_via``.
     """
     if not callsign and not icao24:
         raise HTTPException(
-            400, "Provide at least one of `callsign` or `icao24`."
+            400, "Indique un callsign o un ICAO24 para buscar."
         )
     service = get_opensky_service()
     if not service.configured:
@@ -148,6 +150,7 @@ async def search(
         return await fsvc.search_flight(
             service, callsign=callsign, icao24=icao24,
             date=date, time_hint=time_hint, window_hours=window_hours,
+            db=db,
         )
     except Exception as exc:
         raise _handle(exc)

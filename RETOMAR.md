@@ -231,8 +231,107 @@ pruebas que estaban en verde.
 
 ---
 
+## 0.30.0 - La paleta institucional: azul oscuro, la misma familia
+
+El operador pidió «misma familia» que `rni-app-4.0`. La paleta de ese proyecto es
+`--ink: #0b1742`, que es **exactamente** el azul del logo oficial de ENACOM: no
+una paleta parecida, el mismo color del que salen todos los demás.
+
+Los tokens se copiaron **por nombre** de `frontend/src/assets/tokens.css` del
+proyecto hermano, más quince propios porque un mapa es una superficie oscura
+permanente con capas una sobre otra. Y existe `tokens.js` porque Leaflet pasa el
+color tal cual al atributo `stroke` y ahí no hay nada que resuelva una variable.
+
+Verificado en el navegador: fondo y barra `rgb(11, 23, 66)`, panel
+`rgb(16, 29, 77)`, pestaña activa `rgb(110, 150, 255)`.
+
+**430 tests frontend · 382 Python · 675 paridad.**
+
+### Tres cosas que esta sección debe evitar que se repitan
+
+1. **Un `@import` después de `@tailwind` se descarta en silencio.** El build
+   salió limpio y en pantalla no había ningún color. Nada en el código fuente
+   dice que falta un token: hay que preguntarle al navegador, o leer el CSS
+   construido. Por eso las 44 pruebas de `tokens.spec.js` leen `dist/assets`.
+2. **Había un segundo juego de tokens, y `--surface` significaba lo contrario**
+   (panel oscuro acá, superficie clara en la familia). Como estaba después en el
+   archivo, ganaba, y todo el texto sobre fondo oscuro iba a quedar oscuro sobre
+   oscuro. Sólo `--muted` se usaba, dos veces. Borrado.
+3. **Escribir código con backticks a través de PowerShell.** Cada backtick se
+   come el carácter siguiente: `assets/` quedó `ssets/` y quedaron dos caracteres
+   BEL dentro de un archivo de pruebas, que dejó de parsear. Salió porque la
+   corrida dio «no tests» en vez de un fallo. Para acentos o backticks, la
+   herramienta de escritura.
+
+## 0.30.1 - Buscar un vuelo pasado: el archivo propio responde antes de rendirse
+
+El operador buscó el vuelo de ayer por su nombre de vuelo y la aplicación dijo que
+no había ninguna aeronave. El mensaje era cierto e inútil.
+
+Dos defectos y una imposibilidad:
+
+- El error de ICAO24 inválido salía **en inglés**, sin decir qué hacer, y
+  **repetido cuatro veces** en cuatro rutas. Ahora hay un solo
+  `_explicar_icao24_invalido`, en español, y la rama del callsign sólo se abre con
+  caracteres **fuera** del alfabeto hexadecimal: decir «tiene letras» de `abc`
+  sería falso, y hay una prueba con ese caso.
+- El aviso de callsign ya estaba en español y **sí se veía**. Lo que no hacía era
+  usar lo que la aplicación sabía.
+
+**El arreglo de fondo.** OpenSky sólo publica vectores en vivo, así que un callsign
+que no está transmitiendo no aparece, y sin dirección no hay forma de preguntar
+por el historial. Pero la propia aplicación guarda la dirección de cada aeronave
+que alguien siguió: medido el 2026-10-02, **45 de 47 pistas archivadas llevan
+callsign, y son 17 llamadas distintas**. `search_flight` consulta ese archivo
+después de los vectores en vivo —lo que está volando manda— y si lo encuentra sigue
+por el historial como si le hubieran dado la dirección.
+
+Contra el backend real: `callsign=ARG1763` → `e02659` vía
+`callsign_archivo_aerorf`, 1 vuelo.
+
+**Lo que no se inventó.** La dirección sale de una fila que el sistema escribió.
+`states` —los vectores en vivo— queda vacío, y hay una prueba que lo exige:
+presentar un vuelo de ayer como señal de ahora es el error que este proyecto no
+quiere cometer. La procedencia se ve: «vectores en vivo de OpenSky» frente a
+«archivo de vuelos de AeroRF», en el panel, no como clave interna.
+
+**Una afirmación que no podía sostener.** La primera versión devolvía una lista
+vacía cuando el archivo no se podía consultar, y el mensaje decía que no había
+ningún vuelo con ese nombre —sin haberlo abierto—. Ahora `_direcciones_en_archivo`
+devuelve `None` para «no pude mirar» y `[]` para «miré y no estaba», y son dos
+mensajes distintos. El que sí pudo mirar dice además cuántas pistas hay.
+
+**Sigue sin ser posible**: OpenSky no tiene búsqueda histórica por callsign, con
+credenciales o sin ellas. Hay una prueba que falla si ese texto desaparece.
+
+**438 tests frontend · 436 Python · 675 paridad · build limpio.**
+
+### Dos guardas que no mordían
+
+Verificar por reversión es lo único que prueba una guarda, y dos no fallaron:
+
+- Una comprobaba que el aviso contuviera «archivo» —que tienen **los dos**
+  mensajes—, así que revertir el `None` por `[]` pasaba en verde.
+- La guarda de la plantilla sólo miraba que el mapa de traducciones existiera, no
+  que la plantilla lo usara.
+
+Y el arnés de reverts mentía: reportaba «todo verde» para dos reverts que **nunca
+se aplicaron**, porque una cadena de PowerShell con comilla simple conserva `\n`
+como dos caracteres, y los archivos son LF mientras el literal era CRLF. Un revert
+que no entra es indistinguible de una guarda que no funciona. El arnés ahora
+exige que cada sustitución quede escrita antes de reportar.
+
+---
+
 ## Lo que queda pendiente
 
+- **Las tipografías.** `rni-app-4.0` usa Space Grotesk, IBM Plex Sans e IBM Plex
+  Mono; AeroRF usa Inter y JetBrains Mono. Preguntado dos veces, sin respuesta.
+  IBM Plex Sans no tiene mayúsculas tan esbeltas como las del panel de 9 px, así
+  que la barra lateral y la de herramientas necesitarían un peldaño más de tamaño.
+- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente de
+  0.30.0. Es lo que hace que los nombres dejen de mentir: `bg-slate-900` ahora es
+  azul, y un desarrollador que lo escriba mañana obtiene `--panel` sin saber por qué.
 - **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
   datos del operador y la decisión es suya. El código ya no genera más.
 - **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
@@ -263,8 +362,8 @@ no la remoción.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **386 pasan**, 27 archivos |
-| Python (no integración) | **382 pasan**, 7 deseleccionadas |
+| Frontend (vitest) | **438 pasan**, 29 archivos |
+| Python (no integración) | **436 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
 

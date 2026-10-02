@@ -3176,3 +3176,137 @@ detectó recién después de agregar los imports.
   Mono; AeroRF usa Inter y JetBrains Mono. Queda por decidir: IBM Plex Sans no
   tiene mayúsculas tan esbeltas como las del panel de 9 px, así que la barra
   lateral y la de herramientas necesitarían un peldaño más de tamaño.
+---
+
+## 0.30.1 — Buscar un vuelo pasado: el archivo propio responde antes de rendirse
+
+El operador buscó el vuelo de ayer por su nombre de vuelo y la aplicación le dijo
+que no había ninguna aeronave. Ese mensaje era técnicamente cierto y prácticamente
+inútil, y por debajo había dos defectos y una imposibilidad.
+
+### LO QUE EL OPERATOR VIO, TEXTO LITERAL
+
+```
+Invalid ICAO24 'lvkcc': expected 6 hex characters.
+```
+
+En inglés, dentro de una aplicación que debe estar toda en español, sin decir qué
+hacer, y **repetido cuatro veces** en cuatro rutas distintas de
+`flight_service.py`. Cuatro copias de un mensaje divergen; por eso ahora hay un
+solo sitio donde se redacta: `_explicar_icao24_invalido`.
+
+Lo que cambió es la parte que faltaba. Antes explicaba por qué falló; ahora dice
+qué escribir:
+
+> «LVKCC» no es una dirección de aeronave: un ICAO24 son seis caracteres
+> hexadecimales (0-9 y a-f), y aquí hay 3 que no lo son. Si es un nombre de vuelo
+> como LVKCC, escríbalo en el campo de callsign: ese campo sí funciona para
+> aeronaves que están volando ahora.
+
+**La rama del callsign sólo se abre con caracteres fuera del alfabeto
+hexadecimal**, y eso corrigió un falsehood propio: la primera versión decía
+«tiene letras», lo cual es **falso** para `abc` — tres letras hexadecimales
+válidas, a las que sólo les falta longitud. Hay una prueba con ese caso.
+
+### EL DEFECTO DE FONDO: RENUNCIAR DEMASIADO PRONTO
+
+El aviso de callsign ya estaba en español y **sí se veía en el panel**. Lo que
+no hacía era todo lo que la aplicación sabía.
+
+La secuencia real: OpenSky publica sólo vectores en vivo, así que un callsign que
+no está transmitiendo no aparece; sin dirección no hay forma de preguntar por el
+historial; y la búsqueda se rendía ahí con un «no se encontró». Pero **la propia
+aplicación guarda la dirección de cada aeronave que alguien siguió**.
+
+Medido en la base el 2026-10-02: de 47 pistas archivadas, **45 llevan callsign, y
+son 17 llamadas distintas**. Para esos casos el vuelo pasado sí se encuentra.
+
+`search_flight` consulta el archivo **después** de los vectores en vivo —lo que
+está volando manda, porque son dos aeronaves distintas— y cuando encuentra la
+dirección sigue por el historial de OpenSky como si se la hubieran dado. La ruta
+recibe la sesión que ya tenía y no pasaba.
+
+Contra el backend real:
+
+```
+callsign=ARG1763  ->  e02659  via  callsign_archivo_aerorf  1 vuelo
+```
+
+### LO QUE NO SE INVENTÓ
+
+- **La dirección sale de una fila que el sistema escribió**, no de una
+  conjetura. No hay estimación en ninguna parte.
+- **No se declara que la aeronave esté volando.** `states` —que son los vectores
+  en vivo— queda vacío, y hay una prueba que lo exige: presentar un vuelo de ayer
+  como si fuera una señal de ahora es el error que este proyecto no quiere
+  cometer.
+- **La procedencia es visible.** `resolved_via` distingue `callsign_live_state`
+  de `callsign_archivo_aerorf`, y el panel lo dice en palabras: «vectores en vivo de
+  OpenSky» frente a «archivo de vuelos de AeroRF». Eso no es pulido: es que
+  «la vi transmitiendo ahora» y «la tengo guardada de hace meses» son dos clases
+  de evidencia distinta, y confundirlas es precisamente lo que no hay que hacer.
+
+### UNA AFIRMACIÓN QUE NO PODÍA SOSTENER
+
+La primera versión devolvía una lista vacía cuando el archivo no se podía
+consultar, y el mensaje afirmaba ante el operador que **no había ningún vuelo con
+ese nombre en el archivo** —sin haberlo abierto—. Un sistema diciendo algo sobre sí
+mismo que nadie comprobó.
+
+Ahora `_direcciones_en_archivo` devuelve `None` para «no pude mirar» y `[]` para
+«miré y no estaba», y son dos mensajes distintos. El que sí se pudo mirar incluye
+además cuántas pistas hay: «47 vuelos registrados en total», que convierte un
+negativo en algo con peso.
+
+El archivo tampoco puede tirar la búsqueda: si la base falla, es un aviso, no un
+500. Un backend que se cae por consultar su propio archivo no puede usarse.
+
+### LO QUE SIGUE SIN SER POSIBLE, Y SE DICE
+
+OpenSky no tiene búsqueda histórica por callsign, con credenciales o sin ellas.
+Hay una prueba que falla si ese texto desaparece del código, porque es lo que
+explica por qué un vuelo pasado necesita su dirección.
+
+Y el mensaje viejo mandaba al operador a **`/states/all`**, que es un endpoint de
+la API: nadie lo tiene abierto delante. Hay una guarda que prohibe que esa cadena
+vuelva al servicio.
+
+### Pruebas
+
+**54 Python nuevas · 8 frontend nuevas.** 436 Python · 438 frontend · 675 de
+paridad · build limpio.
+
+Todas verificadas **revirtiendo el arreglo**, que es lo único que prueba una
+guarda. Dos de ellas no fallaron la primera vez, y las dos enseñaron algo:
+
+- Una comprobaba que el aviso contuviera la palabra «archivo» —que tienen **los
+  dos** mensajes—, así que revirtiendo el `None` por `[]` pasaba en verde. Ahora
+  comprueba la frase que los distingue.
+- La guarda de la plantilla sólo miraba que el mapa de traducciones existiera, no
+  que la plantilla lo usara: volver a la clave cruda pasaba sin fallar.
+
+Y el arnés de reverts tuvo que reescribirse: informaba «todo verde» para dos
+reverts que **nunca se habían aplicado**, porque una cadena de PowerShell con
+comilla simple conserva `\n` como dos caracteres y los archivos son LF mientras
+el literal era CRLF. Un revert que no entra es indistinguible de una guarda que no
+funciona, y el segundo caso es el que termina en «borremos la prueba». El arnés
+ahora exige que cada sustitución quede escrita antes de reportar.
+
+### FUERA DE ALCANCE, PERO DENTRO DE LA PREGUNTA
+
+El 400 de la ruta decía, en inglés, «Provide at least one of `callsign` or
+`icao24`». El front lo interceptaba, así que nunca se veía; el endpoint directo
+sí. Corregido al español que ya usaba el front.
+
+### Queda
+
+- **Las tipografías** (`rni-app-4.0` usa Space Grotesk / IBM Plex Sans / IBM Plex
+  Mono; AeroRF usa Inter y JetBrains Mono). Sin decidir. IBM Plex Sans no tiene
+  mayúsculas tan esbeltas como las del panel de 9 px, así que la barra lateral y
+  la de herramientas necesitarían un peldaño más de tamaño.
+- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
+  de 0.30.0.
+- **Rotar `OPENSKY_CLIENT_SECRET`**: está en texto plano en el historial de la
+  sesión. Vive en `.env`, que está ignorado por git, y en ningún archivo
+  versionado.
+- **16 filas duplicadas de `aircraft_tracks`**, sin decisión del operador.

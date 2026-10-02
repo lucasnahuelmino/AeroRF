@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
@@ -80,6 +81,7 @@ async def search_flight(
     date: Optional[str] = None,
     time_hint: Optional[str] = None,
     window_hours: int = 6,
+    db: Optional[Session] = None,
 ) -> dict:
     """Find a flight by callsign or ICAO24.
 
@@ -88,6 +90,13 @@ async def search_flight(
     vectors to learn the ICAO24, then query ``/flights/aircraft`` for the
     history. Each step is documented in the response under ``resolved_via``
     so the operator can see how the aircraft was identified.
+
+    When the callsign is not flying, ``db`` is consulted before giving up:
+    AeroRF's own archive of followed aircraft often already knows the address,
+    and a flight from yesterday is a flight the operator can look for. The
+    answer says which of the two routes answered, because one is OpenSky's
+    live picture and the other is this installation's record, and they are
+    not the same kind of evidence.
     """
     result: dict[str, Any] = {
         "query": {
@@ -103,11 +112,13 @@ async def search_flight(
     }
 
     # ── Resolve ICAO24 from a callsign via live state vectors ──────────
+    # Tres fuentes, en este orden, y cada una deja rastro en `resolved_via`:
+    # los vectores en vivo de OpenSky, el archivo propio de AeroRF, o nada.
     if icao24 and not callsign:
         code = str(icao24).strip().lower()
         if not _valid_icao24(code):
             raise FlightServiceError(
-                f"Invalid ICAO24 {icao24!r}: expected 6 hex characters."
+                _explicar_icao24_invalido(icao24),
             )
         result["icao24"] = code
         result["resolved_via"] = "icao24_direct"
@@ -123,14 +134,63 @@ async def search_flight(
             result["states"].append(match)
             result["resolved_via"] = "callsign_live_state"
         else:
-            result["warnings"].append(
-                f"No se encontró ninguna aeronave en vuelo con callsign "
-                f"{wanted!r} en este momento. OpenSky no ofrece búsqueda por "
-                f"callsign sobre vuelos históricos: sólo se pueden consultar "
-                f"vuelos por ICAO24. Busque la aeronave en /states/all o "
-                f"proporcione el ICAO24."
+            # OpenSky no busca por callsign en el historial, pero AeroRF sí tiene
+            # un archivo propio: si alguien siguió esa aeronave, la dirección
+            # está guardada y el vuelo pasado se puede consultar igual.
+            candidatas = _direcciones_en_archivo(db, wanted)
+            if not candidatas:
+                # Dos mensajes, no uno: que no se haya encontrado y que no se
+                # haya podido mirar son cosas distintas, y fundir el segundo en
+                # el primero es afirmar sobre el propio sistema algo que nadie
+                # comprobó.
+                if candidatas is None:
+                    result["warnings"].append(
+                        f"No se encontró ninguna aeronave en vuelo con el callsign "
+                        f"{wanted} en este momento, y no se pudo consultar el "
+                        f"archivo de AeroRF para buscarlo entre los vuelos ya "
+                        f"registrados. OpenSky no ofrece búsqueda por callsign "
+                        f"sobre vuelos históricos: un vuelo pasado sólo se "
+                        f"consulta por su dirección de aeronave, seis caracteres "
+                        f"hexadecimales. Si la tiene, escríbala en el campo ICAO24."
+                    )
+                else:
+                    registrados = _pistas_totales(db)
+                    total = (
+                        f" ({registrados} "
+                        f"{'vuelo registrado' if registrados == 1 else 'vuelos registrados'} "
+                        f"en total)"
+                        if registrados
+                        else ", que está vacío"
+                    )
+                    result["warnings"].append(
+                        f"No se encontró ninguna aeronave en vuelo con el callsign "
+                        f"{wanted} en este momento, ni ningún vuelo con ese nombre "
+                        f"en el archivo de AeroRF{total}. OpenSky no ofrece "
+                        f"búsqueda por callsign sobre vuelos históricos: un vuelo "
+                        f"pasado sólo se consulta por su dirección de aeronave, "
+                        f"seis caracteres hexadecimales. Si la tiene, escríbala "
+                        f"en el campo ICAO24."
+                    )
+                return result
+            elegida = candidatas[0]
+            result["icao24"] = elegida["icao24"]
+            result["callsign"] = elegida["callsign"]
+            result["resolved_via"] = "callsign_archivo_aerorf"
+            aviso = (
+                f"El callsign {wanted} no está volando ahora, así que no aparece "
+                f"en los vectores en vivo de OpenSky. Sí está en el archivo de "
+                f"AeroRF: {elegida['vuelos']} "
+                f"{'vuelo registrado' if elegida['vuelos'] == 1 else 'vuelos registrados'}, "
+                f"identificado como {elegida['icao24']}. Los vuelos históricos se "
+                f"piden por esa dirección."
             )
-            return result
+            if len(candidatas) > 1:
+                otras = ", ".join(c["icao24"] for c in candidatas[1:])
+                aviso += (
+                    f" Ese mismo nombre de vuelo aparece además bajo {otras}: se "
+                    f"usó {elegida['icao24']}, que es el registro más reciente."
+                )
+            result["warnings"].append(aviso)
 
     if not result["icao24"]:
         return result
@@ -180,9 +240,145 @@ def _valid_icao24(code: str) -> bool:
     )
 
 
+def _explicar_icao24_invalido(icao24: str) -> str:
+    """
+    Por qué este valor no es un ICAO24, y qué hacer en su lugar.
+
+    **Por qué existe.** Los cuatro lugares que rechazaban un ICAO24 repetían el
+    mismo texto, en inglés, diciendo que se esperaban seis caracteres hexadecimales.
+    El operador lo vio tal cual en el panel de vuelos, dentro de una aplicación que
+    debe estar toda en español, y sin ninguna pista de qué hacer.
+
+    **La pista es la parte que importa.** Un ICAO24 son seis caracteres
+    hexadecimales, así que cualquier otra cosa no lo es. Y hay un caso que
+    merece nombrarse: algo con letras donde un hexadecimal no las tiene es,
+    probablemente, un *callsign* — elFlightradar muestra "LVKCC" como vuelo, y es
+    un nombre de vuelo, no una dirección de aeronave. Decirlo convierte un error
+    seco en el camino correcto, y el buscador por callsign sí funciona para
+    aeronaves que están transmitiendo.
+
+    La rama de arriba solo se abre cuando hay caracteres **fuera** del alfabeto
+    hexadecimal. «abc» son tres letras válidas y lo que le falta es longitud, así que
+    decir «tiene letras» sería falso; «lvkcc» tiene l, v y k, que es exactamente lo
+    que lo descarta como dirección y lo que delata un nombre de vuelo.
+
+    Un mensaje, cuatro lugares: la alternativa es cuatro copias que divergen.
+    """
+    valor = str(icao24).strip()
+    fuera_del_hex = [c for c in valor.lower() if c not in "0123456789abcdef"]
+    if fuera_del_hex:
+        return (
+            f"«{valor}» no es una dirección de aeronave: un ICAO24 son seis "
+            f"caracteres hexadecimales (0-9 y a-f), y aquí hay "
+            f"{len(fuera_del_hex)} que no lo son. Si es un nombre de vuelo como "
+            f"LVKCC, escríbalo en el campo de callsign: ese campo sí funciona "
+            f"para aeronaves que están volando ahora."
+        )
+    return (
+        f"«{valor}» no es una dirección de aeronave: un ICAO24 son seis "
+        f"caracteres hexadecimales (0-9 y a-f). Si es un nombre de vuelo, "
+        f"escríbalo en el campo de callsign."
+    )
+
+
+def _pistas_totales(db: Optional[Session]) -> Optional[int]:
+    """Cuántos vuelos hay archivados, para poder decirlo en el aviso.
+
+    Sin este número, «no se encontró en el archivo» y «el archivo no se pudo
+    abrir» se leen casi igual desde el panel, y el operador no tiene forma de
+    saber si lo que se miró estaba vacío o no se miró.
+
+    ``None`` si tampoco esto se pudo leer: es el mismo «no comprobado» que en
+    ``_direcciones_en_archivo``, y merece el mismo trato.
+    """
+    if db is None:
+        return None
+    try:
+        return int(db.query(func.count(AircraftTrack.id)).scalar() or 0)
+    except Exception:  # pragma: no cover - same rule: the archive never breaks a search
+        return None
+
+
 #: Public alias. The flight-list endpoint validates the same way, and a route
 #: that has to reach through a private name is a sign the check belongs here.
 valid_icao24 = _valid_icao24
+
+
+def _direcciones_en_archivo(db: Optional[Session], wanted: str) -> Optional[list[dict[str, Any]]]:
+    """
+    Qué direcciones de aeronave tiene un callsign entre los vuelos registrados.
+
+    **Por qué existe.** OpenSky no tiene búsqueda histórica por callsign, así que
+    sin una dirección no hay forma de preguntar por un vuelo que ya pasó. La
+    versión anterior de esta búsqueda se rendía ahí y le decía al operador que no
+    había nada —cuando lo que probablemente quería era un vuelo suyo de ayer—,
+    sin mirar lo que la propia aplicación ya tenía guardado. Medido en la base el
+    2026-10-02: de 47 pistas archivadas, 45 llevan callsign, y son 17 llamadas
+    distintas.
+
+    **Qué es y qué no es.** No se estima nada. La dirección sale de una fila que
+    el sistema escribió al seguir esa aeronave, así que es un dato observado, con
+    su procedencia: la respuesta dice por dónde se identificó.
+
+    **Por qué la más reciente.** Los nombres de vuelo se reasignan, y un mismo
+    nombre puede llegar a designar otra aeronave con el pasar del tiempo. Cuando
+    hay más de una dirección no se elige al azar: se toma la del registro más
+    nuevo y se nombran las demás, para que el operador pueda corregir.
+
+    Sin sesión no hay archivo que consultar, y una búsqueda debe responder lo mismo
+    con base de datos que sin ella.
+
+    **Por qué devuelve ``None`` y no una lista vacía.** Una lista vacía dice «lo
+    miré y no estaba»; ``None`` dice «no pude mirarlo». La primera versión de este
+    mensaje no distinguía los dos casos y afirmaba ante el operador que no había
+    ningún vuelo con ese nombre en el archivo, sin haberlo podido abrir. Es la
+    clase de afirmación que un sistema hace sobre sí mismo sin comprobarla, y lo
+    que la vuelve falsa es justo el fallo.
+    """
+    if db is None:
+        return None
+    try:
+        filas = (
+            db.query(
+                AircraftTrack.icao24,
+                AircraftTrack.callsign,
+                AircraftTrack.fecha_creacion,
+            )
+            .filter(AircraftTrack.callsign.isnot(None))
+            .filter(func.upper(AircraftTrack.callsign) == wanted)
+            .order_by(
+                AircraftTrack.fecha_creacion.desc(),
+                AircraftTrack.id.desc(),
+            )
+            .all()
+        )
+    except Exception:  # pragma: no cover - the search must not die on the archive
+        opensky_log.warning("callsign_archive_lookup_failed", extra={"callsign": wanted})
+        return None
+
+    # La consulta ya viene ordenada de más reciente a más antigua, y un dict de
+    # Python conserva el orden de inserción: la primera dirección que aparece es
+    # la del registro más nuevo, sin tener que volver a ordenar.
+    vistas: dict[str, dict[str, Any]] = {}
+    for icao24, callsign, fecha in filas:
+        codigo = str(icao24 or "").strip().lower()
+        # Una dirección guardada que no sea válida no se propone: se respondería
+        # con un 400 sobre un valor que el archivo mismo no puede sostener.
+        if not _valid_icao24(codigo):
+            continue
+        entrada = vistas.get(codigo)
+        if entrada is None:
+            vistas[codigo] = {
+                "icao24": codigo,
+                "callsign": str(callsign or wanted).strip().upper(),
+                "vuelos": 1,
+                "ultima": fecha,
+            }
+        else:
+            entrada["vuelos"] += 1
+            if fecha and (entrada["ultima"] is None or fecha > entrada["ultima"]):
+                entrada["ultima"] = fecha
+    return list(vistas.values())
 
 
 def _window(
@@ -325,7 +521,7 @@ async def build_track(
     code = str(icao24).strip().lower()
     if not _valid_icao24(code):
         raise FlightServiceError(
-            f"Invalid ICAO24 {icao24!r}: expected 6 hex characters."
+                _explicar_icao24_invalido(icao24),
         )
 
     provenance: dict[str, int] = {PROVENANCE_HISTORICAL: 0, "aerorf": 0, "live": 0}
@@ -633,7 +829,7 @@ def create_session(
     code = str(icao24).strip().lower()
     if not _valid_icao24(code):
         raise FlightServiceError(
-            f"Invalid ICAO24 {icao24!r}: expected 6 hex characters."
+                _explicar_icao24_invalido(icao24),
         )
 
     existing = (
@@ -873,7 +1069,7 @@ def add_selection(
     code = str(icao24).strip().lower()
     if not _valid_icao24(code):
         raise FlightServiceError(
-            f"Invalid ICAO24 {icao24!r}: expected 6 hex characters."
+                _explicar_icao24_invalido(icao24),
         )
 
     if db.query(FlightSelection).filter(FlightSelection.icao24 == code).first():

@@ -66,9 +66,9 @@
             <span class="font-mono text-slate-200">{{ flightsStore.searchResult.icao24 || '—' }}</span>
           </div>
           <div class="mb-1 flex justify-between">
-            <span class="text-slate-500">Resuelto por</span>
+            <span class="text-slate-500">Identificado por</span>
             <span class="text-slate-300">
-              {{ flightsStore.searchResult.resolved_via || 'sin coincidencia' }}
+              {{ comoSeIdentifico(flightsStore.searchResult.resolved_via) }}
             </span>
           </div>
           <div class="flex justify-between">
@@ -418,6 +418,30 @@ import { useSystemStore } from '@/stores/system'
 const flightsStore = useFlightsStore()
 const mapStore = useMapStore()
 const systemStore = useSystemStore()
+
+  /**
+   * Cómo se identificó la aeronave, en el idioma del operador.
+   *
+   * El backend devuelve una etiqueta de procedencia —de dónde salió la dirección
+   * de aeronave— y esa etiqueta es lo más importante de esta fila: «la vi
+   * transmitiendo ahora» y «la tengo guardada de un vuelo anterior» son dos
+   * clases de evidencia distinta, y el operador tiene que poder distinguirlas de
+   * un vistazo.
+   *
+   * Se traduce porque se mostraba crudo, y `callsign_live_state` no le dice nada
+   * a quien opera. La clave es el contrato con el backend: si aparece una
+   * procedencia nueva y no está en el mapa, se ve la clave en vez de quedarse en
+   * blanco, que es peor que una etiqueta rara.
+   */
+  const ORIGEN_DE_LA_IDENTIFICACION = {
+    icao24_direct: 'la dirección que usted escribió',
+    callsign_live_state: 'vectores en vivo de OpenSky',
+    callsign_archivo_aerorf: 'archivo de vuelos de AeroRF',
+  }
+  const comoSeIdentifico = (origen) => {
+    if (!origen) return 'sin coincidencia'
+    return ORIGEN_DE_LA_IDENTIFICACION[origen] || `origen desconocido (${origen})`
+  }
 
 let timer = null
 
