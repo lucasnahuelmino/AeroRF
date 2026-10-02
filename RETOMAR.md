@@ -323,6 +323,53 @@ exige que cada sustitución quede escrita antes de reportar.
 
 ---
 
+## 0.30.2 — La trayectoria en vivo se congelaba con la aeronave todavía volando
+
+Síntoma: el operador seguía una trayectoria, la aeronave seguía moviéndose en
+vivo, y la línea dejó de crecer. Dos defectos, y **ninguno era «está tapada»**.
+
+**1. La condición que decide si la línea crece leía la lista equivocada.** El
+estado vivo llega a `liveStates` y se le pega a cada fila en un `computed`
+llamado `watchlistWithState`. La condición leía `watchlist`, la lista cruda,
+buscando un `.state` que esa lista **no tiene**: la rama del feed vivo era código
+muerto. Medido sobre sus dos aeronaves: `state` era `AUSENTE` en las dos, y
+`watchlistWithState` sí las traía, con `e06543` en vuelo.
+
+Con el defecto caía siempre a la heurística de los dos minutos sobre el final del
+track, que es una mala señal: el track de OpenSky y el vector de estado son
+productos distintos, y el track se queda viejo antes de que el avión deje de volar.
+El síntoma era confuso porque el marcador viene del WebSocket y la línea del
+sondeo: congelar uno no toca el otro.
+
+**2. El sondeo corre cada 30 s y el caché de tracks dura 300 s.** Nueve de cada
+diez sondeos recibían los mismos bytes. Ahora hay dos TTL:
+`CACHE_TTL_TRACKS_S` (300 s) y `CACHE_TTL_TRACKS_LIVE_S` (30 s), y sólo el segundo
+gasta créditos de más, y sólo mientras se sigue una aeronave en el aire. La vía es
+explícita: `fresh` en la ruta, `ttl` en `build_track`, `ttl` en `get_track`, hasta
+`_cached`.
+
+**Yo rompí dos pruebas.** Al pasar `ttl=` a `service.get_track`, cuatro dobles de
+prueba con la firma vieja recibieron un `TypeError`, que `build_track` captura y
+convierte en «no hay track de OpenSky». Las dos pruebas fallaron apuntando al lugar
+equivocado: no a mi cambio, sino a datos de OpenSky que estaban bien. Lo comprobé
+contra la API viva antes de culpar a nadie. Un `except Exception` que convierte
+cualquier fallo en «el proveedor no tiene datos» no es robustez: es ceguera.
+
+**452 Python · 438 frontend · 675 de paridad · build limpio.** 16 pruebas nuevas,
+todas verificadas revirtiendo el arreglo. La quinta no fallaba la primera vez:
+nadie comprobaba que el ttl llegara hasta la caché, que es donde se vuelve efectivo.
+
+### Lo que encontré y **no** toqué
+
+El orden real de dibujo del canvas compartido deja `aircraft_tracks` segunda de
+abajo, así que cualquier objeto con relleno se pinta encima de la trayectoria
+(medido con ids). No es el defecto reportado —el relleno es de 15 % y no oculta una
+línea— pero es incorrecto. Y `CATEGORY_DRAW_RANK` no consigue lo que su comentario
+promete con `preferCanvas`: el canvas dibuja por orden de inserción. Queda para
+decidir con calma, no para tocar a último momento.
+
+---
+
 ## Lo que queda pendiente
 
 - **Las tipografías.** `rni-app-4.0` usa Space Grotesk, IBM Plex Sans e IBM Plex
@@ -363,7 +410,7 @@ no la remoción.
 | Suite | Estado |
 |---|---|
 | Frontend (vitest) | **438 pasan**, 29 archivos |
-| Python (no integración) | **436 pasan**, 7 deseleccionadas |
+| Python (no integración) | **452 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
 

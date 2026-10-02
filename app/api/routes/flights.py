@@ -658,6 +658,13 @@ async def get_track(
     include_local: bool = Query(
         True, description="Merge AeroRF's own recorded positions"
     ),
+    fresh: bool = Query(
+        False,
+        description=(
+            "This is a poll of a flight in progress: shorten the OpenSky cache "
+            "so the route can actually change between calls"
+        ),
+    ),
     db: Session = Depends(get_db),
 ):
     """The complete available trajectory for an aircraft.
@@ -666,13 +673,19 @@ async def get_track(
     reports the provenance of every point. Waypoints are not
     second-by-second; the response says how many there are and the mean
     step, and it never interpolates missing history.
+
+    ``fresh`` is what the frontend sets while it watches an airborne aircraft.
+    Without it the 300-second track cache answers the 30-second poll with the
+    bytes it already had, and the line the operator is watching stops growing
+    without any indication that anything went wrong.
     """
     service = get_opensky_service()
     if not service.configured:
         raise _credentials_required()
+    ttl = get_settings().cache_ttl_tracks_live_s if fresh else None
     try:
         return await fsvc.build_track(
-            service, db, icao24, time_=time, include_local=include_local
+            service, db, icao24, time_=time, include_local=include_local, ttl=ttl
         )
     except Exception as exc:
         raise _handle(exc)
@@ -688,12 +701,19 @@ async def get_live_track(icao24: str, db: Session = Depends(get_db)):
     ``provenance`` string instead of per-point provenance, and no
     ``provenance_counts``, so the map legend could never be filled and the
     two endpoints disagreed about the same aircraft.
+
+    A flight in progress is the one track that is *not* immutable, so this one
+    gets the short cache. Asking twice in five minutes has to be able to see the
+    aircraft move; that is the whole reason this endpoint exists.
     """
     service = get_opensky_service()
     if not service.configured:
         raise _credentials_required()
     try:
-        return await fsvc.build_track(service, db, icao24, time_=0, include_local=True)
+        return await fsvc.build_track(
+            service, db, icao24, time_=0, include_local=True,
+            ttl=get_settings().cache_ttl_tracks_live_s,
+        )
     except Exception as exc:
         raise _handle(exc)
 

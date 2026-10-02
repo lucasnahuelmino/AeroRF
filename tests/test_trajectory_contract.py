@@ -88,7 +88,7 @@ class _EmptyService:
     def __init__(self):
         self.calls: list = []
 
-    async def get_track(self, icao24, time_=None):
+    async def get_track(self, icao24, time_=None, ttl=None):
         self.calls.append((icao24, time_))
         return {"icao24": icao24, "callsign": None, "points": []}
 

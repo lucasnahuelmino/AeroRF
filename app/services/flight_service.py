@@ -507,6 +507,7 @@ async def build_track(
     icao24: str,
     time_: Optional[int] = None,
     include_local: bool = True,
+    ttl: Optional[float] = None,
 ) -> dict:
     """Assemble the full available trajectory for one aircraft.
 
@@ -517,6 +518,11 @@ async def build_track(
     The response states how many points came from each source and the mean
     temporal step, so the operator can judge the track's fidelity instead
     of assuming 1 Hz data.
+
+    ``ttl`` shortens the OpenSky cache for this call. It is for the live poller
+    only: a flight in progress has a route that changes every minute, and the
+    300-second track cache served the frontend's 30-second poll the same answer
+    nine times out of ten, so the drawn line stopped growing between jumps.
     """
     code = str(icao24).strip().lower()
     if not _valid_icao24(code):
@@ -531,7 +537,7 @@ async def build_track(
     # ── OpenSky track ───────────────────────────────────────────────────
     track: dict[str, Any] = {}
     try:
-        track = await service.get_track(code, time_=time_)
+        track = await service.get_track(code, time_=time_, ttl=ttl)
     except Exception as exc:
         warnings.append(f"Track de OpenSky no disponible: {exc}")
         track = {}

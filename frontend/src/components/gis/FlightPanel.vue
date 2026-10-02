@@ -651,13 +651,42 @@ function loadTrackFor(icao24, time = null) {
   })
 }
 
-/** True while the aircraft reports a position and is not on the ground. */
+/**
+ * True while the aircraft reports a position and is not on the ground.
+ *
+ * **El feed vivo primero, y la heurística sólo si no hay nada.** Esta función
+ * decide si la trayectoria en vivo sigue creciendo, así que equivocarse cuesta
+ * una línea que se congela con la aeronave todavía moviéndose en el mapa: el
+ * marcador viene de los vectores de estado, que llegan por WebSocket, y la línea
+ * viene del sondeo. Son dos caminos independientes, y por eso una trayectoria
+ * congelada con la aeronave viva es exactamente el síntoma que había.
+ *
+ * Antes leía `watchlist`, la lista cruda, buscando un campo `.state` que **esa
+ * lista no tiene**: quien lo lleva es `watchlistWithState`, un `computed` hecho
+ * para pegárselo a cada fila. Medido sobre las dos aeronaves que estaban
+ * siguiendo: `state` era `undefined` en las dos, así que la rama del feed vivo no
+ * se ejecutaba nunca y siempre caía a la de abajo.
+ *
+ * La heurística de los dos minutos es un último recurso, no la regla. La última
+ * posición de un track de OpenSky y el vector de estado del mismo avión no se
+ * actualizan a la vez: el track es un producto distinto, más lento, y se queda
+ * viejo antes de que la aeronave deje de volar. Cuando la heurística se usaba
+ * como respuesta principal, bastaba un hueco de datos de un minuto y dos para
+ * matar el sondeo.
+ */
 function isAirborne(track) {
-  const state = flightsStore.watchlist.find((s) => s.icao24 === track?.icao24)?.state
+  const code = String(track?.icao24 || '').trim().toLowerCase()
+  // `watchlistWithState` es la lista con el estado pegado; `liveStates` es el
+  // almacén sin transformar. Se consulta el almacén porque no depende de que el
+  // panel se haya montado y llega por el mismo camino que el marcador del mapa.
+  const state = code
+    ? (flightsStore.watchlistWithState.find((s) => String(s.icao24).toLowerCase() === code)?.state
+       ?? flightsStore.liveStates?.[code])
+    : null
   if (state) return state.on_ground === false && state.has_position !== false
-  // No state vector yet: a track that ends within the last two minutes is
-  // treated as still running, because OpenSky's live track lags the current
-  // state vector by up to a poll interval.
+  // Sin vector de estado no hay nada mejor que el final del track. Dos minutos
+  // es un margen generoso a propósito: preferimos seguir dibujando de más a
+  // congelar de menos, porque una línea congelada no dice por qué.
   const end = track?.end_time
   return Boolean(end) && Date.now() / 1000 - end < 120
 }
@@ -675,7 +704,7 @@ function startLiveTrack(icao24) {
       flightsStore.notice = 'Vuelo terminado: la trayectoria queda fija.'
       return
     }
-    flightsStore.loadTrack(liveTrackIcao24, {})
+    flightsStore.loadTrack(liveTrackIcao24, { fresh: true })
   }, TRACK_REFRESH_MS)
 }
 

@@ -719,11 +719,24 @@ class OpenSkyService:
         return out
 
     # ─── /tracks/all (spec §22) ───────────────────────────────────────────
-    async def get_track(self, icao24: str, time_: Optional[int] = None) -> dict:
+    async def get_track(
+        self,
+        icao24: str,
+        time_: Optional[int] = None,
+        ttl: Optional[float] = None,
+    ) -> dict:
         """Trajectory for one aircraft.
 
         ``time_=0`` asks for the live track (spec §23). OpenSky caps
         history at 30 days.
+
+        ``ttl`` overrides the cache lifetime for this call only. It exists for
+        one caller: the frontend re-polls the trajectory of an airborne aircraft
+        every 30 seconds so the line grows, and the tracks cache lasts 300
+        seconds, so nine polls out of ten were served the same bytes and the line
+        looked frozen for five minutes at a time. A historical flight's track
+        cannot change, so it keeps the long cache; only the poller pays for the
+        short one.
         """
         code = str(icao24).strip().lower()
         params = {"icao24": code}
@@ -732,7 +745,7 @@ class OpenSkyService:
 
         key = f"tracks:{code}:{params.get('time', 'live')}"
         data, from_cache = await self._cached(
-            self.tracks, key, "tracks/all", params
+            self.tracks, key, "tracks/all", params, ttl
         )
 
         if data is None:

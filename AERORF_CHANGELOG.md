@@ -3310,3 +3310,131 @@ sí. Corregido al español que ya usaba el front.
   sesión. Vive en `.env`, que está ignorado por git, y en ningún archivo
   versionado.
 - **16 filas duplicadas de `aircraft_tracks`**, sin decisión del operador.
+---
+
+## 0.30.2 — La trayectoria en vivo se congelaba con la aeronave todavía volando
+
+El operador siguió una trayectoria de un avión, siguió viendo la aeronave moverse
+en vivo, y la línea dejó de crecer: se veía hasta el punto en el que había
+dibujado sus objetos. Ninguna pantalla decía qué había pasado.
+
+Había **dos** defectos, y ninguno era «la trayectoria está tapada».
+
+### EL QUE MATABA EL CRECIMIENTO
+
+La condición que decide si la línea sigue creciendo leía **la lista equivocada**.
+
+El estado vivo de una aeronave llega por WebSocket a `liveStates` y se le pega a
+cada fila en un `computed` llamado `watchlistWithState`. La condición leía
+`watchlist` —la lista cruda— buscando un campo `.state` que **esa lista no
+tiene**. La rama del feed vivo era código muerto.
+
+Medido sobre las dos aeronaves que el operador estaba siguiendo:
+
+```
+listaCruda     e06543  state = AUSENTE
+               e0b354  state = AUSENTE
+listaConEstado e06543  on_ground=false  has_position=true   <-- está volando
+               e0b354  sin estado
+```
+
+Con el defecto, `isAirborne` caía **siempre** a la heurística de los dos minutos:
+que el final del track fuera reciente. Y ésa es una pésima señal para decidir si
+un avión está volando, porque el track de OpenSky y el vector de estado del mismo
+avión **son productos distintos y no se actualizan a la vez**: el track se queda
+viejo antes de que la aeronave deje de volar. Bastaba un hueco de datos de un
+minuto para matar el sondeo.
+
+**Por qué el síntoma era tan confuso**: el marcador y la línea vienen de caminos
+distintos. El marcador, de los vectores de estado, por WebSocket. La línea, del
+sondeo cada 30 s. Congelar uno no toca el otro — y por eso se veía un avión vivo
+con una línea muerta.
+
+### EL QUE LA HACÍA PARPADECAR
+
+El sondeo corre cada **30 s** y el caché de tracks dura **300 s**. Nueve de cada
+diez sondeos recibían los mismos bytes: la línea se quedaba quieta cinco minutos
+y después saltaba.
+
+Un vuelo histórico es inmutable y su track puede cachearse cinco minutos sin
+perder nada. **Un vuelo en curso no.** Así que ahora hay dos TTL: `CACHE_TTL_TRACKS_S`
+(300 s, el de siempre) y `CACHE_TTL_TRACKS_LIVE_S` (30 s), que es el único que
+gasta créditos de más y sólo mientras alguien sigue una aeronave en el aire.
+
+La vía es explícita de punta a punta: `fresh` en la ruta → `ttl` en `build_track`
+→ `ttl` en `get_track` → `_cached`. **Ninguna ruta lo adivina**: adivinar sería
+cobrar créditos por datos que no cambian.
+
+### UN CAMBIO MÍO ROMPIÓ DOS PRUEBAS, Y ESTO ES LO QUE PASÓ
+
+Al pasar `ttl=` a `service.get_track`, **cuatro dobles de prueba** con la firma
+vieja (`test_flight_history.py` ×3 y `test_trajectory_contract.py`)recibieron un con
+`TypeError`, que `build_track` captura y convierte en «no hay track de OpenSky».
+Dos pruebas pasaron a rojo con un mensaje que **apuntaba al lugar
+equivocado**: no a mi cambio, sino a datos de OpenSky que sí estaban bien.
+
+Lo comprobé contra la API viva antes de culpar a nadie: `a101c3`, 20 vuelos, y los
+tres más viejos devolvieron puntos y `covered_window` correctos. Los datos
+estaban; el que estaba roto era mi cambio.
+
+**La lección que ya está anotada en este proyecto:** un `except Exception` que
+convierte cualquier fallo en «el proveedor no tiene datos» no es robustez, es
+ceguera. Convierte un error de programación en un diagnóstico falso.
+
+### Pruebas
+
+**452 Python · 438 frontend · 675 de paridad · build limpio.**
+
+16 nuevas, **todas verificadas revirtiendo el arreglo** con un arnés que exige
+que cada sustitución quede escrita antes de reportar:
+
+| Se revierte | Falla |
+|---|---|
+| la condición vuelve a leer la lista cruda | `test_no_busca_state_en_la_lista_cruda` |
+| el sondeo deja de pedir fresco | `test_el_sondeo_pide_fresco` |
+| el store ignora `fresh` | `test_el_cliente_deja_pasar_fresh` |
+| la ruta deja de acortar el caché | `test_la_ruta_tiene_fresh` |
+| el servicio ignora el `ttl` | `test_get_track_recibe_el_ttl` |
+| el TTL por defecto vuelve a 600 s | las dos del caché |
+
+**La quinta no fallaba la primera vez.** Las pruebas usaban un servicio falso y
+verificaban que `build_track` *pasara* el ttl, pero nadie comprobaba que
+`get_track` lo *entregara* a la caché, que es donde el valor se vuelve efectivo.
+Un servicio que aceptara el parámetro y lo tirara dejaba todo verde con el
+defecto entero. La prueba nueva lee el código del servicio y exige que el ttl
+llegue hasta `_cached`.
+
+### Lo que encontré y NO toqué
+
+Medido en el navegador, el orden real de dibujo del canvas compartido (por
+`_leaflet_id`) es:
+
+```
+aircraft_tracks (35) → airports (141) → radials (357) → circles (358)
+   → traces (364) → lines (365) → polygons (366) → user (369)
+```
+
+**La trayectoria es la segunda de abajo**: cualquier objeto con relleno se pinta
+encima de ella. Confirmado con ids (`trackDebajo: true`). No es el defecto que
+reportó el operador —el relleno por defecto es 15 % de opacidad, no oculta una
+línea— pero es incorrecto: la trayectoria es el dato y el operador tiene que ver
+dónde pasó el avión **por encima** de su propia cobertura.
+
+También: `CATEGORY_DRAW_RANK = { circles: -1 }` pretende poner el disco de un
+círculo debajo de un radial, y con `preferCanvas` **no lo consigue**: el canvas
+dibuja por orden de inserción, y los ids no cambian al re-agregar un grupo. El
+comentario describe un comportamiento que el mecanismo no produce.
+
+Queda para decidir con calma, no para tocar a último momento.
+
+### Pendiente, sin cambios
+
+- **Las tipografías**, sin decidir desde hace tres secciones.
+- **Rotar `OPENSKY_CLIENT_SECRET`**, en claro en el historial de esta sesión.
+- **La pantalla de credenciales**: la parte 1 (sólo lectura + «verificar ahora»)
+  sigue sin hacerse, y es lo único de aquella propuesta que no depende de entrar a
+  la cuenta de OpenSky.
+- Migrar las plantillas de `slate-N` y borrar el puente de 0.30.0.
+- **16 filas duplicadas** de `aircraft_tracks`, sin decisión del operador.
+- **Otro mensaje en inglés** en una ruta: «OpenSky does not accept future
+  timestamps.», en las líneas 298 y 767 de `flights.py`.

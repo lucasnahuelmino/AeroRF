@@ -98,7 +98,7 @@ def windows(monkeypatch):
             return [f for f in FLIGHTS
                     if f["firstSeen"] >= begin - 86_400 and f["lastSeen"] <= end + 86_400]
 
-        async def get_track(self, icao24, time_=None):
+        async def get_track(self, icao24, time_=None, ttl=None):
             chosen = None
             if time_ is not None:
                 for f in FLIGHTS:
@@ -303,7 +303,7 @@ def test_a_mismatched_track_says_so_instead_of_looking_right(client, monkeypatch
         async def get_flights_by_aircraft(self, icao24, begin, end):
             return FLIGHTS
 
-        async def get_track(self, icao24, time_=None):
+        async def get_track(self, icao24, time_=None, ttl=None):
             # Always answers with the newest flight, whatever was asked.
             newest = FLIGHTS[0]
             return {
@@ -344,7 +344,7 @@ def test_an_empty_track_declares_no_window(client, monkeypatch):
         async def get_flights_by_aircraft(self, icao24, begin, end):
             return FLIGHTS
 
-        async def get_track(self, icao24, time_=None):
+        async def get_track(self, icao24, time_=None, ttl=None):
             return {"icao24": icao24, "callsign": None, "points": []}
 
     monkeypatch.setattr(flights_routes, "get_opensky_service", lambda: _Nothing())

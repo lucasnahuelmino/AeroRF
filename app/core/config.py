@@ -113,6 +113,13 @@ class Settings:
     cache_ttl_tracks_s: int = field(
         default_factory=lambda: _env_int("CACHE_TTL_TRACKS_S", 300)
     )
+    #: The same cache, shortened for the poller that watches an airborne
+    #: aircraft. A flight in progress has a route that changes every minute, so a
+    #: five-minute cache makes the drawn line look frozen between jumps. This
+    #: only spends credits while someone is following a flight that is in the air.
+    cache_ttl_tracks_live_s: int = field(
+        default_factory=lambda: _env_int("CACHE_TTL_TRACKS_LIVE_S", 30)
+    )
     cache_ttl_flights_s: int = field(
         default_factory=lambda: _env_int("CACHE_TTL_FLIGHTS_S", 300)
     )
@@ -177,6 +184,7 @@ class Settings:
             "live_poll_interval_s": self.live_poll_interval_s,
             "cache_ttl_states_s": self.cache_ttl_states_s,
             "cache_ttl_tracks_s": self.cache_ttl_tracks_s,
+            "cache_ttl_tracks_live_s": self.cache_ttl_tracks_live_s,
             "cache_ttl_flights_s": self.cache_ttl_flights_s,
         }
 

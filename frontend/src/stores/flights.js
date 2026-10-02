@@ -160,7 +160,7 @@ export const useFlightsStore = defineStore('flights', () => {
 
   // ─── Trajectory (spec §21) ───────────────────────────────────────────────
 
-  async function loadTrack(icao24, { time = null, includeLocal = true } = {}) {
+  async function loadTrack(icao24, { time = null, includeLocal = true, fresh = false } = {}) {
     if (!icao24) return null
     const key = String(icao24).trim().toLowerCase()
     trackLoading.value = true
@@ -173,6 +173,12 @@ export const useFlightsStore = defineStore('flights', () => {
       // dropped it silently and asked for the latest track instead.
       if (time !== null && time !== undefined) params.time = time
       params.include_local = includeLocal
+      // `fresh` shortens the backend's OpenSky cache for this call. The poller
+      // sets it because the tracks cache is five times longer than the poll
+      // interval, and without it the poller re-read the same bytes every time:
+      // the line the operator was watching stopped growing for minutes at a
+      // stretch with nothing on screen to say why.
+      if (fresh) params.fresh = true
       const data = await flightsApi.track(key, params)
       // Cached per aircraft so several trajectories can be held at once. The
       // key is normalised because the backend lower-cases the ICAO24, and a
