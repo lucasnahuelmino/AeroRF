@@ -64,6 +64,11 @@ class FlightSubscription:
         #: Last status text pushed to this client, so an unchanged condition
         #: is not re-sent on every poll (spec §48: no flooding).
         self.last_status: Optional[str] = None
+        #: Aircraft already announced as missing to this client. The `lost`
+        #: frame goes out once when an aircraft drops out and once only: a
+        #: plane that stays out of coverage is not re-announced on every poll
+        #: (spec §48: no flooding).
+        self.lost_reported: set[str] = set()
 
     def wants(self, icao24: str) -> bool:
         return not self.icao24s or icao24 in self.icao24s
@@ -83,6 +88,34 @@ class FlightSubscription:
             return False
         self.last[code] = current
         return True
+
+    def note_missing(self, icao24: str) -> bool:
+        """True the first time this aircraft is announced as missing.
+
+        The flood guard for the `lost` frame: without it an aircraft that
+        stays out of coverage is re-announced on every poll, forever.
+        """
+        if icao24 in self.lost_reported:
+            return False
+        self.lost_reported.add(icao24)
+        return True
+
+    def note_returned(self, icao24s) -> None:
+        """An aircraft showed up again after being announced as missing.
+
+        Two things have to be undone: the notice itself, so a later drop-out
+        is announced too, and the cached fingerprint, so the state is
+        broadcast again. This client was told to drop the aircraft; without
+        the resend, a client that honoured the notice would never see it
+        come back, because `changed()` still holds the position it had when
+        it left.
+        """
+        vuelto = self.lost_reported.intersection(icao24s)
+        if not vuelto:
+            return
+        self.lost_reported.difference_update(vuelto)
+        for code in vuelto:
+            self.last.pop(code, None)
 
     async def send(self, payload: dict) -> bool:
         try:
@@ -271,11 +304,18 @@ class Hub:
         changed_payloads: list[dict] = []
         # A tracked aircraft that stopped transmitting drops out of the
         # response; tell the client rather than leaving a marker stale.
+        # The notice is sent once per drop-out: `note_missing` is what keeps
+        # this from becoming a frame every poll for as long as the aircraft
+        # stays away (spec §48).
         returned = {s.get("icao24") for s in states}
         missing = [code for code in tracked if code not in returned]
+        for sub in list(self.clients):
+            # The other half of the notice: an aircraft that comes back is no
+            # longer missing, and its state has to be broadcast again.
+            sub.note_returned(returned)
         for code in missing:
             for sub in list(self.clients):
-                if sub.wants(code):
+                if sub.wants(code) and sub.note_missing(code):
                     await sub.send(
                         {
                             "type": "lost",

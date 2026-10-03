@@ -4020,16 +4020,18 @@ Cada uno para su commit:
 ### Pendiente (lista viva)
 
 Resueltos hasta ahora en la auditoría: **P0-06** (base anclada, respaldo
-automático, versión de esquema), **P0-04** (el WebSocket en modo anónimo) y
-**P0-11** (el botón que decía «guardado»).
+automático, versión de esquema), **P0-04** (el WebSocket en modo anónimo),
+**P0-11** (el botón que decía «guardado») y, en 0.30.8, el **`lost`** que se
+reenviaba cada 10 s: ya se deduplica y `test_feed_does_not_flood` volvió a
+pasar.
 
 **Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro y
 en espera de commit propio:
 
-- **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
-  `test_feed_does_not_flood` existe para detectarlo y en vez de fallar **se
-  cuelga**: mide 22 s con un timeout de 22 s por lectura, y un frame cada 10 s
-  hace que nunca expire. Vigilante puesto: sigue corriendo a los 150 s.
+- **Nadie lee `lost`.** El inundador se arregló en 0.30.8, pero el frontend no
+  tiene manejador: el marcador de una aeronave que se fue sigue quedando en
+  pantalla. O se agrega el manejo, o se quita el frame — **decisión del
+  operador**, porque cambia cómo se ve el mapa.
 - **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
   exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O el test se
   adapta, o se salta cuando la lista no está vacía; **no borrarlo**.
@@ -4051,3 +4053,100 @@ Decisiones que tomó el operador al revisar la auditoría:
 - **El modelo de despliegue sigue sin decidir** — una PC por técnico o servidor
   compartido —, así que el middleware de `Origin` va acotado a los orígenes de
   CORS configurados, que sirve para los dos casos sin comprometer nada.
+
+---
+
+## 0.30.8 - «lost» se mandaba cada 10 segundos y eso colgaba al test
+
+**Estado:** completada · hallazgo propio, encontrado al verificar P0-04
+
+### Qué estaba mal
+
+En `app/api/routes/ws.py`, el bucle de tick hacía:
+
+```python
+for code in missing:
+    for sub in list(self.clients):
+        if sub.wants(code):
+            await sub.send({"type": "lost", ...})
+```
+
+Sin deduplicar. Mientras una aeronave de la lista de seguimiento no
+apareciera en la respuesta de OpenSky —lo normal cuando no está volando, o
+está fuera de su cobertura—, el servidor le reenviaba **el mismo aviso cada
+10 s, para siempre**. Es exactamente lo que la §48 prohíbe.
+
+`send_status` ya deduplicaba desde hace tiempo (el «status repetido cada
+10 s» que está en la tabla de la 0.30.0): el `lost` era **el mismo defecto
+que quedó sin arreglar en el otro canal**.
+
+### Dos hechos que salieron de mirar, y que agravan el diagnóstico
+
+1. **El frontend no tiene ningún manejador de `lost`.** Una búsqueda amplia
+   por `frontend/src` devuelve **una sola coincidencia**, y es prosa de un
+   comentario de `map.js`. El frame se mandaba cada 10 s y **nadie lo leía**:
+   el costo era puro ancho de banda más el cuelgue, y el beneficio, cero.
+   El comentario del código dice que el aviso existe para que no quede un
+   marcador viejo en pantalla — y como nadie lo lee, el marcador sigue
+   quedando. **Eso va por su cuenta** (¿manejador en el cliente, o se quita
+   el frame?), porque la respuesta cambia cómo se ve el mapa.
+2. **Por eso el test no fallaba: se colgaba.**
+   `test_feed_does_not_flood` lee hasta que hay 22 s de silencio, con un
+   timeout de 22 s por lectura. Un frame cada 10 s hace que ese silencio
+   nunca llegue. **Un test que se cuelga es peor que uno que falla**: no
+   informa nada y traba la suite entera.
+
+### El arreglo
+
+Dos métodos nuevos en `FlightSubscription`, del mismo calibre que el
+`send_status` que ya estaba:
+
+- `note_missing(icao24)` devuelve `True` **la primera vez** y `False` a
+  partir de ahí, hasta que la aeronave vuelva.
+- `note_returned(icao24s)` hace la mitad simétrica: si la aeronave vuelve,
+  borra el aviso —para que una caída posterior también se anuncie— **y borra
+  la huella guardada en `last`**.
+
+Esa segunda parte no es decorado: `last` guarda la posición del último
+estado mandado. Sin borrarla, al volver con la misma posición `changed()`
+daba `False` y no se mandaba nada — o sea, un cliente que hubiera hecho caso
+al aviso y borrado el marcador **nunca lo recupera**. Deduplicar sin eso
+deja un hueco.
+
+### Las guardas
+
+`tests/test_lost_sin_inundar.py`, cinco pruebas. Corren varios `_tick`
+contra la misma conexión, reutilizando el doble de servicio que armó
+P0-04, porque el inundador no se ve en un tick suelto: se ve en la
+repetición. Sin servidor, sin reloj y sin gastar crédito.
+
+**Escritas antes del arreglo y ejecutadas antes de tocar nada: 3 en rojo,
+2 en verde.**
+
+| Prueba | Antes del arreglo |
+|---|---|
+| un solo aviso por aeronave ausente en 3 ticks | **falla**: mandó 3 |
+| dos ausentes en tres ticks | **falla**: mandó 6 |
+| al volver se reenvía su estado aunque no cambie | **falla**: 1 `states` en 3 ticks |
+| si se pierde dos veces se avisa dos | pasa (regresión) |
+| el aviso está en español | pasa (regresión) |
+
+### Verificación en vivo
+
+El 8010 reiniciado con el arreglo, y la suite `integration` corrida entera:
+
+| | antes | después |
+|---|---|---|
+| `test_feed_does_not_flood` | **se colgaba** (sin salida a los 150 s) | **PASA** |
+| total | 5 passed, 2 failed | **6 passed, 1 failed** |
+
+La corrida entera tardó **47 s**. La única que sigue fallando es
+`test_idle_when_nothing_is_tracked`, que es la precondición de las 2
+entradas del watchlist — otro ítem, que no toca este.
+
+### Números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 477 | **482** (+5) |
+| Integration | 5 passed / 2 failed | **6 passed / 1 failed** |

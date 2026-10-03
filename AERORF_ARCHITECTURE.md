@@ -335,10 +335,13 @@ no son el mapa puedan leerlo.
 El cliente envía `{"action": "track", "icao24": [...]}` para acotar el
 feed a lo que realmente sigue, lo que reduce el tráfico de forma
 sensible. El servidor compara cada estado con el último enviado y **solo
-transmite si algo cambió**: un avión estacionado no genera tráfico. Los
-mensajes de estado (`not_configured`, `throttled`) se envían **una vez**,
-no en cada tick, porque un Feed que se repite cada 10 s es exactamente lo
-que el spec §48 prohíbe.
+transmite si algo cambió**: un avión estacionado no genera tráfico. Lo
+mismo vale para los mensajes que no son posiciones: los de estado
+(`not_configured`, `throttled`) salen **una vez por condición**, y el de
+aeronave perdida (`lost`) **una vez por caída** — se deduplica contra el
+último aviso y se olvida cuando la aeronave vuelve, de modo que una caída
+posterior también se anuncie y su estado vuelva a mandarse. Un feed que se
+repite cada 10 s es exactamente lo que el spec §48 prohíbe.
 
 > **Dependencia no evidente:** uvicorn no trae soporte WebSocket. Sin
 > `uvicorn[standard]` o `websockets`, responde *«Unsupported upgrade
@@ -427,6 +430,7 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_p006_base_y_respaldo.py` (14) | **P0-06**: ruta de la base anclada a la raíz y no al directorio de trabajo, respaldo que atraviesa el WAL donde un `copyfile` no llega, y versión de esquema que no avanza si el paso falla | `pytest tests/test_p006_base_y_respaldo.py` |
 | `tests/test_p004_websocket_anonimo.py` (5) | **P0-04**: que el WebSocket consulte en modo anónimo en vez de rendirse, que la compuerta siga cerrada sin forma de consultar, y que la lista vacía gane al chequeo de credenciales | `pytest tests/test_p004_websocket_anonimo.py` |
 | `tests/test_p011_guardar_en_expediente.py` (6) | **P0-11**: que guardar y volver a leer por el `GET` que ya existía dé algo, que ningún campo cambie en el ida y vuelta, que los dos expedientes no se mezclen, y que 404 y 400 salgan en español sin escribir nada | `pytest tests/test_p011_guardar_en_expediente.py` |
+| `tests/test_lost_sin_inundar.py` (5) | **§48**: que el frame `lost` salga una vez por caída y no uno por tick, que deduplicar no lo silencie para siempre, que al volver se reenvíe su estado aunque no haya cambiado, y que el aviso siga en español | `pytest tests/test_lost_sin_inundar.py` |
 | `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
 | `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
 | `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
@@ -438,16 +442,18 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 | `frontend/tests/p011-guardar.spec.js` (5) | **P0-11**: que el botón esté inactivo sin destino, que lo que se manda sean los campos de `EventoRF` con el mapeo medido en vivo, que un error se muestre como error, y que un fallo de carga no se finja «no hay expedientes» | `npx vitest run tests/p011-guardar.spec.js` |
 
-**Total: 477 de Python sin integración (17 archivos) + 7 de integración + 30
+**Total: 482 de Python sin integración (18 archivos) + 7 de integración + 30
 del motor RF heredado + 675 de paridad + 453 de frontend (31 archivos) + 78 E2E + 43 de
 recorrido real.**
 
-El 477 se mide con `pytest -m "not integration"` y el 453 con `npm test` desde
+El 482 se mide con `pytest -m "not integration"` y el 453 con `npm test` desde
 `frontend/`; el 7 de integración son los de
-`test_websocket.py`, que van con `--m integration` y **hoy están rojos** por dos
-motivos preexistentes y ajenos a P0-04 y P0-11: `test_idle` exige lista de seguimiento
-vacía y hay 2 entradas del operador, y `test_feed_does_not_flood` **se cuelga**
-en vez de fallar porque el servidor reenvía `lost` cada 10 s sin deduplicar. **Los
+`test_websocket.py`, que van con `-m integration` y hoy quedan en **6 pasan, 1
+cae** contra el backend de 8010 reiniciado con 0.30.8: `test_feed_does_not_flood`
+**pasa** —se cuelgaba porque el servidor reenviaba `lost` cada 10 s sin
+deduplicar, y ese es ahora `tests/test_lost_sin_inundar.py` sin servidor ni
+reloj— y sigue cayendo `test_idle`, que exige lista de seguimiento vacía y hay
+2 entradas del operador. **Los
 30 de
 `app/rf_engine/test_rf_engine.py` no los recoge un `pytest` a secas**:
 `pytest.ini` dice `testpaths = tests`, así que ese directorio queda fuera por

@@ -638,7 +638,7 @@ código estaba bien; el instrumento no.
 
 ### La cola de la auditoría de Claude
 
-**Hechos: P0-06, P0-04 y P0-11.** Lo demás, con el criterio acordado: rama nueva, un
+**Hechos: P0-06, P0-04, P0-11 y el `lost` de 0.30.8.** Lo demás, con el criterio acordado: rama nueva, un
 commit por ítem, prueba que falle antes y pase después, y **preguntar antes de
 tocar nada de «Decisiones pendientes»**.
 
@@ -649,11 +649,13 @@ tocar nada de «Decisiones pendientes»**.
 **Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro, cada uno
 con su commit propio:
 
-- **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
-  `test_feed_does_not_flood` existe para detectarlo y **en vez de fallar se
-  cuelga**: mide 22 s con un timeout de 22 s por lectura, y un frame cada 10 s
-  hace que nunca expire. Con vigilante puesto: **sigue corriendo a los 150 s**
-  sin producir salida. Un test que se cuelga es peor que uno que falla.
+- **Nadie lee `lost`.** El inundador se arregló en 0.30.8 (se deduplica y
+  `test_feed_does_not_flood` volvió a pasar), pero el frontend **no tiene
+  manejador**: una búsqueda por `frontend/src` da una sola coincidencia y es
+  prosa. El marcador de una aeronave que se fue sigue quedando en pantalla,
+  que era justo lo que el comentario del código quería evitar. O se agrega el
+  manejo, o se quita el frame — **decisión del operador**, porque cambia cómo
+  se ve el mapa.
 - **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
   exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O se adapta o se
   salta cuando la lista no está vacía. **No borrarlo.**
@@ -729,7 +731,7 @@ no la remoción.
 | Suite | Estado |
 |---|---|
 | Frontend (vitest) | **453 pasan**, 31 archivos |
-| Python (no integración) | **477 pasan**, 7 deseleccionadas |
+| Python (no integración) | **482 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio (`✓ built in 1m 30s`) |
 
@@ -743,12 +745,15 @@ puede decir que sea por el commit de P0-11 ni que no lo sea. Si vuelve a fallar,
 no lo atribuya a la casualidad: capture la salida entera la primera vez.
 
 **Sobre la suite de integración** (`pytest -m integration`, 7 pruebas): no entra
-en la cifra de arriba y **está roja por dos motivos que no son de esta entrega**.
-Se corrió contra el backend del 8010, arrancado a las 10:35, **antes** del
-arreglo del P0-04 y sin `--reload`, así que nunca pasó por él: 5 pasan, 2 caen
-(`test_idle_when_nothing_is_tracked` exige lista de seguimiento vacía y hay 2;
-`test_feed_does_not_flood` **se cuelga**, ver la cola de arriba). Reproducido
-ambos con vigilante antes de concluir nada.
+en la cifra de arriba. Se corrió **contra el backend del 8010 reiniciado con el
+código de 0.30.8**, y quedó en **6 pasan, 1 cae** en **47 s**:
+
+- `test_feed_does_not_flood` **pasa**. Antes se colgaba — sin salida a los 150 s
+  — porque `lost` llegaba cada 10 s y el timeout de 22 s por lectura nunca
+  expiraba. Arreglado el inundador, el test se cae en silencio y termina.
+- Sigue cayendo `test_idle_when_nothing_is_tracked`: exige lista de seguimiento
+  vacía y hay 2 (`ARG1646`, `LVKMT`). Es la precondición, no lo que mide; va
+  después, y **no se borra**.
 
 Base de objetos: **0**. Los tres del operador fueron borrados; lo que se veia eran capas que no se quitaban.
 una anotación (id 3). 
@@ -761,5 +766,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.5) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.8) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |
