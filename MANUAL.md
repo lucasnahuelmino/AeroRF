@@ -246,11 +246,20 @@ aeropuertos **no**: son datos de referencia publicados, y se redibujan desde un
 archivo en cada arranque. Por eso no puede editarlos ni borrarlos, y es
 intencional: un punto de referencia no es una medición suya.
 
+**¿Y si borro algo por error?**
+AeroRF guarda una copia de la base de datos en la carpeta `respaldos`, dentro de
+la carpeta del proyecto, **cada vez que arranca** y antes de escribir nada. Se
+conservan las 10 más recientes; las más viejas se reemplazan solas. Para volver
+a un estado anterior: cierre AeroRF, renombre el `aerorf.db` actual y ponga en su
+lugar la copia que quiera, quitándole la fecha del nombre. La copia se hace con
+el propio SQLite, de modo que incluye lo último escrito aunque el servidor
+estuviera corriendo.
+
 **Los datos de OpenSky no coinciden con lo que veo en el radar.**
 La resolución de los tracks de OpenSky no es de un punto por segundo. Un vuelo
-típico tiene un punto cada decenas de segundos, y y más separados cuando el avión no cambia de
-rumbo. La respuesta de la API indica cuántos puntos hay y cada cuánto: lea ese
-dato antes de concluir que falta información.
+típico tiene un punto cada decenas de segundos, y más separados cuando el avión
+no cambia de rumbo. La respuesta de la API indica cuántos puntos hay y cada
+cuánto: lea ese dato antes de concluir que falta información.
 
 **¿AeroRF guarda mis búsquedas?**
 Guarda los objetos que usted crea, con su historial. Las consultas a OpenSky

@@ -435,7 +435,101 @@ querés conservarla hay que moverla. `aerorf.db` no está trackeado por git.
 
 ---
 
+## 0.30.5 - La base en el mismo sitio, con respaldo y con versión
+
+**Estado:** completada · auditoría de Claude, ítem **P0-06**, primero porque lo
+elegiste vos.
+
+### Por qué este y no otro
+
+La auditoría pone P0-06 en sexto lugar y no puede ir ahí: P0-01 quiere
+`nullable=False` y P0-03 quiere limpiar filas ya guardadas, y **los dos
+necesitan esto primero** —una versión de esquema y un respaldo previo— para no
+romper cada base que ya está instalada.
+
+### Qué estaba mal
+
+El default era `sqlite:///./aerorf.db`: una ruta **relativa**, resuelta contra
+el directorio desde el que arrancara el proceso. `start.bat`, `uvicorn` desde
+otra carpeta y el IDE cada uno creaba su propio `aerorf.db`, y lo guardado en
+uno no existía en el otro. Ése es el «se perdieron los expedientes»: **no se
+perdió ninguna fila, la app miraba a otra parte.**
+
+Antes de tocar nada busqué todas las `aerorf*.db` del disco: **sólo hay una**.
+No se había partido en dos todavía — esto es para que no lo haga.
+
+También vi un `-wal` de 4 MB junto a un `.db` de 647 KB y dije que eran
+transacciones sin llegar al archivo. **No lo eran**: los conteos eran
+idénticos con y sin él, eran imágenes de páginas. Aquí queda corregido. Lo que
+un respaldo ingenuo sí pierde es lo que se escribe con el servidor corriendo,
+que es cuando se respalda: por eso el respaldo va por la API de SQLite y no por
+un `copyfile`.
+
+### Qué quedó
+
+- Ruta **anclada a la raíz** en vez de al directorio de trabajo. No moví el
+  archivo: la ubicación no era el defecto, moverlo habría sido otro riesgo.
+- **Respaldo automático en cada arranque**, antes de escribir nada, en
+  `respaldos/` (ignorado por git), con rotación (`RESPALDOS_CONSERVAR`, 10).
+- **`VERSION_ESQUEMA` + `MIGRACIONES`.** La versión no avanza si el paso falla
+  —sentencias y sello en la misma transacción— y una base de una AeroRF más
+  nueva no se toca, con el aviso en español.
+- Un respaldo fallido **se registra y se arranca igual**; una app que no levanta
+  porque no pudo copiar es peor que una que levanta sin copiar.
+
+### Seis reverts, once guardas que mordieron
+
+| revert | qué falló |
+|---|---|
+| vuelta a la ruta relativa | 2 — *«ruta relativa, seguiría al directorio de trabajo: aerorf.db»* |
+| `Connection.backup` → `shutil.copyfile` | 1 — *«el respaldo no trajo la fila escrita en el WAL»* |
+| no lanzar con base más nueva | 2 — `DID NOT RAISE` |
+| sello de versión que no avanza | 2 — `assert 0 == 1` |
+| rotación que no borra | 2 — *«sobrevivieron los equivocados»* |
+| `init_db` sin mantenimiento | 2 — *«esperaba un respaldo y hay 0»* |
+
+La prueba del WAL demuestra el defecto, no sólo el arreglo: deja la fila en el
+WAL a propósito, compara la copia del archivo (0 filas) con el respaldo (1) y
+revienta si alguien vuelve al `copyfile`.
+
+### Dos cosas de la auditoría, decididas por vos
+
+- **P0-02 — borrar un expediente con objetos GIS vinculados: bloquear con 409.**
+  Igual que ya pasa al revés, donde borrar un objeto vinculado sí está bloqueado.
+- **El modelo de despliegue sigue sin decidir**, así que el middleware de
+  `Origin` va acotado a los orígenes de CORS configurados: sirve tanto si cada
+  técnico tiene su PC como si hay servidor compartido.
+
+---
+
 ## Lo que queda pendiente
+
+### La cola de la auditoría de Claude
+
+**P0-06 está hecho.** Lo demás, con el criterio acordado: rama nueva, un commit
+por ítem, prueba que falle antes y pase después, y **preguntar antes de tocar
+nada de «Decisiones pendientes»**.
+
+- **P0-01 y P0-03** — `nullable=False` sobre `numero_expediente` y limpiar las
+  filas ya guardadas. **Van juntos y ya se pueden**: P0-06 les dio el respaldo y
+  la versión de esquema que les faltaba.
+- **P0-04** — el WebSocket en modo anónimo no arranca, y es como corre la app.
+- **P0-11** — el botón que dice «guardado» y no guarda (`CalculadoraRFView:223`).
+- **P0-07** — middleware de `Origin`/`Host`, **acotado a los orígenes de CORS
+  configurados**. Con el proxy de Vite el `Origin` es `5199` y el `Host` es
+  `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
+- **P0-09** — inyección de fórmulas en el CSV, **sólo en campos de texto libre**.
+  Prefijar lo que empieza con `-` convertiría las latitudes negativas en texto.
+- **P0-02** — decidido: **bloquear con 409**.
+- **P1, `async def` → `def`** — con SQLite hay que mirar `check_same_thread`
+  antes; Claude lo marca como no medido.
+- **P1, correlación temporal** — subiría de prioridad. Compara el evento con las
+  posiciones *actuales* y la documentación dice «espacial y temporal»; eso
+  correlaciona un evento de hace tres días con tráfico de hoy. Primero corregir
+  la redacción, después comparar con `observed_at`. Y `get_states()` global en
+  vez de `get_states_in_box` **quema créditos de OpenSky** en cada correlación.
+
+### Las que ya venían
 
 - **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
   de 0.30.0. Decidido por vos. Es lo que hace que los nombres dejen de mentir:
@@ -486,9 +580,15 @@ no la remoción.
 | Suite | Estado |
 |---|---|
 | Frontend (vitest) | **448 pasan**, 30 archivos |
-| Python (no integración) | **452 pasan**, 7 deseleccionadas |
+| Python (no integración) | **466 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
+
+**Observado y sin explicar:** la primera corrida de vitest de esta sesión falló
+**1 archivo de 30**. No volvió a producirse en **10 corridas seguidas** después,
+y el detalle se perdió por un filtro mal puesto en la salida, así que no sé cuál
+fue. Si vuelve a fallar, no lo atribuya a la casualidad: capture la salida entera
+la primera vez.
 
 Base de objetos: **0**. Los tres del operador fueron borrados; lo que se veia eran capas que no se quitaban.
 una anotación (id 3). 
@@ -501,5 +601,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.4) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.5) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |

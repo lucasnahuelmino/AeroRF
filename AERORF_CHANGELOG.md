@@ -3585,11 +3585,144 @@ dos veces. El 16 era un número mío que ya no se sostiene; aquí queda corregid
 - `aerorf.db` no está trackeado por git, así que esto no aparece como cambio en
   el repositorio.
 
+## 0.30.5 - La base en el mismo sitio, con respaldo y con versión
+
+**Estado:** completada · auditoría de Claude, ítem **P0-06**, primero por decisión
+del operador
+
+### P0-06 no puede ir en sexto lugar
+
+La auditoría de Claude ordena once P0 y deja P0-06 en sexto. No puede ir ahí:
+P0-01 pide `nullable=False` sobre `numero_expediente` y P0-03 pide limpiar filas
+ya guardadas, y **los dos necesitan lo que falta aquí** —una versión de esquema
+y un respaldo previo— para no romper cada base que ya está instalada. P0-06 no
+es un ítem más, es el que desbloquea a otros tres: entra primero.
+
+### El defecto: la base seguía al directorio de trabajo
+
+El default era `sqlite:///./aerorf.db`, una ruta **relativa**. Relativa se
+resuelve contra el directorio de trabajo del proceso, así que arrancar por
+`start.bat`, por `uvicorn` desde otra carpeta o desde el IDE creaba un
+`aerorf.db` distinto en cada caso y lo guardado en uno no existía en el otro.
+Ése es entero el síntoma que se resume en «se perdieron los expedientes»:
+**no se perdió ninguna fila, la aplicación miraba a otra parte.**
+
+`.env.example` traía esa misma línea, así que cualquiera que copiara el ejemplo
+reintroducía el problema.
+
+**Arreglado sin mover el archivo.** `RUTA_BASE_SQLITE` apunta a la raíz del
+proyecto y `_anclar_sqlite` pasa por encima de cualquier `DATABASE_URL`
+relativa. Elegí anclar en vez de trasladar a `data/` porque la ubicación no era
+el defecto y moverlo habría añadido un riesgo —arrancar con la base vacía—
+que es exactamente lo que se está arreglando.
+
+### Lo que medí antes de tocar nada
+
+Busqué `aerorf*.db` en todo el disco: **sólo hay una**, de 647 168 bytes. No se
+había partido en dos todavía. Encontré además un `-wal` de **4 198 312 bytes**
+contra un `.db` de 647 168, con marca de hora más reciente.
+
+**Corrijo lo que dije al verlo.** Afirmé que esas 4 MB eran transacciones sin
+llegar al archivo principal. No lo son: al abrir la base (que hace checkpoint
+automático al cerrar) el `.db` pasó a 679 936 bytes, el WAL quedó en 0 y los
+conteos eran **idénticos antes y después** — 1 expediente, 2 objetos, 42
+pistas. El WAL guardaba imágenes de páginas, no filas. Nada estuvo en peligro.
+
+Lo que un respaldo ingenuo sí pierde es lo que se escribe **con el servidor
+corriendo**, que es exactamente cuando se respalda. El riesgo se sostiene; la
+cifra que lo ilustraba era mía y estaba inflada.
+
+### Un respaldo que copia el archivo no vale
+
+Con WAL, las últimas escrituras viven en `aerorf.db-wal` hasta que un checkpoint
+las mueve al `.db`. `shutil.copyfile` copia un archivo atrasado, y lo hace justo
+en el peor momento: con el servidor vivo. Por eso el respaldo va por
+`sqlite3.Connection.backup`, que lee a través del WAL y deja un archivo
+completo y abirible por su solo cuenta.
+
+- **Se hace en cada arranque, antes de escribir nada** (`RESPALDOS_ACTIVOS`).
+- En `respaldos/` de la raíz; `*.db` ya estaba en `.gitignore`, así que no hace
+  falta tocarlo.
+- Rotación automática, conservando `RESPALDOS_CONSERVAR` (10 por defecto).
+- Un respaldo que falla **se registra y se arranca igual**: una aplicación que
+  no levanta porque no pudo hacer una copia es un resultado peor que una que
+  levanta sin ella, con tal de que el fallo sea ruidoso.
+
+### Versionado de esquema, que antes no existía
+
+`PRAGMA user_version` valía **0** en la base instalada, y lo único que había era
+`create_all`, que crea tablas que faltan y es estructuralmente incapaz de añadir
+una columna o una restricción a una base existente. La primera columna nueva —
+`numero_expediente` perdiendo su nulabilidad ya está en cola — habría roto cada
+base en el campo.
+
+Ahora hay `VERSION_ESQUEMA` y `MIGRACIONES`. La versión **no avanza si el paso
+falla**: sentencias y sello dentro de la misma transacción, con `ROLLBACK` si
+algo revienta, porque el caso peor no es una migración rota, es una migración
+rota que ya dice estar hecha. Y si la base es de una AeroRF **más nueva**, no se
+toca nada y se dice en español.
+
+### Seis reverts, once guardas que mordieron
+
+Cada arreglo se revirtió por separado y se volvió a correr la suite:
+
+| revert | guardas que fallaron |
+|---|---|
+| vuelta a `sqlite:///./aerorf.db` | 2 — *«ruta relativa, seguiría al directorio de trabajo: aerorf.db»* |
+| `Connection.backup` → `shutil.copyfile` | 1 — *«el respaldo no trajo la fila escrita en el WAL»* |
+| no lanzar con una base más nueva | 2 — `DID NOT RAISE BaseDeDatosMasNueva` |
+| el sello de versión no avanza | 2 — `assert 0 == 1` |
+| la rotación deja de borrar | 2 — *«sobrevivieron los equivocados»* |
+| `init_db` sin mantenimiento | 2 — *«esperaba un respaldo y hay 0»* |
+
+La prueba del WAL **demuestra el defecto** y no sólo el arreglo: inserta una
+fila, fuerza el checkpoint del esquema, escribe otra y mantiene la conexión
+abierta para que la fila se quede en el WAL, y entonces compara una copia del
+archivo (0 filas) con el respaldo (1 fila). Quien sustituya la API de SQLite por
+un `copyfile` la pierde y la prueba revienta.
+
+### Un número del documento que no reproducía
+
+`AERORF_ARCHITECTURE.md` decía **357 unitarias** mientras el conjunto ya daba
+452 antes de este cambio. Misma clase de caducidad que el «16 duplicados» de
+0.30.4: un número que quedó escrito y dejó de corresponder. Medido ahora con
+`pytest --collect-only -m "not integration"`: **466 pruebas en 15 archivos**, y
+las 7 de integración siguen siendo las de `test_websocket.py`.
+
+### Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **466 pasan**, 7 deseleccionadas (antes 452) |
+| Arranque real del backend | `db.respaldo respaldo creado antes de arrancar \| archivo=aerorf-20261003-103529.db bytes=679936` |
+| | `db.migracion esquema llevado a la versión 1 \| desde=0 hasta=1` |
+| | `db.version esquema sin versionar adoptado como versión 1` |
+| Endpoints | `/expedientes/`, `/map/layers`, `/flights/tracked`, `/map/objects/stats` → **200** |
+| Frontend, paridad, build | 448 en 30 archivos · 675 · limpio |
+| Estabilidad | 1 archivo de vitest falló en la primera corrida de la sesión y **no se reprodujo en las 10 siguientes**. El detalle se perdió en un filtro de la salida, así que queda sin identificar: si vuelve, capturar la salida entera la primera vez |
+
+Los mensajes llegan en UTF-8 correcto: las bytes del `ó` en el log son `C3 B3`.
+Conviene anotarlo porque el primer chequeo lo hice mal —busqué un `0x3C` de más
+en el patrón y devolvió falso— y parecía un texto roto.
+
+---
+
 ### Pendiente (lista viva)
 
-Resueltos en esta entrega: las **filas duplicadas** (decidido y borrado) y las
-**tipografías** (el operador eligió adoptar las de `rni-app-4.0` y subir el
-peldaño de tamaño — la implementación sigue pendiente).
+Resueltos en esta entrega: **P0-06** de la auditoría de Claude (base anclada,
+respaldo automático, versión de esquema).
+
+Decisiones que tomó el operador al revisar la auditoría:
+
+- **P0-02 — borrar expedientes con objetos GIS vinculados: bloquear con 409.**
+  Coherente con lo que ya pasa al revés, que borrar un objeto vinculado sí está
+  bloqueado. Nada se pierde en silencio.
+- **Se empieza por P0-06** y de ahí se sigue con el resto de la auditoría.
+- **El modelo de despliegue sigue sin decidir** — una PC por técnico o servidor
+  compartido —, así que el middleware de `Origin` va acotado a los orígenes de
+  CORS configurados, que sirve para los dos casos sin comprometer nada.
+
+### Pendiente de antes
 
 - **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
   de 0.30.0. Decidido por el operador; por hacer. Es el cambio más grande que
@@ -3607,3 +3740,5 @@ peldaño de tamaño — la implementación sigue pendiente).
 - **`CATEGORY_DRAW_RANK`**: sigue describiendo un comportamiento que el rango no
   produce (`circles: -1`). El orden del avión ya no depende de él, pero el
   comentario de la intención sobre círculos y radiales sigue sin cumplirse.
+- **`.env.example` no trae `CACHE_TTL_TRACKS_LIVE_S`** — omisión del 0.30.2, la
+  mía. Está en `config.py` con default 30 y no estaba documentada.

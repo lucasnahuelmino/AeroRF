@@ -412,9 +412,8 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_opensky_contract.py` (25) | **Contrato contra una captura real** de OpenSky | `pytest tests/test_opensky_contract.py` |
 | `tests/test_opensky_anonymous.py` (20) | Modo sin credenciales: qué funciona y qué no | `pytest tests/test_opensky_anonymous.py` |
 | `tests/test_geojson.py` (35) | Conversión bidireccional, orden de coordenadas, features | `pytest tests/test_geojson.py` |
-| `tests/test_map_objects.py` (100) | CRUD, notas, historial, estados, bloqueo, consultas espaciales, grabación, lista de seguimiento | `pytest tests/test_map_objects.py` |
+| `tests/test_map_objects.py` (70) | CRUD, notas, historial, estados, bloqueo, consultas espaciales, grabación, lista de seguimiento | `pytest tests/test_map_objects.py` |
 | `tests/test_opensky_flights_contract.py` (24) | **Contrato real** de `/tracks/*` y `/flights/*`: camelCase, altitudes imposibles, resolución | `pytest tests/test_opensky_flights_contract.py` |
-| `tests/test_opensky_anonymous.py` (20) | Modo sin credenciales | `pytest tests/test_opensky_anonymous.py` |
 | `tests/walkthrough_real.py` (43) | **Recorrido §57 contra OpenSky real** — gasta créditos | `python tests/walkthrough_real.py` (backend activo) |
 | `tests/test_websocket.py` (7) | Ciclo de vida, suscripción, anti-inundación | `pytest tests/test_websocket.py` (backend activo) |
 | `app/rf_engine/test_rf_engine.py` (30) | Motor RF heredado | `pytest app/rf_engine` |
@@ -422,6 +421,13 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/smoke_e2e.py` (78) | Recorrido completo por HTTP real | `python tests/smoke_e2e.py` |
 | `frontend/tests/geo.spec.js` (36) | Geodesia del navegador: unidades, rumbos, azimuth, formato | `npm run test:geo` |
 | `tests/test_geometry_validation.py` (21) | Geometria validada al escribir, lectura defensiva, orden de coordenadas, import de `func` a nivel de modulo | `pytest tests/test_geometry_validation.py` |
+| `tests/test_error_icao24.py` (34) | Mensaje en español al rechazar una dirección de aeronave inválida, y que el texto en inglés de antes no sobrevive en el código | `pytest tests/test_error_icao24.py` |
+| `tests/test_busqueda_por_archivo.py` (20) | Buscar por callsign cuando la aeronave no está volando: el archivo propio resuelve callsign → ICAO24 | `pytest tests/test_busqueda_por_archivo.py` |
+| `tests/test_trayectoria_viva.py` (16) | Por qué la trayectoria en vivo se congelaba: el TTL de la caché contra el intervalo de sondeo | `pytest tests/test_trayectoria_viva.py` |
+| `tests/test_p006_base_y_respaldo.py` (14) | **P0-06**: ruta de la base anclada a la raíz y no al directorio de trabajo, respaldo que atraviesa el WAL donde un `copyfile` no llega, y versión de esquema que no avanza si el paso falla | `pytest tests/test_p006_base_y_respaldo.py` |
+| `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
+| `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
+| `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
 | `frontend/tests/objects.spec.js` (11) | Traduccion `latlngs` -> `geometry`, cierre de anillo, acumulacion de lineas | `npm run test:objects` |
 | `frontend/tests/airports.spec.js` (31) | Unicidad de los datos, capa conmutable, filtro, medicion desde aeropuerto | `npm run test:airports` |
 | `frontend/tests/layout.spec.js` (15) | **Proporciones del shell**, leidas del CSS construido: mapa flexible, paneles plegables, area de las herramientas, logo acotado | `npm run test:layout` |
@@ -429,7 +435,17 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 
-**Total: 357 unitarias + 7 integracion + 675 de paridad + 448 de frontend + 78 E2E + 43 recorrido real.**
+**Total: 466 de Python sin integración (15 archivos) + 7 de integración + 30
+del motor RF heredado + 675 de paridad + 448 de frontend + 78 E2E + 43 de
+recorrido real.**
+
+El 466 se mide con `pytest -m "not integration"`; el 7 de integración son los de
+`test_websocket.py`, que van con `--m integration`. **Los 30 de
+`app/rf_engine/test_rf_engine.py` no los recoge un `pytest` a secas**:
+`pytest.ini` dice `testpaths = tests`, así que ese directorio queda fuera por
+defecto y hay que pedirlo a mano con `pytest app/rf_engine` — lo comprobé:
+pasan los 30, pero hasta ahora nadie los estaba ejecutando. (Antes esta línea
+decía «357 unitarias», un número que ya no reproducía.)
 
 ### 7.1 Segunda capa: montar los componentes de verdad
 

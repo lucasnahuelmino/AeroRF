@@ -26,6 +26,24 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = ROOT_DIR / ".env"
 
+# Where the SQLite database lives, and where its backups go.
+#
+# Both are anchored to the repository root **on purpose**, because the previous
+# default was `sqlite:///./aerorf.db`: a relative path, resolved against the
+# working directory of whatever process happened to start the server. Starting
+# through `start.bat`, through `uvicorn` from another folder, or through the IDE
+# created a *different* `aerorf.db` in each case, and the expedientes saved in
+# one did not exist in the other. That is the whole of the symptom usually
+# reported as «se perdieron los expedientes»: no row was ever lost, the
+# application was simply looking somewhere else.
+#
+# A relative path still wins if one is explicitly configured — it is resolved
+# against here too, by `_anclar_sqlite` — so an existing `.env` that says
+# `sqlite:///./aerorf.db` keeps pointing at the same file it pointed at before,
+# no matter which directory the server is started from.
+RUTA_BASE_SQLITE = ROOT_DIR / "aerorf.db"
+RUTA_RESPALDOS = ROOT_DIR / "respaldos"
+
 # Load .env without clobbering variables already present in the real
 # environment, so container/system env always wins over the file.
 load_dotenv(ENV_FILE, override=False)
@@ -59,6 +77,28 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _anclar_sqlite(url: str) -> str:
+    """Resolve a relative SQLite path against the repository root.
+
+    `:memory:`, an absolute path, and anything that is not SQLite pass through
+    untouched, so the test suite and an explicit `DATABASE_URL` keep behaving
+    exactly as they did before. Only the case that was broken — a relative path
+    that silently followed the working directory — changes.
+
+    Returns a URL rather than a filesystem path, because that is what the
+    settings field holds.
+    """
+    if not url.startswith("sqlite:///"):
+        return url
+    resto = url[len("sqlite:///"):]
+    if not resto or resto == ":memory:":
+        return url
+    ruta = Path(resto)
+    if ruta.is_absolute():
+        return url
+    return "sqlite:///" + (ROOT_DIR / ruta).resolve().as_posix()
+
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable application configuration."""
@@ -74,11 +114,31 @@ class Settings:
     port: int = field(default_factory=lambda: _env_int("PORT", 8000))
 
     # ─── Database ─────────────────────────────────────────────────────────
-    # SQLite by default. Set DATABASE_URL=postgresql://... for PostgreSQL.
+    # SQLite by default, always at the repository root. Set
+    # DATABASE_URL=postgresql://... for PostgreSQL.
+    #
+    # `_anclar_sqlite` runs over whatever is configured: a relative path is
+    # resolved against the root and never against the working directory, which
+    # is what made two different ways of starting the server create two
+    # different databases.
     database_url: str = field(
-        default_factory=lambda: _env("DATABASE_URL", "sqlite:///./aerorf.db")
+        default_factory=lambda: _anclar_sqlite(
+            _env("DATABASE_URL", "sqlite:///" + RUTA_BASE_SQLITE.as_posix())
+        )
     )
     sql_echo: bool = field(default_factory=lambda: _env_bool("SQL_ECHO", False))
+
+    # ─── Startup maintenance ──────────────────────────────────────────────
+    # A backup of the database is taken on every start, before anything is
+    # written. Off only for the test suite, where the database is a temporary
+    # file rebuilt per run and a backup would be pure noise.
+    respaldos_activos: bool = field(
+        default_factory=lambda: _env_bool("RESPALDOS_ACTIVOS", True)
+    )
+    #: How many backups to keep. Rotation deletes the oldest beyond this.
+    respaldos_conservar: int = field(
+        default_factory=lambda: _env_int("RESPALDOS_CONSERVAR", 10)
+    )
 
     # ─── OpenSky Network (never exposed to the frontend) ──────────────────
     opensky_base_url: str = field(
