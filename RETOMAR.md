@@ -370,25 +370,101 @@ decidir con calma, no para tocar a último momento.
 
 ---
 
+## 0.30.3 - El avión por encima de cualquier cosa
+
+**Lo que pediste, hecho:** el avión se ve por encima de todo.
+
+**Por qué no alcanzaba `CATEGORY_DRAW_RANK`:** el mapa es `preferCanvas`, hay un
+solo canvas con una sola lista ordenada por `_leaflet_id`, que se asigna al
+**crear** la capa. Medido: los ids del grupo eran idénticos antes y después de
+un `restack()`, porque re-agregar una capa no la renumera. El rango decide en qué
+orden se re-agregan los grupos y nada más — y `aircraft_tracks` se crea al montar
+el shell, antes de que exista cualquier objeto, así que estaba **segundo de
+abajo** en la lista real.
+
+**El mecanismo que sí funciona:** un pane propio, `aerorfTracksPane`, z-index
+**500** (sobre `overlayPane` 400, bajo `markerPane` 600), con su canvas
+`L.canvas({ pane })`. Los pane se apilan por z-index, que es DOM puro.
+
+**Y `pointer-events: none` no es opcional:** una capa vectorial fuera del
+overlayPane obtiene su propio canvas a pantalla completa y Leaflet le pone
+`pointer-events: auto`; ese canvas tapa el mapa y se come todos los clics. Es el
+mismo corte que ya causó un punto central en el markerPane. La regla está en
+`assets/styles.css` con una guarda que falla si se borra.
+
+**Lo que encontré al implementarlo:** la primera versión movía sólo la polilínea.
+Para una pista de dos puntos `drawTrack` hace **cinco** hijos y tres seguían en el
+canvas compartido (los dos puntos de waypoint y los dos extremos): la línea se
+veía y los puntos no. Los extremos **no podían** pasar al pane nuevo, porque un
+path ahí no recibe puntero y los tooltips «Inicio»/«Fin» se abren con el hover —
+la etiqueta habría dejado de funcionar sin que nadie se enterara. Se convirtieron
+en `L.marker` con `divIcon` (markerPane) y su círculo quedó en una regla global:
+el contenido de un `divIcon` se monta como cadena HTML y nunca recibe el
+`data-v-…` de un estilo acotado.
+
+**Ojo con el `expect` sobre objetos de Leaflet.** La primera guarda hacía
+`expect(c._renderer).toBe(engine.trackRenderer)` dentro de un `eachLayer`.
+**Fallaba y el runner se quedó colgado para siempre, sin ningún mensaje**: el
+formateador del diff con dos renderers adentro no termina, y al ser síncrono ni
+siquiera corre `testTimeout`. Diagnosticado marcando el avance en disco con
+`appendFileSync`. La regla ahora escrita en el encabezado del archivo: recoger
+hechos **planos** y esperar sobre ellos.
+
+**Verificado revirtiendo cada cosa por separado:**
+
+| revertido | guarda que falló |
+|---|---|
+| `renderer: render` de los puntos | `expected 2 to be +0` |
+| `L.marker` → `L.circleMarker` | `expected +0 to be 2` |
+| regla `pointer-events: none` | `expected false to be true` |
+
+---
+
+## 0.30.4 - Las filas duplicadas de `aircraft_tracks`
+
+Decidido por vos y borrado. **El «16» que venía arrastrando no reproduce de
+ninguna forma**: ninguna agrupación da 16. Dos independientes dan **11** —misma
+geometría (sha1 del `geometry`) e icao24+callsign+conteo— y es lo único
+inequívoco. 53 → 42 filas, con copia previa, comprobado que **0 posiciones**
+estaban apoyadas en las borradas (la clave es `ondelete="CASCADE"`), y verificado
+contra la base después: **0 grupos repetidos y 0 filas sin geometría**.
+
+La copia está en el temporal del sistema
+(`C:\Users\lucas\AppData\Local\Temp\opencode\aerorf-antes-de-borrar.db`); si
+querés conservarla hay que moverla. `aerorf.db` no está trackeado por git.
+
+---
+
 ## Lo que queda pendiente
 
-- **Las tipografías.** `rni-app-4.0` usa Space Grotesk, IBM Plex Sans e IBM Plex
-  Mono; AeroRF usa Inter y JetBrains Mono. Preguntado dos veces, sin respuesta.
-  IBM Plex Sans no tiene mayúsculas tan esbeltas como las del panel de 9 px, así
-  que la barra lateral y la de herramientas necesitarían un peldaño más de tamaño.
-- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente de
-  0.30.0. Es lo que hace que los nombres dejen de mentir: `bg-slate-900` ahora es
-  azul, y un desarrollador que lo escriba mañana obtiene `--panel` sin saber por qué.
-- **Las 16 filas duplicadas** de `aircraft_tracks` que ya había. No se borran: son
-  datos del operador y la decisión es suya. El código ya no genera más.
+- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
+  de 0.30.0. Decidido por vos. Es lo que hace que los nombres dejen de mentir:
+  `bg-slate-900` ahora es azul, y un desarrollador que lo escriba mañana obtiene
+  `--panel` sin saber por qué. Es el cambio más grande que queda y va solo.
+- **Tipografías: decidido, no implementado.** Vos elegiste adoptar las de
+  `rni-app-4.0` (Space Grotesk, IBM Plex Sans, IBM Plex Mono) **y subir el
+  peldaño**: IBM Plex Sans no tiene mayúsculas tan esbeltas como las del panel de
+  9 px, así que la barra lateral y la de herramientas necesitan un tamaño más.
+- **Pantalla de credenciales: decidida, no implementada.** Querés que si falta la
+  credencial pueda ponerla el agente, con **una sola clave para todas las PCs**,
+  priorizando que les funcione sin trabas. Siguen en pie dos condiciones que no
+  cuestan nada y no frenan a nadie: **verificar antes de guardar** (un error de
+  teclado no puede romper la instalación de todos) y **acotar a loopback**, que
+  mientras el servidor escuche en `127.0.0.1` no le quita facilidad a nadie.
 - **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
   conversación de las últimas sesiones. Está en `.env`, ignorado por git, y en
   ningún archivo versionado. Hay que generar una clave nueva en OpenSky y
   reemplazar la vieja; eso requiere entrar a la cuenta, así que no se puede hacer
   desde acá.
+- **Un mensaje en inglés en una ruta:** «OpenSky does not accept future
+  timestamps.», en las líneas 298 y 767 de `app/api/routes/flights.py`.
 - **`npm run lint` no funciona**: no hay configuración de ESLint en el
   repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
   falso. La comprobación real es el build.
+- **`CATEGORY_DRAW_RANK` sigue mintiendo en un punto:** `circles: -1` promete
+  poner el disco de un círculo debajo de un radial y el rango no lo consigue. El
+  avión ya no depende de él (0.30.3 usa el pane), pero esa intención sigue sin
+  cumplirse.
 
 ### Si algo reaparece al cambiar una visibilidad
 
@@ -409,7 +485,7 @@ no la remoción.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **438 pasan**, 29 archivos |
+| Frontend (vitest) | **448 pasan**, 30 archivos |
 | Python (no integración) | **452 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
@@ -425,5 +501,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.29.0) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.4) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |

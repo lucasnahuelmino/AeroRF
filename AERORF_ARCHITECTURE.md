@@ -427,8 +427,9 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/layout.spec.js` (15) | **Proporciones del shell**, leidas del CSS construido: mapa flexible, paneles plegables, area de las herramientas, logo acotado | `npm run test:layout` |
 | `frontend/tests/components.spec.js` (43) | **Montaje real en jsdom**: el shell completo, los 8 paneles, `MapEngine`, `ToolManager`, `MeasureEngine`, `AircraftRenderer` | `npm run test:components` |
 | `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
+| `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 
-**Total: 357 unitarias + 7 integracion + 675 de paridad + 314 de frontend + 78 E2E + 43 recorrido real.**
+**Total: 357 unitarias + 7 integracion + 675 de paridad + 448 de frontend + 78 E2E + 43 recorrido real.**
 
 ### 7.1 Segunda capa: montar los componentes de verdad
 

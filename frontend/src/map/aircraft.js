@@ -21,6 +21,30 @@ import L from 'leaflet'
 /** Longitudes beyond this are "over the pole" and break icon rotation. */
 const MAX_ICON_ROTATION = 179.9
 
+/**
+ * The dot that marks where a trajectory starts and where it ends.
+ *
+ * A `divIcon` marker instead of a `circleMarker` — a circleMarker is a path and
+ * would have to ride the elevated, non-interactive track canvas, which would
+ * cost the "Inicio"/"Fin" hover labels. See the note in `drawTrack`.
+ *
+ * Leaflet assigns `className` by *replacement* (`_setIconStyles`: `'leaflet-marker-icon '
+ * + className`), so `leaflet-div-icon` and its white square are never applied.
+ * The round shape is ours and lives in `assets/styles.css` as a **global** rule:
+ * divIcon content is built as an HTML string and never receives the `data-v-…`
+ * attribute a scoped style would need.
+ *
+ * @param {string} clase `aerorf-trazo-inicio` or `aerorf-trazo-fin`
+ * @returns {L.DivIcon}
+ */
+function puntoTraza(clase) {
+  return L.divIcon({
+    className: `aerorf-trazo-punto ${clase}`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+  })
+}
+
 export class AircraftRenderer {
   /**
    * @param {import('./MapEngine').MapEngine} engine
@@ -184,10 +208,19 @@ export class AircraftRenderer {
 
     const layer = L.layerGroup()
 
+    // The engine's own renderer, in a pane above everything the operator drew.
+    // Without it the trajectory shares the object's canvas and lands *under* it:
+    // the paths are created when the shell mounts, before any object exists, and
+    // a shared canvas draws in creation order. `restack()` cannot fix that —
+    // re-adding a layer does not renumber it — but a pane can, because panes are
+    // stacked by z-index. See `MapEngine._addTrackPane`.
+    const render = this.engine.trackRenderer
+
     // AeroRF's own recording: dashed, so it is never mistaken for OpenSky data.
     if (groups.aerorf.length >= 2) {
       layer.addLayer(
         L.polyline(groups.aerorf, {
+          renderer: render,
           color: token('--trazo-medido', '#22c55e'),
           weight: 2.5,
           opacity: 0.9,
@@ -199,6 +232,7 @@ export class AircraftRenderer {
     if (groups.historical.length >= 2) {
       layer.addLayer(
         L.polyline(groups.historical, {
+          renderer: render,
           color,
           weight: 3,
           opacity: 0.85,
@@ -208,6 +242,7 @@ export class AircraftRenderer {
     if (groups.live.length >= 2) {
       layer.addLayer(
         L.polyline(groups.live, {
+          renderer: render,
           color: '#eab308',
           weight: 3,
           opacity: 0.9,
@@ -215,7 +250,9 @@ export class AircraftRenderer {
       )
     }
     if (groups.other.length >= 2) {
-      layer.addLayer(L.polyline(groups.other, { color, weight: 2, opacity: 0.6 }))
+      layer.addLayer(
+        L.polyline(groups.other, { renderer: render, color, weight: 2, opacity: 0.6 }),
+      )
     }
 
     // Single-point tracks still deserve a marker: the position is real even
@@ -223,17 +260,25 @@ export class AircraftRenderer {
     if (points.length === 1) {
       layer.addLayer(
         L.circleMarker(points[0], {
+          renderer: render,
           radius: 6, color, fillOpacity: 0.6, weight: 2,
         }),
       )
     }
 
     // Waypoint dots: the density on screen IS the data density.
+    //
+    // They take the track renderer too, and that is not cosmetic. Measured:
+    // `drawTrack` produced five children for a two-point track and only the
+    // polyline was in the elevated pane — the four dots stayed on the shared
+    // canvas, under every filled object. The line looked right and the dots
+    // under a coverage circle simply were not there.
     const step = Math.max(1, Math.floor(points.length / 120))
     points.forEach((p, i) => {
       if (i % step !== 0) return
       layer.addLayer(
         L.circleMarker([p.latitude, p.longitude], {
+          renderer: render,
           radius: 1.8,
           color,
           fillOpacity: 0.5,
@@ -242,17 +287,35 @@ export class AircraftRenderer {
       )
     })
 
-    // Start and end markers.
+    // Start and end markers — markers, not paths, on purpose.
+    //
+    // A `circleMarker` is a path, so it would have to ride the elevated track
+    // canvas. That canvas is `pointer-events: none`, because a vector layer
+    // outside the overlay pane gets its own full-size canvas and Leaflet gives
+    // every canvas `pointer-events: auto` — that is the outage where nothing on
+    // the map was clickable. And a layer that receives no pointer events
+    // receives no hover either, so the "Inicio"/"Fin" labels would have opened
+    // on nothing: a feature quietly gone, which is the thing this project keeps
+    // refusing to do.
+    //
+    // A marker is a DOM element, not a canvas, so it keeps its own hit area and
+    // its tooltip, and it sits in the marker pane (z 600) — above the track
+    // pane (500), so the endpoints are visible over any filled shape. DivIcon
+    // replaces the class rather than appending it, so the white
+    // `leaflet-div-icon` square is not applied; the circle is ours in
+    // `assets/styles.css`.
     const first = points[0]
     const last = points[points.length - 1]
     layer.addLayer(
-      L.circleMarker([first.latitude, first.longitude], {
-        radius: 5, color: token('--trazo-medido', '#22c55e'), fillOpacity: 0.9, weight: 2,
+      L.marker([first.latitude, first.longitude], {
+        icon: puntoTraza('aerorf-trazo-inicio'),
+        keyboard: false,
       }).bindTooltip('Inicio', { permanent: false }),
     )
     layer.addLayer(
-      L.circleMarker([last.latitude, last.longitude], {
-        radius: 5, color: token('--trazo-fin', '#ef4444'), fillOpacity: 0.9, weight: 2,
+      L.marker([last.latitude, last.longitude], {
+        icon: puntoTraza('aerorf-trazo-fin'),
+        keyboard: false,
       }).bindTooltip('Fin', { permanent: false }),
     )
 

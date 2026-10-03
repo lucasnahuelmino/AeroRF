@@ -3438,3 +3438,172 @@ Queda para decidir con calma, no para tocar a último momento.
 - **16 filas duplicadas** de `aircraft_tracks`, sin decisión del operador.
 - **Otro mensaje en inglés** en una ruta: «OpenSky does not accept future
   timestamps.», en las líneas 298 y 767 de `flights.py`.
+
+---
+
+## 0.30.3 - El avión por encima de cualquier cosa
+
+**Estado:** completada · commits: pendientes de esta misma entrega
+
+### El pedido
+
+Por primera vez el orden de dibujo lo fija el operador con una frase, no una
+preferencia nuestra: «el avión debe verse por encima de cualquier cosa», dijo
+después de ver una trayectoria tapada. La investigación entera depende de eso: si
+una forma con relleno pinta encima del paso del avión, el dato deja de verse.
+
+### Por qué `CATEGORY_DRAW_RANK` no servía
+
+Es lo primero que se probó, y **no puede** lograrlo. El mapa es `preferCanvas`:
+un solo canvas y una sola lista de dibujo, ordenada por `_leaflet_id`, que se
+asigna cuando la capa se **crea**. Medido en el motor: los ids del grupo eran
+idénticos antes y después de un `restack()`, porque quitar y volver a añadir una
+capa no la renumera. El rango decide en qué orden se re-agregan los grupos y
+nada más.
+
+Y `aircraft_tracks` se crea al montar el shell, mucho antes de que el operador
+dibuje nada, así que estaba **segundo de abajo** en la lista real:
+
+```
+aircraft_tracks (35) → airports (141) → radials (357) → circles (358)
+   → traces (364) → lines (365) → polygons (366) → user (369)
+```
+
+### El mecanismo: un pane propio
+
+Los pane sí funciona, porque cada renderer es un elemento del DOM y el navegador
+los apila por z-index. `MapEngine._addTrackPane()` crea `aerorfTracksPane` en
+**z-index 500** — sobre el `overlayPane` (400), bajo el `markerPane` (600) — y
+las trayectorias se dibujan con `L.canvas({ pane })` propio.
+
+### El precio, y por qué es obligatorio
+
+`pointer-events: none`. Una capa vectorial fuera del overlayPane obtiene su
+propio canvas de tamaño completo, y Leaflet le pone `pointer-events: auto`; ese
+canvas tapa el mapa por delante y se come todos los clics. Es exactamente el
+corte que ya ocurrió con un punto central en el markerPane: nada era
+seleccionable y **arreglar los manejadores no servía de nada**, porque ningún
+clic llegaba a ninguno. La regla está en `assets/styles.css` y una guarda falla
+si desaparece.
+
+### El defecto que encontré al implementarlo
+
+La primera versión movía **sólo la polilínea**. El inventario de hijos de
+`drawTrack` para una pista de dos puntos:
+
+| hijo | renderer | ¿se veía sobre las formas? |
+|---|---|---|
+| polilínea histórica | el nuevo | sí |
+| 2 puntos de waypoint | compartido | **no** |
+| extremo inicio | compartido | **no** |
+| extremo fin | compartido | **no** |
+
+O sea, tres de cinco elementos seguían debajo de cada objeto con relleno: la
+línea se veía y los puntos no, que es el mismo síntoma con la mitad arreglada.
+
+Los extremos además **no podían** pasar al pane nuevo: un path en ese pane no
+recibe puntero y los tooltips «Inicio»/«Fin» se abren con el hover, así que la
+etiqueta habría dejado de funcionar sin que nadie se enterara. Se convirtieron en
+`L.marker` con `divIcon` (markerPane, z 600, encima de la línea) y su aspecto
+redondo quedó en una regla **global** de `styles.css`, porque el contenido de un
+`divIcon` se monta como cadena HTML y nunca recibe el `data-v-…` de un estilo
+acotado.
+
+### Un test que cuelga es peor que un test que falla
+
+La primera versión de la guarda hacía, dentro de un `eachLayer`:
+
+```js
+expect(c._renderer).toBe(engine.trackRenderer)
+```
+
+Fallaba en la segunda capa —era el defecto real de arriba— y el runner **se
+quedó colgado para siempre, sin ningún mensaje**. El formateador del diff con dos
+renderers de Leaflet adentro no termina, y como la ejecución es síncrona ni
+siquiera corre `testTimeout`: los 8 s de timeout no se dispararon. Diagnosticado
+marcando el avance en disco con `appendFileSync`, porque el stdout se bufferiza y
+al matar el proceso se pierde.
+
+La regla que queda escrita en el encabezado del archivo: se recogen hechos
+**planos** (números, strings, booleanos) y se espera sobre *ellos*, con el
+resumen en el mensaje de error. Si falla, se ve qué capa y por qué.
+
+### Verificación por reversión
+
+| qué se revirtió | guarda que falló | mensaje |
+|---|---|---|
+| `renderer: render` de los puntos | «todas las formas se dibujan en ese renderer» | `expected 2 to be +0` |
+| `L.marker` → `L.circleMarker` | «los extremos son marcadores» | `expected +0 to be 2` |
+| regla `pointer-events: none` del canvas | «la regla alcanza también al canvas» | `expected false to be true` |
+
+Cada revertido por separado, para que se vea qué guarda atrapa qué. La del
+renderer se verificó **después** de restaurar los extremos: con los tres a la vez
+la aserción del renderer abortaba antes, en el conteo, y no habría quedado
+probada.
+
+### Línea base
+
+`pytest -m "not integration"` **452** · `vitest` **448 en 30 archivos** (438 + 10
+nuevas) · `geo_parity` **675** · build limpio.
+
+---
+
+## 0.30.4 - Las filas duplicadas de `aircraft_tracks`
+
+**Estado:** completada · decisión del operador: «borra filas»
+
+### El número que dije no era el correcto
+
+Vengo arrastrando «16 filas duplicadas» desde hacía varias sesiones. **No
+reproduce de ninguna forma.** Ninguna agrupación que probé da 16:
+
+| agrupación | grupos repetidos | filas sobrantes |
+|---|---|---|
+| geometría idéntica (sha1 del `geometry`) | 9 | **11** |
+| icao24 + callsign + sesión + conteo + tiempos | 8 | 10 |
+| icao24 + callsign + conteo | 9 | **11** |
+| icao24 + callsign | 10 | 28 |
+| icao24 | 8 | 41 |
+
+Dos agrupaciones independientes —la geometría y la clave de identidad— coinciden
+en **11**, y es lo único inequívoco: misma geometría es el mismo track guardado
+dos veces. El 16 era un número mío que ya no se sostiene; aquí queda corregido.
+
+### Se borró con respaldo y con integridad comprobada
+
+- Copia previa: `C:\Users\lucas\AppData\Local\Temp\opencode\aerorf-antes-de-borrar.db`
+  (647 168 bytes). Está en el temporal del sistema: si hace falta conservarla,
+  hay que moverla; con los datos que son —pistas de OpenSky, no evidencia de un
+  expediente— no justificaba meterla en el repositorio.
+- Se conserva la fila de **id más alto** de cada grupo.
+- `aircraft_positions.track_id` tiene `ondelete="CASCADE"` sobre
+  `aircraft_tracks.id`: comprobado antes de borrar que **0 posiciones** estaban
+  apoyadas en las 11 filas, así que no quedaron huérfanas.
+- **53 → 42** filas; verificado contra la base después, no contra el diccionario
+  en memoria: **0 grupos con geometría repetida y 0 filas sin geometría** (las
+  que no son comparables habrían ocultado duplicados).
+- `aerorf.db` no está trackeado por git, así que esto no aparece como cambio en
+  el repositorio.
+
+### Pendiente (lista viva)
+
+Resueltos en esta entrega: las **filas duplicadas** (decidido y borrado) y las
+**tipografías** (el operador eligió adoptar las de `rni-app-4.0` y subir el
+peldaño de tamaño — la implementación sigue pendiente).
+
+- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
+  de 0.30.0. Decidido por el operador; por hacer. Es el cambio más grande que
+  queda y va solo.
+- **Tipografías**: adoptar Space Grotesk / IBM Plex Sans / IBM Plex Mono y subir
+  el peldaño del texto de 9 px de los paneles. Decidido; por hacer.
+- **Pantalla de credenciales**: el operador quiere que si falta la credencial el
+  agente pueda ponerla, con **una sola clave para todas las PCs** y prioridad en
+  que funcione sin trabas. Verificar antes de guardar y acotar a loopback siguen
+  siendo la condición para que un error de teclado no rompa la instalación de
+  todos.
+- **Rotar `OPENSKY_CLIENT_SECRET`**, en claro en el historial de esta sesión.
+- **Otro mensaje en inglés** en una ruta: «OpenSky does not accept future
+  timestamps.», en las líneas 298 y 767 de `flights.py`.
+- **`CATEGORY_DRAW_RANK`**: sigue describiendo un comportamiento que el rango no
+  produce (`circles: -1`). El orden del avión ya no depende de él, pero el
+  comentario de la intención sobre círculos y radiales sigue sin cumplirse.

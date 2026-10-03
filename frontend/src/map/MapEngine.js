@@ -49,7 +49,42 @@ const OSM_ATTRIBUTION =
  * discrete objects — points, events, sources, antennas — above both measured
  * shapes.
  */
-const CATEGORY_DRAW_RANK = { circles: -1 }
+/**
+ * Draw rank: lower is further from the viewer.
+ *
+ * **What the operator asked for, in order.** An aircraft has to be visible over
+ * anything: it is the thing that moves, and it is what they are watching. Then
+ * their own objects, in the order they created them, except that a measured
+ * shape's broad target goes under its precise parts. Then the reference marks
+ * nobody flies the map by.
+ *
+ * Measured in the browser, this is not a preference. The canvas is one draw list
+ * ordered by `_leaflet_id`, and `aircraft_tracks` was created before any object
+ * existed — the renderer is built when the shell mounts, long before the operator
+ * draws. That put every trajectory *underneath* every filled shape:
+ *
+ *     aircraft_tracks (35) → radials (357) → circles (358) → traces (364) → ...
+ *
+ * So a coverage circle or a polygon was painted over the flight path. The fills
+ * are 15% opaque by default, which is why the path was dimmed rather than
+ * vanished, and a raised category opacity hid it completely.
+ *
+ * The numbers are spacing, not indices. `Array.prototype.sort` on rank is stable,
+ * so anything not named here keeps its arrival order inside its own rank, which
+ * is the behaviour the comment above this block already claimed and did not have.
+ */
+const CATEGORY_DRAW_RANK = {
+  // Reference marks: aerodromes, and anything else nobody is flying by.
+  airports: -2,
+  base_map: -3,
+  // A circle's disc is a hit area the size of its radius, so it goes under.
+  circles: -1,
+  // The operator's own objects, in the order they were made.
+  objects: 0,
+  // The flight path and the aircraft. Above every object, always.
+  aircraft_tracks: 10,
+  aircraft: 11,
+}
 
 /** Draw rank of a category; anything unlisted sits at 0, in arrival order. */
 function drawRank(key) {
@@ -164,8 +199,57 @@ export class MapEngine {
     this._addBasemap()
     this._addControls()
     this._bindEvents()
+    this._addTrackPane()
 
     return this.map
+  }
+
+  /**
+   * The pane and renderer the flight paths are drawn on.
+   *
+   * **Why a pane at all, when `restack()` is supposed to order the categories.**
+   * It isn't, and that is not a guess. The map is `preferCanvas`, so every
+   * vector layer shares one canvas and one draw list, and that list is ordered by
+   * `_leaflet_id` — assigned when a layer is *created*. Measured here: the
+   * category group ids were identical before and after a `restack()`, because
+   * removing and re-adding a layer does not renumber it. So `CATEGORY_DRAW_RANK`
+   * can decide the order groups are re-added in, but it cannot move a trajectory
+   * above a shape that was created after it.
+   *
+   * And that is exactly what happened. `aircraft_tracks` is created when the
+   * renderer is built, long before the operator draws anything, so it sat at the
+   * bottom of the shared canvas:
+   *
+   *     aircraft_tracks (35) → radials (357) → circles (358) → traces (364) → ...
+   *
+   * The operator's requirement is that the aircraft is visible over anything, and
+   * a filled shape drawn over the flight path is the one thing that makes a
+   * trajectory unreadable. Pane stacking *does* work, because each renderer
+   * container is a DOM element and the browser stacks those by z-index. So the
+   * paths get their own canvas, in a pane above `overlayPane`.
+   *
+   * **And it must not take clicks.** A vector layer outside the overlayPane gets
+   * its own full-size canvas, and Leaflet gives every canvas `pointer-events:
+   * auto`. That is what made nothing on the map selectable once: the extra canvas
+   * covered the map in front of everything and swallowed every click, so no click
+   * ever reached a handler to be fixed. The pane is therefore `pointer-events:
+   * none` in `assets/styles.css`, and there is a guard test that fails if that
+   * rule disappears — a canvas that is drawn on top and cannot be clicked is the
+   * worst of both.
+   *
+   * Below `markerPane` on purpose: the aircraft icon belongs above its own path.
+   */
+  _addTrackPane() {
+    const pane = this.map.createPane('aerorfTracksPane')
+    pane.style.zIndex = 500
+    pane.classList.add('aerorf-tracks-pane')
+    // Kept as fields so a test can assert the pane's own z-index and name. The
+    // z-index is the whole mechanism: panes stack by DOM order, not by any of
+    // Leaflet's own ordering.
+    this.trackPane = pane
+    this.trackPaneName = 'aerorfTracksPane'
+    this.trackRenderer = L.canvas({ pane: 'aerorfTracksPane' })
+    return this.trackRenderer
   }
 
   _addBasemap() {

@@ -167,6 +167,56 @@ nav .router-link-active {
   cursor: pointer;
 }
 
+/* ─── The pane the flight paths are drawn on ─────────────────────────────────
+ * The trajectories need their own canvas so they can be painted above the
+ * operator's objects: with `preferCanvas` there is one shared draw list, ordered
+ * by layer creation, and the paths are created before anything the operator
+ * draws. A pane stacks by z-index, which does work.
+ *
+ * `pointer-events: none` is not a refinement, it is the whole safety margin. A
+ * vector layer outside the overlay pane gets its own full-size canvas, and
+ * Leaflet gives every canvas `pointer-events: auto` by default. That extra canvas
+ * then covers the map in front of everything and swallows every click — which is
+ * what happened once with a centre dot in the marker pane: nothing on the map was
+ * selectable and no click handler could fix it, because no click arrived.
+ *
+ * The pane also has to override the canvas itself, in case Leaflet ever sets
+ * `pointer-events` on it: an inherited `none` is overridden by an explicit
+ * `auto` on the child, so both are stated.
+ * ------------------------------------------------------------------------- */
+
+.aerorf-tracks-pane {
+  pointer-events: none;
+}
+
+.aerorf-tracks-pane canvas {
+  pointer-events: none;
+}
+
+/* ─── The dots that mark where a trajectory starts and ends ────────────────
+ * `L.divIcon` content is inserted as an HTML string, so it never carries the
+ * `data-v-…` attribute a scoped style would need — this rule has to be global
+ * or the dot renders as an unstyled 10×10 box.
+ *
+ * The colours are the tokens the `circleMarker` version used, so the endpoints
+ * look exactly as they did before they moved out of the shared canvas:
+ * `--trazo-medido` for where the track starts, `--trazo-fin` for where it ends.
+ * ------------------------------------------------------------------------- */
+
+.aerorf-trazo-punto {
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: currentColor;
+}
+
+.aerorf-trazo-inicio {
+  color: var(--trazo-medido);
+}
+
+.aerorf-trazo-fin {
+  color: var(--trazo-fin);
+}
+
 /* ─── Images ────────────────────────────────────────────────────────────────
  * A hard guarantee that no image can ever again size itself. Without this a
  * missing height utility is enough to put a 1024px logo on screen.
