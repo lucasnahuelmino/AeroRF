@@ -3707,10 +3707,124 @@ en el patrón y devolvió falso— y parecía un texto roto.
 
 ---
 
+## 0.30.6 - El WebSocket se rendía en modo anónimo
+
+**Estado:** completada · auditoría de Claude, ítem **P0-04**
+
+### Se reprodujo con dos instancias a la vez
+
+El mismo momento, la misma base, dos servidores:
+
+| | instancian con credenciales | instancian anónima |
+|---|---|---|
+| `GET /flights/live` | 200 | **200**, `auth=anonymous` |
+| `/ws/flights` | consulta con `auth=oauth2` | **0 peticiones**, manda `not_configured` |
+
+La cuenta de peticiones es la prueba, no la impresión: en el log de la
+instancia anónima hay **0** líneas `auth=oauth2` y exactamente **una** petición
+a `states/all`, que es la de la ruta REST. El WebSocket no hizo ninguna.
+
+Para que la instancia saliera realmente anónima hubo que vencer un detalle de
+medición: en PowerShell `$env:X = ""` **borra** la variable, así que `.env` la
+rellenaba con `override=False` y la prueba salía «con credenciales» sin que se
+notara. Lo que funcionó fue dejarla presente pero en blanco, que `_env` ya
+trata como ausente. El `hello` lo anunciaba igualmente (`opensky_configured`),
+y es por eso que se pudo descartar el falso negativo.
+
+### La causa: un predicado que pregunta otra cosa
+
+`ws.py` hacía `if not service.configured`. Eso responde «¿hay credenciales
+OAuth2?», y lo que hace falta saber es «¿puedo consultar estados?» — que es
+`can_query_states`, y que OpenSky sí responde a llamadas anónimas desde su
+bolsa de 400 créditos diarios.
+
+**La ruta REST ya lo tenía bien**, en `flights.py::_service_or_503`:
+`configured or can_query_states`. El canal de WebSocket era el único que no.
+
+Al arreglo le cambié también el mensaje: decía «defina
+`OPENSKY_CLIENT_ID`…», que era inútil en un equipo donde lo que faltaba era
+activar lo anónimo. Ahora dice las dos formas de salir.
+
+### Las guardas
+
+Cinco pruebas en `tests/test_p004_websocket_anonimo.py`. Llaman a `Hub._tick`
+directamente con el servicio y el WebSocket falsos, así que miden la decisión
+sin servidor, sin tiempo de por medio y sin gastar crédito.
+
+- **Antes del arreglo**: `assert 0 == 1`, con el mensaje
+  «el WebSocket no consultó OpenSky en modo anónimo: estados de salida
+  `['not_configured']`».
+- **Después**: 5 en verde.
+- Las otras cuatro no son decorado: una comprueba que con credenciales sigue
+  consultando, otra que **la compuerta sigue cerrada** cuando de verdad no hay
+  forma de consultar (si no, la lectura obvia sería «borrar el chequeo» y el
+  feed quedaría mudo), otra que la lista vacía sigue ganando al chequeo de
+  credenciales —que es lo que evita la consulta global de 4 créditos— y la
+  última que el aviso esté en español.
+
+### Verificación en vivo
+
+Instancia anónima reiniciada con el arreglo: `opensky_configured=False`,
+**0** apariciones de `not_configured`, y el WebSocket emitió
+`GET https://opensky-network.org/api/states/all?icao24=e06543&icao24=e0b354`
+—con sus dos aeronaves, o sea que además usó la lista de seguimiento—.
+
+### Tres cosas que encontré al verificar y que no toqué aquí
+
+1. **`lost` se reenvía en cada tick, y eso cuelga al propio test.**
+   `test_feed_does_not_flood` mide durante 22 s con un `while True` cuyo
+   timeout es de 22 s por lectura: si llega un frame cada 10 s el bucle nunca
+   expira. **Medido con vigilante: sigue corriendo a los 150 s cuando debería
+   tardar ~22 s, y sin producir salida.** Un test que se cuelga es peor que uno
+   que falla. La causa es del servidor, no del test: el aviso de que una
+   aeronave se perdió se repite cada 10 s sin deduplicar, que es justo lo que
+   la §48 prohíbe y lo que ese test existe para detectar. Requiere su propio
+   commit.
+2. **`test_idle_when_nothing_is_tracked` exige una lista vacía y la lista no
+   está vacía**: falla en su propia precondición, `count == 0` contra `count
+   == 2`, que son `ARG1646` y `LVKMT` añadidos el 02/10. El comentario del
+   test asume que «el recorrido se limpia solo y ninguna otra suite la llena»;
+   el operador la llenó a mano.
+3. **Dos mensajes que se quedaron cortos**: `ws.py:446` manda
+   `Unknown action: ...` en inglés al navegador, y el aviso de arranque dice
+   «flight features disabled» cuando en modo anónimo las de vuelo **sí**
+   funcionan.
+
+Y aclaración sobre los dos rojos de integración: el backend del 8010 se
+arrancó a las 10:35, **antes** de este arreglo, y sin `--reload`. Las dos
+caídas y el cuelgue se produjeron contra el **código original**, así que no
+hace falta ningún revert para descartarlos: nunca pasaron por mi cambio.
+
+### Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **471 pasan**, 7 deseleccionadas (antes 466) |
+| `tests/geo_parity.mjs` | 675 pasan |
+| Instancia anónima con el arreglo | 0 `not_configured`, `GET states/all?icao24=e06543&icao24=e0b354` |
+| Instancia anónima sin el arreglo | 0 peticiones, `not_configured`, 0 líneas `auth=oauth2` |
+| Integración (sobre el código viejo) | 5 pasan, 2 caen — preexistentes, ver arriba |
+
+---
+
 ### Pendiente (lista viva)
 
-Resueltos en esta entrega: **P0-06** de la auditoría de Claude (base anclada,
-respaldo automático, versión de esquema).
+Resueltos hasta ahora en la auditoría: **P0-06** (base anclada, respaldo
+automático, versión de esquema) y **P0-04** (el WebSocket en modo anónimo).
+
+**Encontrado al verificar P0-04, sin tocar** — cada uno con su repro y en
+espera de commit propio:
+
+- **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
+  `test_feed_does_not_flood` existe para detectarlo y en vez de fallar **se
+  cuelga**: mide 22 s con un timeout de 22 s por lectura, y un frame cada 10 s
+  hace que nunca expire. Vigilante puesto: sigue corriendo a los 150 s.
+- **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
+  exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O el test se
+  adapta, o se salta cuando la lista no está vacía; **no borrarlo**.
+- **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
+- **El aviso de arranque dice «flight features disabled»** cuando en modo
+  anónimo las de vuelo sí funcionan.
 
 Decisiones que tomó el operador al revisar la auditoría:
 

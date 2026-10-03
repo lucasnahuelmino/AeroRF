@@ -235,13 +235,23 @@ class Hub:
                 )
             return
 
-        if not service.configured:
+        if not service.can_query_states:
+            # Not `configured`: that asks whether OAuth2 credentials are
+            # present, and live state vectors do not need them — OpenSky
+            # answers `/states/all` to anonymous callers from a separate
+            # 400-credit pool. The REST gate in `flights.py` already
+            # decided with `configured or can_query_states`; this channel
+            # used to ask only the first half and give up in an
+            # installation that had no credentials, which is how the
+            # project ships (`.env.example` comes without them).
             for sub in list(self.clients):
                 await sub.send_status(
                     "not_configured",
                     message=(
-                        "OpenSky no está configurado. Defina "
-                        "OPENSKY_CLIENT_ID y OPENSKY_CLIENT_SECRET en el .env."
+                        "OpenSky no está configurado y el acceso anónimo está "
+                        "deshabilitado. Defina OPENSKY_CLIENT_ID y "
+                        "OPENSKY_CLIENT_SECRET en el .env, o active "
+                        "OPENSKY_ALLOW_ANONYMOUS=true."
                     ),
                 )
             return

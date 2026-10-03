@@ -425,6 +425,7 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_busqueda_por_archivo.py` (20) | Buscar por callsign cuando la aeronave no está volando: el archivo propio resuelve callsign → ICAO24 | `pytest tests/test_busqueda_por_archivo.py` |
 | `tests/test_trayectoria_viva.py` (16) | Por qué la trayectoria en vivo se congelaba: el TTL de la caché contra el intervalo de sondeo | `pytest tests/test_trayectoria_viva.py` |
 | `tests/test_p006_base_y_respaldo.py` (14) | **P0-06**: ruta de la base anclada a la raíz y no al directorio de trabajo, respaldo que atraviesa el WAL donde un `copyfile` no llega, y versión de esquema que no avanza si el paso falla | `pytest tests/test_p006_base_y_respaldo.py` |
+| `tests/test_p004_websocket_anonimo.py` (5) | **P0-04**: que el WebSocket consulte en modo anónimo en vez de rendirse, que la compuerta siga cerrada sin forma de consultar, y que la lista vacía gane al chequeo de credenciales | `pytest tests/test_p004_websocket_anonimo.py` |
 | `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
 | `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
 | `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
@@ -435,12 +436,16 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 
-**Total: 466 de Python sin integración (15 archivos) + 7 de integración + 30
+**Total: 471 de Python sin integración (16 archivos) + 7 de integración + 30
 del motor RF heredado + 675 de paridad + 448 de frontend + 78 E2E + 43 de
 recorrido real.**
 
-El 466 se mide con `pytest -m "not integration"`; el 7 de integración son los de
-`test_websocket.py`, que van con `--m integration`. **Los 30 de
+El 471 se mide con `pytest -m "not integration"`; el 7 de integración son los de
+`test_websocket.py`, que van con `--m integration` y **hoy están rojos** por dos
+motivos preexistentes y ajenos a P0-04: `test_idle` exige lista de seguimiento
+vacía y hay 2 entradas del operador, y `test_feed_does_not_flood` **se cuelga**
+en vez de fallar porque el servidor reenvía `lost` cada 10 s sin deduplicar. **Los
+30 de
 `app/rf_engine/test_rf_engine.py` no los recoge un `pytest` a secas**:
 `pytest.ini` dice `testpaths = tests`, así que ese directorio queda fuera por
 defecto y hay que pedirlo a mano con `pytest app/rf_engine` — lo comprobé:

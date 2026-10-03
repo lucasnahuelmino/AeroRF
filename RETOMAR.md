@@ -502,19 +502,101 @@ revienta si alguien vuelve al `copyfile`.
 
 ---
 
+## 0.30.6 - El WebSocket se rendía en modo anónimo
+
+**Estado:** completada · auditoría de Claude, ítem **P0-04**
+
+### Lo que pasaba
+
+Salvo credenciales, `GET /flights/live` respondía **200** y el WebSocket
+mandaba `not_configured` y no consultaba nunca. Medido con dos instancias a la
+vez sobre la misma base; la cuenta de peticiones es la prueba: en el log de la
+instancia anónima hay **0** líneas `auth=oauth2` y **una sola** petición a
+`states/all`, que es la de la ruta REST.
+
+### Por qué
+
+`ws.py` hacía `if not service.configured`, que pregunta «¿hay credenciales?».
+Lo que importa es «¿puedo consultar estados?», que es `can_query_states` — y
+OpenSky sirve `/states/all` a llamadas anónimas. **La ruta REST ya lo tenía
+bien** (`flights.py::_service_or_503`: `configured or can_query_states`); el
+canal de WebSocket era el único que no.
+
+También le cambié el mensaje: decía «defina `OPENSKY_CLIENT_ID`…», que era
+inútil donde lo que faltaba era activar lo anónimo.
+
+### Un detalle de medición que vale la pena no volver a cometer
+
+En PowerShell `$env:X = ""` **borra** la variable. `.env` la rellenaba con
+`override=False` y la primera «reproducción» salió *con credenciales* sin que
+se notara. Lo que funcionó fue dejarla presente pero en blanco, que `_env`
+trata como ausente. El `hello` lo anunciaba (`opensky_configured`) y así se
+descartó el falso negativo.
+
+### Guardas
+
+Cinco en `tests/test_p004_websocket_anonimo.py`, llamando a `Hub._tick` con
+falsos: sin servidor, sin esperas y sin gastar crédito.
+
+- **Antes del arreglo**: `assert 0 == 1` — «estados de salida
+  `['not_configured']`».
+- **Después**: 5 en verde.
+- Entre ellas: que **la compuerta siga cerrada** cuando de verdad no hay forma
+  de consultar (si no, la lectura obvia sería borrar el chequeo y dejar el feed
+  mudo), y que la lista vacía siga ganando al chequeo de credenciales —lo que
+  evita la consulta global de 4 créditos.
+
+En vivo, con el arreglo: `opensky_configured=False`, **0** `not_configured`, y
+el WebSocket pidió `states/all?icao24=e06543&icao24=e0b354`.
+
+### Tres cosas que encontré al verificar
+
+1. **`lost` se reenvía cada 10 s y cuelga al propio test.**
+   `test_feed_does_not_flood` mide 22 s con un `while True` cuyo timeout es de
+   22 s por lectura: un frame cada 10 s hace que nunca expire. **Con vigilante:
+   sigue corriendo a los 150 s, sin salida.** La causa es del servidor, no del
+   test: el aviso de aeronave perdida se repite sin deduplicar, justo lo que
+   la §48 prohíbe. Va en su commit.
+2. **`test_idle_when_nothing_is_tracked` exige lista vacía y hay 2**
+   (`ARG1646`, `LVKMT`, del 02/10): falla en su precondición, no en lo que
+   mide. **No se borra**; hay que adaptarlo o saltarlo si la lista no está
+   vacía.
+3. **`ws.py:446` manda `Unknown action: ...` en inglés**, y el aviso de
+   arranque dice «flight features disabled» cuando en modo anónimo sí
+   funcionan.
+
+Los dos rojos de integración salieron contra el **código original**: el
+backend del 8010 se arrancó a las 10:35, antes del arreglo, y sin `--reload`.
+
+---
+
 ## Lo que queda pendiente
 
 ### La cola de la auditoría de Claude
 
-**P0-06 está hecho.** Lo demás, con el criterio acordado: rama nueva, un commit
-por ítem, prueba que falle antes y pase después, y **preguntar antes de tocar
-nada de «Decisiones pendientes»**.
+**Hechos: P0-06 y P0-04.** Lo demás, con el criterio acordado: rama nueva, un
+commit por ítem, prueba que falle antes y pase después, y **preguntar antes de
+tocar nada de «Decisiones pendientes»**.
 
 - **P0-01 y P0-03** — `nullable=False` sobre `numero_expediente` y limpiar las
   filas ya guardadas. **Van juntos y ya se pueden**: P0-06 les dio el respaldo y
   la versión de esquema que les faltaba.
-- **P0-04** — el WebSocket en modo anónimo no arranca, y es como corre la app.
 - **P0-11** — el botón que dice «guardado» y no guarda (`CalculadoraRFView:223`).
+
+**Encontrado al verificar P0-04, sin tocar** — cada uno con su repro, cada uno
+con su commit propio:
+
+- **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
+  `test_feed_does_not_flood` existe para detectarlo y **en vez de fallar se
+  cuelga**: mide 22 s con un timeout de 22 s por lectura, y un frame cada 10 s
+  hace que nunca expire. Con vigilante puesto: **sigue corriendo a los 150 s**
+  sin producir salida. Un test que se cuelga es peor que uno que falla.
+- **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
+  exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O se adapta o se
+  salta cuando la lista no está vacía. **No borrarlo.**
+- **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
+- **El aviso de arranque dice «flight features disabled»** cuando en modo
+  anónimo las de vuelo sí funcionan.
 - **P0-07** — middleware de `Origin`/`Host`, **acotado a los orígenes de CORS
   configurados**. Con el proxy de Vite el `Origin` es `5199` y el `Host` es
   `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
@@ -580,7 +662,7 @@ no la remoción.
 | Suite | Estado |
 |---|---|
 | Frontend (vitest) | **448 pasan**, 30 archivos |
-| Python (no integración) | **466 pasan**, 7 deseleccionadas |
+| Python (no integración) | **471 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio |
 
@@ -589,6 +671,14 @@ no la remoción.
 y el detalle se perdió por un filtro mal puesto en la salida, así que no sé cuál
 fue. Si vuelve a fallar, no lo atribuya a la casualidad: capture la salida entera
 la primera vez.
+
+**Sobre la suite de integración** (`pytest -m integration`, 7 pruebas): no entra
+en la cifra de arriba y **está roja por dos motivos que no son de esta entrega**.
+Se corrió contra el backend del 8010, arrancado a las 10:35, **antes** del
+arreglo del P0-04 y sin `--reload`, así que nunca pasó por él: 5 pasan, 2 caen
+(`test_idle_when_nothing_is_tracked` exige lista de seguimiento vacía y hay 2;
+`test_feed_does_not_flood` **se cuelga**, ver la cola de arriba). Reproducido
+ambos con vigilante antes de concluir nada.
 
 Base de objetos: **0**. Los tres del operador fueron borrados; lo que se veia eran capas que no se quitaban.
 una anotación (id 3). 
