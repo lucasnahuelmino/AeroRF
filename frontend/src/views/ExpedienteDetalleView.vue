@@ -67,7 +67,7 @@
 
           <!-- Resultados -->
           <div v-if="rfStore.results.length > 0" class="mt-4">
-            <h3 class="font-semibold mb-2">Resultados:</h3>
+            <h3 class="font-semibold mb-2">Resultados del último cálculo:</h3>
             <div class="space-y-2 max-h-64 overflow-y-auto">
               <div
                 v-for="(result, idx) in rfStore.results"
@@ -80,6 +80,27 @@
               </div>
             </div>
           </div>
+
+          <!-- P0-11: lo guardado de verdad, que viene de la base y no del
+               cálculo en memoria. Antes este `GET` siempre devolvía vacío. -->
+          <div v-if="guardados.length > 0" class="mt-4 pt-4 border-t border-slate-700">
+            <h3 class="font-semibold mb-2">Guardados en este expediente:</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+              <div
+                v-for="ev in guardados"
+                :key="ev.id"
+                class="p-3 bg-slate-700 rounded text-sm"
+              >
+                <div class="font-mono text-sky-600">{{ ev.formula }}</div>
+                <div class="text-slate-400">Tipo: <span class="text-white">{{ ev.tipo_producto }}</span> | Error: <span class="text-warning">{{ ev.error_khz }} kHz</span></div>
+                <div class="text-right font-semibold text-success">Score: {{ ev.score_probabilidad }}%</div>
+              </div>
+            </div>
+          </div>
+          <p v-else-if="guardadosCargado" class="mt-4 text-sm text-slate-500">
+            Todavía no se guardó ningún resultado en este expediente. Desde la
+            Calculadora RF, eligiendo este expediente como destino, queda acá.
+          </p>
         </div>
       </div>
 
@@ -107,6 +128,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRFStore } from '../stores/rf'
 import { useExpedientesStore } from '../stores/expedientes'
+import { expedientes as apiExpedientes } from '../api/client'
 
 const route = useRoute()
 const rfStore = useRFStore()
@@ -117,6 +139,23 @@ const rfForm = ref({
   freq_mhz: '',
   tolerance_khz: 10,
 })
+
+// P0-11: lo que la calculadora guardó en este expediente. El `GET` existía
+// desde antes y siempre volvió vacío, porque no había escritura.
+const guardados = ref([])
+const guardadosCargado = ref(false)
+
+const cargarGuardados = async () => {
+  try {
+    guardados.value = await apiExpedientes.eventos(route.params.id)
+  } catch (err) {
+    // Un fallo acá no arruina el resto de la pantalla: queda como si no
+    // hubiera nada guardado, pero marcado para no mostrar un vacío engañoso.
+    guardados.value = []
+  } finally {
+    guardadosCargado.value = true
+  }
+}
 
 const statusClass = (status) => {
   const classes = {
@@ -156,6 +195,7 @@ const updateExpediente = async () => {
 
 onMounted(async () => {
   const id = route.params.id
+  cargarGuardados()
   try {
     const response = await fetch(`/api/v1/expedientes/${id}`)
     if (!response.ok) throw new Error('No encontrado')

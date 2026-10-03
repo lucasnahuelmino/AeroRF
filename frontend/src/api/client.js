@@ -285,6 +285,10 @@ export const expedientes = {
   remove: (id) => client.delete(`/expedientes/${id}`).then((r) => r.data),
   mediciones: (id) => client.get(`/expedientes/${id}/mediciones`).then((r) => r.data),
   eventos: (id) => client.get(`/expedientes/${id}/eventos`).then((r) => r.data),
+  // P0-11: guardaba un resultado de la calculadora. El GET de arriba ya
+  // existía; lo que faltaba era la escritura.
+  crearEvento: (id, payload) =>
+    client.post(`/expedientes/${id}/eventos`, payload).then((r) => r.data),
 }
 
 // ─── Export (spec §46) ──────────────────────────────────────────────────────

@@ -150,12 +150,61 @@
             </div>
           </div>
 
+          <!-- P0-11: la calculadora es una ruta suelta (`/calculadora`), no
+               recibe id y en la app no hay «expediente activo», así que el
+               destino se elige acá. Sin esto el botón no sabía adónde guardar,
+               que era justamente lo que lo hacía mentir. -->
+          <div class="mb-4">
+            <label for="expediente-destino" class="block text-sm text-slate-400 mb-1">
+              Expediente de destino
+            </label>
+            <select
+              id="expediente-destino"
+              v-model="expedienteId"
+              class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 focus:outline-none focus:border-sky-600"
+            >
+              <option :value="null" disabled>Seleccioná un expediente…</option>
+              <option v-for="e in expedientes" :key="e.id" :value="e.id">
+                {{ e.numero_expediente }}{{ e.aeropuerto ? ' — ' + e.aeropuerto : '' }}
+              </option>
+            </select>
+            <p v-if="expedientesStore.loading" class="text-xs text-slate-500 mt-1">
+              Cargando expedientes…
+            </p>
+            <!-- Distinguir «no pude cargar» de «no hay ninguno»: decir
+                 «todavía no hay expedientes» cuando en realidad falló la
+                 carga sería repetir el defecto que arregla este commit. -->
+            <p v-else-if="expedientesStore.error" class="text-xs text-red-400 mt-1">
+              No se pudieron cargar los expedientes. Revisá que el backend esté
+              levantado.
+            </p>
+            <p v-else-if="expedientes.length === 0" class="text-xs text-slate-500 mt-1">
+              No hay expedientes creados todavía. Creá uno desde Expedientes y volvé
+              a esta pantalla.
+            </p>
+            <p v-else-if="expedientes.length >= 100" class="text-xs text-slate-500 mt-1">
+              Se muestran los primeros 100 expedientes.
+            </p>
+          </div>
+
           <button
             @click="storeResult"
-            class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors text-white"
+            :disabled="!puedeGuardar"
+            class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors text-white"
           >
-            💾 Guardar en Expediente
+            {{ guardando ? 'Guardando…' : '💾 Guardar en Expediente' }}
           </button>
+
+          <!-- El aviso vive en la página: reemplaza al `alert` que decía
+               «guardado» sin guardar nada. -->
+          <p
+            v-if="aviso.texto"
+            role="status"
+            class="mt-3 text-sm"
+            :class="aviso.tipo === 'ok' ? 'text-green-400' : 'text-red-400'"
+          >
+            {{ aviso.texto }}
+          </p>
         </div>
       </div>
     </div>
@@ -172,13 +221,26 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRFStore } from '../stores/rf'
+import { useExpedientesStore } from '../stores/expedientes'
+import { expedientes as apiExpedientes } from '../api/client'
 import FrequencyInput from '../components/FrequencyInput.vue'
 import Chart from '../components/Chart.vue'
 
 const rfStore = useRFStore()
+const expedientesStore = useExpedientesStore()
 const selectedResult = ref(null)
+
+// P0-11: el destino del guardado, y el aviso que reemplaza al `alert`.
+const expedienteId = ref(null)
+const guardando = ref(false)
+const aviso = ref({ tipo: null, texto: '' })
+
+const expedientes = computed(() => expedientesStore.expedientes)
+const puedeGuardar = computed(
+  () => !!selectedResult.value && !!expedienteId.value && !guardando.value
+)
 
 const form = ref({
   target_mhz: 119.0,
@@ -217,13 +279,92 @@ const calculate = async () => {
 
 const selectResult = (result) => {
   selectedResult.value = result
+  // El aviso habla de un resultado concreto: al cambiar de uno deja de ser
+  // cierto, así que no queda colgado diciendo «guardado».
+  aviso.value = { tipo: null, texto: '' }
 }
 
-const storeResult = () => {
-  alert('Resultado guardado (próximamente integrado con expediente)')
+/**
+ * Guarda el resultado seleccionado en el expediente elegido.
+ *
+ * Este era P0-11: la función no guardaba nada y respondía con un diálogo
+ * nativo que daba por hecho el guardado. El texto literal de entonces está
+ * en `AERORF_CHANGELOG.md`; acá no se repite a propósito, porque
+ * `tests/p011-guardar.spec.js` comprueba que no vuelva a aparecer.
+ *
+ * Ahora se manda de verdad a `POST /expedientes/{id}/eventos`, que escribe en
+ * `eventos_rf`, la tabla que ya leía `GET /expedientes/{id}/eventos`. Los
+ * nombres de campo del cuerpo son los de ese modelo, y los del cálculo son los
+ * de `RFMatch` (`result_mhz`, `tipo`, `error_khz`, `score`,
+ * `frequencies_involved`), medidos en vivo contra `/rf/calculate` antes de
+ * escribir esto.
+ */
+const storeResult = async () => {
+  aviso.value = { tipo: null, texto: '' }
+
+  if (!expedienteId.value) {
+    aviso.value = {
+      tipo: 'error',
+      texto: 'Elegí a qué expediente guardarlo.',
+    }
+    return
+  }
+  if (!selectedResult.value) {
+    aviso.value = {
+      tipo: 'error',
+      texto: 'No hay ningún resultado seleccionado para guardar.',
+    }
+    return
+  }
+
+  const r = selectedResult.value
+  guardando.value = true
+  try {
+    const guardado = await apiExpedientes.crearEvento(expedienteId.value, {
+      expediente_id: expedienteId.value,
+      frecuencia_resultado_mhz: r.result_mhz ?? r.resultado,
+      tipo_producto: r.tipo,
+      formula: r.formula,
+      error_khz: r.error_khz ?? 0,
+      score_probabilidad: r.score,
+      freq_1_mhz: r.frequencies_involved?.[0] ?? null,
+      freq_2_mhz: r.frequencies_involved?.[1] ?? null,
+    })
+    const destino = expedientes.value.find((e) => e.id === expedienteId.value)
+    aviso.value = {
+      tipo: 'ok',
+      texto: `Guardado en el expediente ${
+        destino?.numero_expediente ?? expedienteId.value
+      } (evento ${guardado.id}).`,
+    }
+  } catch (err) {
+    aviso.value = { tipo: 'error', texto: mensajeDeError(err) }
+  } finally {
+    guardando.value = false
+  }
+}
+
+/**
+ * Traduce el error a un mensaje que se pueda leer. Los `detail` que salen de
+ * nuestros propios endpoints ya vienen en español (404 y 400 del nuevo POST);
+ * los 422 de validación los arma FastAPI en inglés, así que esos se reemplazan
+ * en vez de mandarlos tal cual al operador.
+ */
+const mensajeDeError = (err) => {
+  const detalle = err?.response?.data?.detail
+  if (typeof detalle === 'string' && detalle.trim()) return detalle
+  if (Array.isArray(detalle)) {
+    return 'El resultado no tiene los datos que hace falta para guardarlo.'
+  }
+  if (err?.message === 'Network Error') {
+    return 'No se pudo hablar con el backend. ¿Está levantado?'
+  }
+  return 'No se pudo guardar el resultado.'
 }
 
 onMounted(() => {
+  // `limit: 100` porque el endpoint corta en 10 por defecto.
+  expedientesStore.fetchExpedientes({ limit: 100 })
   calculate()
 })
 </script>

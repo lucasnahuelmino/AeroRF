@@ -3856,3 +3856,198 @@ Decisiones que tomó el operador al revisar la auditoría:
   comentario de la intención sobre círculos y radiales sigue sin cumplirse.
 - **`.env.example` no trae `CACHE_TTL_TRACKS_LIVE_S`** — omisión del 0.30.2, la
   mía. Está en `config.py` con default 30 y no estaba documentada.
+
+---
+
+## 0.30.7 - El botón que decía «guardado» y no guardaba
+
+**Rama:** `auditoria/p011-guardar-en-expediente`
+**Ítem:** P0-11 de la auditoría de Claude.
+**Decisión del operador:** «Selector en la calculadora».
+
+### El defecto
+
+Texto exacto que había en `frontend/src/views/CalculadoraRFView.vue`, y no era
+otra cosa:
+
+```js
+const storeResult = () => {
+  alert('Resultado guardado (próximamente integrado con expediente)')
+}
+```
+
+El diálogo afirmaba un guardado que no ocurría. **Medido**: las cuatro tablas
+RF estaban vacías (`eventos_rf` 0, `mediciones` 0, `rf_events` 0,
+`rf_sources` 0) y `client.js` llevaba `rf.createEvent` definido **sin un solo
+llamador** en toda la interfaz.
+
+### No era una decisión de diseño: eran dos arquitecturas paralelas
+
+Al cablear a ciegas habría ido al lugar equivocado, así que primero se miró
+qué había:
+
+| | **A — `eventos_rf`** | **B — `rf_events`** |
+|---|---|---|
+| Campos | `formula`, `tipo_producto`, `error_khz`, `score_probabilidad`, `proximidad`, `expediente_id` | `frequency_mhz`, `classification`, `event_at`, `calculated_evento_id` |
+| Escritura | **no tenía** | `POST /rf/events` → crea un `MapObject` |
+| Lectura | `GET /expedientes/{id}/eventos`, **ya existía** | `GET /rf/events` |
+| Coordenadas | ninguna | obligatorias (es un objeto de mapa) |
+
+La calculadora produce exactamente lo de la **A** y no tiene coordenadas: un
+resultado de armónico no es un punto del mapa. `rf.createEvent` (la **B**)
+habría exigido inventarle una lat/lon. **El guardado va a la A.**
+
+### Lo que ya existía y no se reconstruyó
+
+- `EventoRF` en `app/models/evento_rf.py`, con todos los campos del cálculo.
+- `EventoRFCreate` y `EventoRFResponse` en `app/models/schemas.py`.
+- `GET /expedientes/{id}/eventos`, ordenado por probabilidad.
+- El borrado en cascata al borrar el expediente (`expedientes.py`).
+
+Lo único que faltaba era la escritura. Por eso el `GET` siempre devolvía `[]`:
+no había nada que guardar nunca.
+
+### Lo que se hizo
+
+**Backend** — `POST /expedientes/{id}/eventos` en
+`app/api/routes/expedientes.py`. La URL manda: el expediente a guardar es el
+de la ruta; si el cuerpo dice otro, responde 400 en vez de adivinar. 404
+«No existe el expediente {id}» si no existe, también en español. Responde
+201 con `EventoRFResponse`.
+
+**Contrato** — `expedientes.crearEvento(id, payload)` en
+`frontend/src/api/client.js`, en el mismo commit que el endpoint, como exige
+la regla.
+
+**Interfaz** — `CalculadoraRFView.vue`:
+
+- Desplegable **Expediente de destino** (la ruta `/calculadora` no recibe id y
+  en la app no hay «expediente activo», así que hay que elegir).
+- El botón queda inactivo hasta que haya resultado **y** destino.
+- El aviso vive en la página (`role="status"`), en español, y distingue
+  éxito de error. Si la carga de expedientes falla dice «No se pudieron
+  cargar», no «no hay ninguno», que sería repetir el defecto.
+- Al cambiar de resultado el aviso anterior se borra: no queda un «guardado»
+  hablando de un resultado que ya no es el visible.
+
+**Lectura** — `ExpedienteDetalleView.vue` muestra **«Guardados en este
+expediente»**, que viene de la base, aparte de **«Resultados del último
+cálculo»**, que es memoria de la sesión. Los dos títulos ahora dicen lo que
+son.
+
+**Sin truncar** — `stores/expedientes.js`: `fetchExpedientes` acepta
+parámetros opcionales (sin ellos se comporta igual que antes, ningún llamador
+viejo cambia). La calculadora pide `{ limit: 100 }`.
+
+### Las guardas
+
+Backend, `tests/test_p011_guardar_en_expediente.py`, **6 pruebas**:
+
+1. Guardar y volver a leer por el `GET` que ya existía.
+2. Que ningún campo se redondee ni trunque en el ida y vuelta.
+3. Que cada guardado deje una fila y el `GET` salga ordenado.
+4. Que los dos expedientes no se mezclen.
+5. 404 en español para un expediente inexistente.
+6. 400 si el cuerpo contradice la URL, **y que no se haya escrito nada**.
+
+Frontend, `frontend/tests/p011-guardar.spec.js`, **5 pruebas**: botón
+inactivo sin destino y sin llamada; guardado con el mapeo exacto de campos; un
+error del backend se muestra como error; un fallo de carga no se disfraza de
+«no hay expedientes»; y que el texto mentiroso ya no está en la vista.
+
+**Por reversión** — backend: quitado el endpoint, **6 de 6 fallan** (405 Method
+Not Allowed). Frontend: restaurada la vista original de git, **5 de 5
+fallan**. Las 11 vuelven a verde con el arreglo, y las dos suites completas
+pasan después.
+
+### Verificación en vivo
+
+Contra una base **temporal** en el puerto 8011, no contra `aerorf.db`: no hay
+`DELETE` de `eventos_rf`, así que una fila de prueba en la base real no se
+podría borrar sin borrar el expediente entero. Se borró la base al terminar y
+no quedó ningún respaldo nuevo.
+
+| Acción | Resultado |
+|---|---|
+| `POST /expedientes/` | 200 |
+| `POST /expedientes/1/eventos` | **201**, con `id` y `timestamp` |
+| `GET /expedientes/1/eventos` | 200, **1 fila** (antes siempre 0) |
+| `POST /expedientes/999999/eventos` | **404** «No existe el expediente 999999» |
+| `POST` con cuerpo que contradice la URL | **400** «El expediente del cuerpo (501) no coincide con el de la ruta (1)» |
+| `GET` después del 400 | sigue en **1**: no escribió nada |
+
+**Un falso negativo propio, anotado para no repetirlo.** El primer chequeo de
+bytes lo hice en PowerShell y el `×` (U+00D7) salió como `C3 83 C2 97`, es
+decir mojibake: parecía que el servidor corrompía la fórmula. Repetido el ida y
+vuelta en Python, sin ninguna capa de codificación en el medio: **`32 20 C3 97
+20 38 38 2E 35` idéntico en el POST y en el GET**. La culpa era mía: PowerShell
+5.1 leyó mi comando como CP1252 y el `×` llegó duplicado. El endpoint estaba
+bien; el instrumento no.
+
+### Números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 471 | **477** (+6) |
+| Frontend (vitest) | 448 / 30 archivos | **453 / 31 archivos** (+5) |
+| Paridad geográfica | 675 | **675**, 0 fallos |
+| Build | — | **`✓ built in 1m 30s`** |
+
+### Hallazgos nuevos, sin tocar
+
+Cada uno para su commit:
+
+- **`GET /expedientes` corta en 10 y nadie pagina.** El parámetro es
+  `limit: int = 10`, `ExpedientesView` no pagina nada y los cinco llamadores
+  de `fetchExpedientes()` van sin parámetro, así que la pantalla de expedientes
+  muestra a lo sumo 10 y no se nota. **Leído en el código, no reproducido:**
+  con un solo expediente en la base no hay forma de verlo fallar. Por eso el
+  desplegable pide 100 explícitamente.
+- **`toolbar.spec.js` falló una vez al cargar** en una corrida completa
+  (441 de 453, 12 pruebas sin correr). Pasó sola 12/12 y la corrida
+  siguiente dio **453/453**. Es el mismo síntoma que el flake ya registrado en
+  0.30.6; **no se pudo reproducir y no se pudo atribuir a este cambio**.
+- **Mensajes en inglés en `expedientes.py`**: «Expediente not found» (en los
+  `GET` de mediciones y eventos) y «Expediente … already exists» (en el
+  `POST`). Los del endpoint nuevo sí están en español.
+- **Los 422 de FastAPI siguen en inglés** («Field required»). No se mandan al
+  operador: la vista los traduce a un mensaje propio, pero el texto crudo
+  sigue ahí para quien mire el JSON.
+- **`client.js` tenia `rf.createEvent` sin llamador** — y es de la arquitectura
+  B. Cablearlo habría sido el error fácil: habría dado «guardado» en la tabla
+  equivocada.
+
+### Pendiente (lista viva)
+
+Resueltos hasta ahora en la auditoría: **P0-06** (base anclada, respaldo
+automático, versión de esquema), **P0-04** (el WebSocket en modo anónimo) y
+**P0-11** (el botón que decía «guardado»).
+
+**Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro y
+en espera de commit propio:
+
+- **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
+  `test_feed_does_not_flood` existe para detectarlo y en vez de fallar **se
+  cuelga**: mide 22 s con un timeout de 22 s por lectura, y un frame cada 10 s
+  hace que nunca expire. Vigilante puesto: sigue corriendo a los 150 s.
+- **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
+  exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O el test se
+  adapta, o se salta cuando la lista no está vacía; **no borrarlo**.
+- **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
+- **El aviso de arranque dice «flight features disabled»** cuando en modo
+  anónimo las de vuelo sí funcionan.
+- **`GET /expedientes` corta en 10 sin paginación** (arriba, en Hallazgos).
+- **`toolbar.spec.js` flaky**, una vez, sin repro.
+
+Decisiones que tomó el operador al revisar la auditoría:
+
+- **P0-02 — borrar expedientes con objetos GIS vinculados: bloquear con 409.**
+  Coherente con lo que ya pasa al revés, que borrar un objeto vinculado sí está
+  bloqueado. Nada se pierde en silencio.
+- **P0-11 — selector de expediente en la calculadora.** Se eligió esa forma
+  entre las cuatro que se le presentaron (guardar desde el detalle, meter la
+  calculadora en el expediente, o quitar el botón).
+- **Se empieza por P0-06** y de ahí se sigue con el resto de la auditoría.
+- **El modelo de despliegue sigue sin decidir** — una PC por técnico o servidor
+  compartido —, así que el middleware de `Origin` va acotado a los orígenes de
+  CORS configurados, que sirve para los dos casos sin comprometer nada.

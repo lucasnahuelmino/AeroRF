@@ -570,20 +570,83 @@ backend del 8010 se arrancó a las 10:35, antes del arreglo, y sin `--reload`.
 
 ---
 
+## 0.30.7 - El botón que decía «guardado» y no guardaba
+
+P0-11, con la forma que eligió el operador (**selector de expediente en la
+calculadora**).
+
+**El defecto**, texto completo y sin suavizar:
+
+```js
+const storeResult = () => {
+  alert('Resultado guardado (próximamente integrado con expediente)')
+}
+```
+
+**Lo que había que saber antes de cablearlo**: eran dos arquitecturas RF
+paralelas y el botón apuntaba a la fácil de confundir.
+
+- **`eventos_rf`** (español) tiene los campos exactos del cálculo — `formula`,
+  `tipo_producto`, `error_khz`, `score_probabilidad`, `expediente_id` —, no
+  tiene coordenadas, **tenía `GET /expedientes/{id}/eventos` y no tenía
+  escritura**. Las cuatro tablas RF estaban en **0 filas**.
+- **`rf_events`** (inglés) es el acompañante de `MapObject`: exige lat/lon y
+  **sí** tiene `POST /rf/events`, que es el `client.js.rf.createEvent` que
+  **nadie llamaba**.
+
+Un armónico calculado no es un punto del mapa, así que `createEvent` habría
+sido guardar en la tabla equivocada. El guardado va a `eventos_rf`.
+
+**Lo que se hizo**: `POST /expedientes/{id}/eventos` (URL manda; 404 y 400 en
+español), `expedientes.crearEvento` en el mismo commit, desplegable de destino
+en la calculadora, aviso en la página que distingue éxito de error, y
+**«Guardados en este expediente»** en el detalle, aparte de **«Resultados del
+último cálculo»**, que es memoria de sesión.
+
+**Guardas**: 6 de backend + 5 de frontend. Por reversión, quitado el endpoint
+**6 de 6 fallan**; restaurada la vista original de git **5 de 5 fallan**.
+
+**En vivo, contra una base temporal** (no contra `aerorf.db`: no hay `DELETE`
+de `eventos_rf` y una fila de prueba no se podría deshacer sin borrar el
+expediente): `201` al guardar, `1` fila en el `GET` que antes daba `0`, `404`
+«No existe el expediente 999999», `400` «El expediente del cuerpo (501) no
+coincide con el de la ruta (1)», y el `400` **no escribió nada**.
+
+**Un error mío que vale anotar**: el primer chequeo del `×` (U+00D7) lo hice en
+PowerShell y salió `C3 83 C2 97`, o sea mojibake — parecía que el servidor
+corrompía la fórmula. Repetido en Python: **`32 20 C3 97 20 38 38 2E 35`
+idéntico en ida y vuelta**. PowerShell 5.1 leyó mi comando como CP1252. El
+código estaba bien; el instrumento no.
+
+**Hallazgos nuevos, sin tocar** (cada uno con su commit):
+
+- **`GET /expedientes` corta en 10** (`limit: int = 10`) y **nadie pagina**:
+  los cinco llamadores de `fetchExpedientes()` van sin parámetro y
+  `ExpedientesView` no pagina. Leído en el código, **no reproducido** — con un
+  solo expediente en la base no se puede ver fallar.
+- **`toolbar.spec.js` falló una vez al cargar** (441/453, 12 sin correr);
+  sola 12/12 y la corrida siguiente 453/453. Mismo síntoma que el flake ya
+  registrado; **sin repro y sin atribución posible**.
+- **Inglés en `expedientes.py`**: «Expediente not found» y «Expediente …
+  already exists». Los del endpoint nuevo sí están en español.
+- **Los 422 de FastAPI siguen en inglés**; la vista los traduce antes de
+  mostrarlos, pero el JSON crudo sigue con «Field required».
+
+---
+
 ## Lo que queda pendiente
 
 ### La cola de la auditoría de Claude
 
-**Hechos: P0-06 y P0-04.** Lo demás, con el criterio acordado: rama nueva, un
+**Hechos: P0-06, P0-04 y P0-11.** Lo demás, con el criterio acordado: rama nueva, un
 commit por ítem, prueba que falle antes y pase después, y **preguntar antes de
 tocar nada de «Decisiones pendientes»**.
 
 - **P0-01 y P0-03** — `nullable=False` sobre `numero_expediente` y limpiar las
   filas ya guardadas. **Van juntos y ya se pueden**: P0-06 les dio el respaldo y
   la versión de esquema que les faltaba.
-- **P0-11** — el botón que dice «guardado» y no guarda (`CalculadoraRFView:223`).
 
-**Encontrado al verificar P0-04, sin tocar** — cada uno con su repro, cada uno
+**Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro, cada uno
 con su commit propio:
 
 - **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
@@ -597,6 +660,10 @@ con su commit propio:
 - **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
 - **El aviso de arranque dice «flight features disabled»** cuando en modo
   anónimo las de vuelo sí funcionan.
+- **`GET /expedientes` corta en 10 y nadie pagina** — los cinco llamadores van
+  sin parámetro y la pantalla de expedientes muestra a lo sumo 10 sin decirlo.
+- **`toolbar.spec.js` flaky**, una vez al cargar en corrida completa (441/453),
+  sola 12/12 y 453/453 después. **Sin repro.**
 - **P0-07** — middleware de `Origin`/`Host`, **acotado a los orígenes de CORS
   configurados**. Con el proxy de Vite el `Origin` es `5199` y el `Host` es
   `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
@@ -661,16 +728,19 @@ no la remoción.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **448 pasan**, 30 archivos |
-| Python (no integración) | **471 pasan**, 7 deseleccionadas |
+| Frontend (vitest) | **453 pasan**, 31 archivos |
+| Python (no integración) | **477 pasan**, 7 deseleccionadas |
 | `tests/geo_parity.mjs` | 675 pasan |
-| Build | limpio |
+| Build | limpio (`✓ built in 1m 30s`) |
 
-**Observado y sin explicar:** la primera corrida de vitest de esta sesión falló
-**1 archivo de 30**. No volvió a producirse en **10 corridas seguidas** después,
-y el detalle se perdió por un filtro mal puesto en la salida, así que no sé cuál
-fue. Si vuelve a fallar, no lo atribuya a la casualidad: capture la salida entera
-la primera vez.
+**Observado y sin explicar, dos veces.** La primera corrida de vitest de esta
+sesión falló **1 archivo de 30**; no volvió en **10 corridas seguidas** y el
+detalle se perdió por un filtro mal puesto en la salida. La segunda, ya con
+31 archivos, falló **`toolbar.spec.js` al cargar** (441 de 453, 12 pruebas sin
+correr): pasó sola 12/12 y la corrida siguiente dio **453/453**. Mismo síntoma,
+distinto archivo, **sin repro y sin atribución posible** — en particular, no se
+puede decir que sea por el commit de P0-11 ni que no lo sea. Si vuelve a fallar,
+no lo atribuya a la casualidad: capture la salida entera la primera vez.
 
 **Sobre la suite de integración** (`pytest -m integration`, 7 pruebas): no entra
 en la cifra de arriba y **está roja por dos motivos que no son de esta entrega**.

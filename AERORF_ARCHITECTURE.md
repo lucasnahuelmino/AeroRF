@@ -426,6 +426,7 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_trayectoria_viva.py` (16) | Por qué la trayectoria en vivo se congelaba: el TTL de la caché contra el intervalo de sondeo | `pytest tests/test_trayectoria_viva.py` |
 | `tests/test_p006_base_y_respaldo.py` (14) | **P0-06**: ruta de la base anclada a la raíz y no al directorio de trabajo, respaldo que atraviesa el WAL donde un `copyfile` no llega, y versión de esquema que no avanza si el paso falla | `pytest tests/test_p006_base_y_respaldo.py` |
 | `tests/test_p004_websocket_anonimo.py` (5) | **P0-04**: que el WebSocket consulte en modo anónimo en vez de rendirse, que la compuerta siga cerrada sin forma de consultar, y que la lista vacía gane al chequeo de credenciales | `pytest tests/test_p004_websocket_anonimo.py` |
+| `tests/test_p011_guardar_en_expediente.py` (6) | **P0-11**: que guardar y volver a leer por el `GET` que ya existía dé algo, que ningún campo cambie en el ida y vuelta, que los dos expedientes no se mezclen, y que 404 y 400 salgan en español sin escribir nada | `pytest tests/test_p011_guardar_en_expediente.py` |
 | `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
 | `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
 | `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
@@ -435,14 +436,16 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/components.spec.js` (43) | **Montaje real en jsdom**: el shell completo, los 8 paneles, `MapEngine`, `ToolManager`, `MeasureEngine`, `AircraftRenderer` | `npm run test:components` |
 | `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
+| `frontend/tests/p011-guardar.spec.js` (5) | **P0-11**: que el botón esté inactivo sin destino, que lo que se manda sean los campos de `EventoRF` con el mapeo medido en vivo, que un error se muestre como error, y que un fallo de carga no se finja «no hay expedientes» | `npx vitest run tests/p011-guardar.spec.js` |
 
-**Total: 471 de Python sin integración (16 archivos) + 7 de integración + 30
-del motor RF heredado + 675 de paridad + 448 de frontend + 78 E2E + 43 de
+**Total: 477 de Python sin integración (17 archivos) + 7 de integración + 30
+del motor RF heredado + 675 de paridad + 453 de frontend (31 archivos) + 78 E2E + 43 de
 recorrido real.**
 
-El 471 se mide con `pytest -m "not integration"`; el 7 de integración son los de
+El 477 se mide con `pytest -m "not integration"` y el 453 con `npm test` desde
+`frontend/`; el 7 de integración son los de
 `test_websocket.py`, que van con `--m integration` y **hoy están rojos** por dos
-motivos preexistentes y ajenos a P0-04: `test_idle` exige lista de seguimiento
+motivos preexistentes y ajenos a P0-04 y P0-11: `test_idle` exige lista de seguimiento
 vacía y hay 2 entradas del operador, y `test_feed_does_not_flood` **se cuelga**
 en vez de fallar porque el servidor reenvía `lost` cada 10 s sin deduplicar. **Los
 30 de

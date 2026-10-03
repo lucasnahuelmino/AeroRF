@@ -172,9 +172,22 @@ Motor de cálculo de frecuencias, sin mapa. Para el trabajo de gabinete.
 - **Armónicos:** hasta qué frecuencia llega un equipo, y a qué nivel.
 - **Intermodulación:** qué combinaciones de dos frecuencias generan una tercera
   no deseable, y cuál de ellas cae dentro de una banda aeronáutica.
-- **Bandas aeronáuticas:** referencia de las bandas banda de vuelo.
+- **Bandas aeronáuticas:** referencia de las bandas de vuelo.
 
-Los resultados se pueden copiar al expediente como texto.
+### Guardar un resultado en un expediente
+
+1. Haga el cálculo y seleccione el resultado que le interesa.
+2. En **Análisis detallado**, elija el **expediente de destino** en el
+   desplegable. Si la lista está vacía, cree primero un expediente desde
+   **Expedientes**.
+3. Pulse **Guardar en Expediente**. El aviso de abajo confirma en qué
+   expediente quedó y con qué número de evento. Si algo falla, el aviso lo
+   dice en rojo y no se guardó nada.
+
+Los resultados guardados aparecen en **Expedientes → detalle → Análisis RF →
+Guardados en este expediente**. Se guardan en la base, así que siguen ahí
+cuando vuelve a entrar, a diferencia de **Resultados del último cálculo**, que
+es lo que arrojó el cálculo de esta sesión y se pierde al salir.
 
 ---
 

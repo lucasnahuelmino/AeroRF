@@ -5,14 +5,16 @@ FastAPI router for expediente (case) management endpoints.
 
 Endpoints
 ─────────
-GET    /expedientes          — List all expedientes
-POST   /expedientes          — Create new expediente
-GET    /expedientes/{id}     — Get expediente by ID
-PUT    /expedientes/{id}     — Update expediente
-DELETE /expedientes/{id}     — Delete expediente
+GET    /expedientes          - List all expedientes
+POST   /expedientes          - Create new expediente
+GET    /expedientes/{id}     - Get expediente by ID
+PUT    /expedientes/{id}     - Update expediente
+DELETE /expedientes/{id}     - Delete expediente
+GET    /expedientes/{id}/eventos  - Calculated RF events of the case
+POST   /expedientes/{id}/eventos  - Save one calculated RF event (P0-11)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List
@@ -26,6 +28,7 @@ from app.models.schemas import (
     ExpedienteUpdate,
     ExpedienteResponse,
     MedicionResponse,
+    EventoRFCreate,
     EventoRFResponse,
 )
 
@@ -175,3 +178,41 @@ def get_eventos_rf(id: int, db: Session = Depends(get_db)):
     return db.query(EventoRF).filter(EventoRF.expediente_id == id).order_by(
         desc(EventoRF.score_probabilidad)
     ).all()
+
+
+# ─── POST /expedientes/{id}/eventos ────────────────────────────────────────────
+
+@router.post("/{id}/eventos", response_model=EventoRFResponse, status_code=201)
+def create_evento_rf(
+    id: int,
+    evento: EventoRFCreate,
+    db: Session = Depends(get_db),
+):
+    """Guarda un resultado de la calculadora RF en el expediente.
+
+    El id de la URL manda: es el expediente al que se guarda. El del cuerpo
+    tiene que decir lo mismo; si no lo dice es un error de quien llama, y se
+    responde con un error en vez de escribir en un expediente que nadie pidió.
+
+    Esto era P0-11: el botón «Guardar en Expediente» de la calculadora
+    respondía con un `alert` y no guardaba nada. El modelo `EventoRF` y el
+    `GET` de arriba ya existían; lo que faltaba era esta escritura.
+    """
+    expediente = db.query(Expediente).filter(Expediente.id == id).first()
+    if not expediente:
+        raise HTTPException(status_code=404, detail=f"No existe el expediente {id}")
+
+    if evento.expediente_id != id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El expediente del cuerpo ({evento.expediente_id}) no coincide "
+                f"con el de la ruta ({id})"
+            ),
+        )
+
+    db_evento = EventoRF(**evento.model_dump())
+    db.add(db_evento)
+    db.commit()
+    db.refresh(db_evento)
+    return db_evento
