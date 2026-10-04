@@ -5168,3 +5168,103 @@ vuelven las dos de API.
 | Frontend | 460 (33 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.21 — P0-09: la inyección de fórmulas en el CSV, sin tocar los números
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p009-csv-injection` ·
+**Auditoría de Claude, ítem P0-09 — «sólo en campos de texto libre»**
+
+## Qué estaba mal
+
+`GET /export/csv` escribía cada celda **tal cual**. Un nombre tecleado
+`=HYPERLINK("http://evil.example","clic")` viajaba entero y la hoja de
+cálculo lo abría como **fórmula**: el operador hace clic en la celda y
+cae en el sitio del atacante. Peor, la familia DDE
+(``=cmd|'/c calc'!A0``) llega a ejecutar comandos en la máquina donde
+se abre el archivo. Los disparadores: `=`, `+`, `-`, `@`, y las dos
+invisibles — tabulador y retorno de carro.
+
+## La trampa que avisa el propio ítem
+
+«Prefijar lo que empieza con `-` convertiría las latitudes negativas en
+texto.» La solución tacaña — blindar toda celda que arranque con uno de
+esos caracteres — arruina `-34.6` en una columna de latitud. El ítem
+pide blindar **sólo texto libre**.
+
+## El arreglo: por valor, no por columna
+
+```python
+def _blindar(valor):
+    if not isinstance(valor, str) or not valor:   # números intactos
+        return valor
+    if valor[0] not in ("=", "+", "-", "@", "\t", "\r"):
+        return valor
+    try:
+        float(valor)          # "-34.6", "-62.5", "+7.5": es un número
+        return valor          # …prefijarlo sería el error del ítem
+    except ValueError:
+        return "'" + valor    # la fórmula, prefijada
+```
+
+- **Sólo `str`**: las columnas numéricas (latitud, longitud, nivel dBm)
+  traen números y no se tocan.
+- **Un string legible como número tampoco se toca**: es exactamente la
+  advertencia del ítem, y cubre además el caso real de un dBm que llega
+  como string desde el JSON de propiedades.
+- **Por qué no una lista blanca de columnas**: se pudre con la próxima
+  columna nueva (la que nadie agregue al whitelist es el hueco de
+  mañana); el carácter peligroso no se pudre. En la práctica el
+  resultado es el que pide el ítem: los system values (`point`,
+  `user`, `#ff0000`, ISOs) no arrancan con ninguno de esos caracteres
+  — la blindada es no-op — y lo tecleado o venido de un tercero sí
+  queda cubierto.
+- **Los dos escritores**: `to_csv` (objetos del mapa) y `track_to_csv`
+  (trayectorias). El `callsign` de esta última viene de **OpenSky** —
+  dato de un tercero, ni siquiera del operador.
+- Las notas quedan cubiertas de fábrica (la celda empieza con
+  `[timestamp]`) y la blindada por valor las cubre igual por si cambia
+  el formato.
+
+## Lo que NO cambia
+
+- **KML y GeoJSON no se tocan**: son otras clases de archivo (XML y
+  JSON), no CSV — fuera del ítem.
+- Los números del CSV siguen siendo números: `-34.6` se abre como
+  `-34.6`, sin apóstrofo ni comillas de más.
+- Sin cambio de contrato: misma ruta, mismas columnas, mismo
+  delimitador `;`.
+
+## La guarda
+
+`tests/test_p009_csv_injection.py`, 4 escritas **antes** de tocar:
+**3 rojas** — la fórmula salía viva en `name` y en `description`, la de
+la trayectoria con el callsign `=1+1`, y `_blindar` ni siquiera
+existía — y **1 verde de arranque**: las latitudes negativas intactas,
+que es la cara que el arreglo tiene prohibida y que sigue verde
+después. La roja del CSV se volvió a medir **por revertida**: sin el
+blindado vuelve `=HYPERLINK(...)` a secas.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **544 pasan** (540 + 4 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 29 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (38,1 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+Nota de suite: la primera corrida de frontend, en paralelo con pytest,
+sacó **1 roja** con el perfil documentado del flaky de
+`toolbar.spec.js` (corrida lenta, >190 s); la corrida limpia inmediata
+dio **460/460 en 90 s**.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 540 | **544** (+4) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

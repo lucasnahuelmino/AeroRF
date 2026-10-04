@@ -639,8 +639,9 @@ código estaba bien; el instrumento no.
 ### La cola de la auditoría de Claude
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
-`test_idle` de 0.30.9, P0-02 en 0.30.19 y P0-07 en 0.30.20; de la fase 2,
-F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más abajo).**
+`test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20 y P0-09 en
+0.30.21; de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas
+más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -666,6 +667,18 @@ F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más abajo).**
   español. 6 guardas, **3 rojas** antes (origin evil, host evil y el
   websocket sin módulo), la del cableado repetida **por revertida**, y
   en vivo contra el 8010: evil → 403, `5199` → 200.
+
+- **P0-09** en 0.30.21 — inyección de fórmulas en el CSV: las celdas
+  que arrancaban con `=` `+` `-` `@` (y las invisibles, tabulador y
+  retorno) salían tal cual y la hoja de cálculo las ejecutaba — desde
+  un `HYPERLINK` al sitio del atacante hasta los DDE. El blindado va
+  **por valor, no por columna**: sólo strings, y un string legible
+  como número (`-34.6`, `-62.5`) se queda como está — justamente la
+  trampa que avisa el ítem. En los dos escritores (`to_csv` y
+  `track_to_csv`, este con el callsign de OpenSky). 4 guardas: **3
+  rojas** antes, la de latitudes negativas verdes desde el arranque
+  (cara que el arreglo tiene prohibida romper) y la del CSV repetida
+  **por revertida**.
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
@@ -832,8 +845,6 @@ con su commit propio:
   `eventos_rf` en 0), pero desde ahora **se corre contra una base temporal**:
   `DATABASE_URL` descartable en un puerto aparte. La prueba de ese método dio
   **77 de 78**, con la única falla del chequeo de capas de arriba.
-- **P0-09** — inyección de fórmulas en el CSV, **sólo en campos de texto libre**.
-  Prefijar lo que empieza con `-` convertiría las latitudes negativas en texto.
 - **P1, `async def` → `def`** — con SQLite hay que mirar `check_same_thread`
   antes; Claude lo marca como no medido.
 - **P1, correlación temporal** — subiría de prioridad. Compara el evento con las
