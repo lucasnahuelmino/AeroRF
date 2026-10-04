@@ -674,6 +674,17 @@ pendientes»**.
   `calculated_evento_id` **sigue sin escribirse** por decisión del
   operador: queda declarado hasta que exista un caso de uso real.
 
+- **F2-04** en 0.30.13 — el borrado no miraba nada: `clear_layer` borraba
+  por `layer_id` a secas (sin `locked`, sin `expediente_id`) y el cascade
+  destruía notas, historial y anotaciones; `delete_object` bloqueaba
+  expediente e hijo pero **no el candado**. **Decisión del operador:
+  borrado físico con los filtros** (no baja lógica): lo libre se borra, lo
+  protegido no se toca, y si tras limpiar queda algo,
+  `DELETE /map/layers/{id}` **no borra la capa** y contesta 409 — con
+  `Layer.objects` sin cascade, borrarla dejaría `layer_id = NULL` en los
+  supervivientes. Mensajes de esa ruta en español. 4 rojas antes, 6 verdes
+  después.
+
 Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
 la decisión de no unificar, confirmada — la tabla se mantiene como
 referencia):
@@ -703,9 +714,6 @@ referencia):
   **resuelto: se queda como está.** Decisión del operador en esta fase:
   no se inventa el vínculo, y se elimina el día que haya un caso de uso real
   (o nunca).
-- **F2-04** — `clear_layer` borra todo con un `delete()` masivo: sin filtro
-  `locked`, sin filtro `expediente_id`, y con cascade de notas e historial.
-  **Decisión pendiente:** ¿baja lógica (`deleted_at`) en vez de borrado físico?
 - **F2-05** — entradas inválidas que devuelven 500 (`null` en `visible`,
   `layer_id` inexistente, `kind` inválido). Ojo al arreglo: pasar de `body: dict`
   a Pydantic convierte 500 en **422 de FastAPI, en inglés** — hay que meter el

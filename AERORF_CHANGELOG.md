@@ -4532,3 +4532,99 @@ y con la lectura nueva, pasa.
 | Frontend | 453 | **454** (+1) |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+---
+
+# 0.30.13 — F2-04: el borrado masivo no miraba nada
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f204-borrado-filtrado` ·
+**Archivos:** 6 · **Fase 2 de la auditoría, ítem 4 de 8**
+
+## Qué pasaba
+
+`clear_layer` hacía `DELETE FROM map_objects WHERE layer_id = ?` y
+devolvía el conteo. Ni `locked`, ni `expediente_id`, ni `parent_id`. Y como
+las tres tablas de al lado (`ObjectNote`, `ObjectHistory`, `Annotation`)
+tienen `ondelete="CASCADE"`, cada objeto borrado se llevaba consigo sus
+notas, su historial y sus anotaciones: destrucción sin vuelta atrás en una
+operación que se pide desde «borrar capa».
+
+`delete_object`, el borrado de a uno, bloqueaba expediente e hijo pero
+**no el candado**: un objeto cerrado se podía borrar sin más, aunque
+editarlo estuviera vetado.
+
+La decisión del operador, **antes** de tocar el código: **borrado físico
+con los filtros**, no baja lógica con `deleted_at`. Lo libre se borra; lo
+protegido no se toca.
+
+## La guarda
+
+`tests/test_f204_borrado_filtrado.py`, seis pruebas. Las cuatro primeras
+corrieron antes del arreglo: **4 en rojo, 2 verdes**.
+
+1. `test_clear_borra_lo_libre_y_conserva_lo_protegido` — capa con un
+   libre, uno cerrado y uno vinculado: antes 200 y no quedaba nada; ahora
+   409, el libre se fue, los dos protegidos siguen y la capa también.
+2. `test_clear_con_todo_libre_borra_objetos_y_capa` (verde de guarda) —
+   el caso simple no se rompe.
+3. `test_clear_no_divide_un_grupo` — un hijo no se va solo.
+4. `test_borrado_individual_respeta_el_candado` — cerrado: antes 200;
+   ahora 400 con mensaje en español, y `?cascade=true` sigue siendo la
+   fuerza explícita de a uno.
+5. `test_borrado_individual_sigue_bloqueando_por_expediente` — roja sólo
+   por el mensaje en inglés; el bloqueo ya existía.
+6. `test_clear_sin_cascada_no_borra_nada` (verde de guarda) — el
+   precontrato de `clear_layer` no cambia.
+
+## El arreglo
+
+- **`clear_layer`** selecciona los candidatos con sus tres banderas, suma
+  los que son padre de otro objeto (para no partir un grupo) y borra sólo
+  los libres con una sentencia por id. Devuelve cuántos borró y registra
+  `removed` y `kept` en el log.
+- **`delete_object`**: el candado entra en la lista de impedimentos, y el
+  mensaje entero pasó a español («No se puede borrar el objeto 5: está
+  bloqueado…»), igual que el de `clear_layer`.
+- **`DELETE /map/layers/{id}`** limpia primero; si queda algo, **no borra
+  la capa** y contesta **409** con el detalle. No es capricho:
+  `Layer.objects` no tiene cascade, así que SQLAlchemy pondría
+  `layer_id = NULL` en los supervivientes y los dejaría huérfanos —
+  proteger dentro de `clear_layer` no serviría de nada si la capa se
+  borrara igual. Los 404 y el 400 de capa de sistema de esa misma ruta
+  también pasaron a español.
+- **409 y no all-or-nothing**: era la opción elegida («lo libre se borra,
+  lo protegido no se toca»); la opción «no se borra nada si hay
+  protegidos» estaba en el menú y no se eligió.
+
+## Lo que NO se toca, y por qué
+
+- **El borrado individual sigue respondiendo 400** cuando se niega, como
+  antes (el smoke lo tiene asentado en la línea 285). Unificar edición y
+  borrado en 409 es un cambio de contrato ya comentado y sigue pendiente
+  de tu palabra: hacerlo acá dejaría la edición en 400 y el borrado en 409.
+- **`client.js` no necesita cambios**: el interceptor ya prefiere el
+  `detail` del backend para cualquier status, así que el 409 en español
+  llega a la pantalla tal cual. Todavía no hay ninguna vista que llame a
+  `layers.remove`.
+- **La baja lógica (`deleted_at`)** queda descartada por decisión
+  explícita, no por omisión.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **510 pasan** (504 + 6 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (33,9 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 504 | **510** (+6) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

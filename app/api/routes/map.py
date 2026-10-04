@@ -620,17 +620,51 @@ def update_layer(
 @router.delete("/map/layers/{layer_id}")
 def delete_layer(
     layer_id: int,
-    clear: bool = Query(False, description="Also delete the layer's objects"),
+    clear: bool = Query(False, description="También borra los objetos de la capa"),
     db: Session = Depends(get_db),
 ):
-    """Delete a custom layer. System layers are protected."""
+    """Borra una capa propia. Las de sistema están protegidas.
+
+    F2-04: si después de limpiar queda algún objeto protegido (bloqueado,
+    vinculado a un expediente o parte de un grupo), la capa **no** se borra
+    y se contesta 409 con el detalle. `Layer.objects` no tiene cascade, así
+    que SQLAlchemy pondría `layer_id = NULL` en los supervivientes y los
+    dejaría huérfanos: protegerlos dentro de `clear_layer` no serviría de
+    nada si la capa se borrara igual.
+    """
     layer = db.query(Layer).filter(Layer.id == layer_id).first()
     if layer is None:
-        raise HTTPException(404, f"Layer {layer_id} not found")
+        raise HTTPException(404, f"No existe la capa {layer_id}")
     if layer.is_system:
-        raise HTTPException(400, "System layers cannot be deleted; hide them instead.")
+        raise HTTPException(
+            400, "Las capas de sistema no se pueden borrar; ocultalas en su lugar."
+        )
+
+    limpiados = 0
     if clear:
-        svc.clear_layer(db, layer_id, cascade=True)
+        limpiados = svc.clear_layer(db, layer_id, cascade=True)
+
+    restantes = (
+        db.query(func.count(MapObject.id))
+        .filter(MapObject.layer_id == layer_id)
+        .scalar()
+        or 0
+    )
+    if restantes:
+        if clear:
+            detalle = (
+                f"Quedan {restantes} objeto(s) protegido(s) (bloqueados, "
+                f"vinculados a un expediente o parte de un grupo): se borraron "
+                f"{limpiados} libres y la capa no se borra hasta que no queden. "
+                "Desbloquéalos o desvincúlos e inténtalo de nuevo."
+            )
+        else:
+            detalle = (
+                f"La capa todavía tiene {restantes} objeto(s); usa clear=true "
+                "para borrarlos junto con la capa."
+            )
+        raise HTTPException(409, detalle)
+
     db.delete(layer)
     db.commit()
     return {"deleted": layer_id}

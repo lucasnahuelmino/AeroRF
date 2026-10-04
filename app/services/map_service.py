@@ -740,26 +740,32 @@ def _payload_dict(satellite) -> Optional[dict]:
 def delete_object(
     db: Session, object_id: int, cascade: bool = False, user: Optional[str] = None
 ) -> None:
-    """Delete one object, refusing when it still has dependants.
+    """Delete one object, refusing when it still has protectors.
 
     Notes and history cascade with the object (they cannot exist without
-    it). An object referenced by an expediente, or carrying a linked
-    flight/track relation, is refused unless ``cascade=True``, so an
-    operator cannot quietly destroy part of a case file.
+    it). A **locked** object, an object that belongs to an expediente, or
+    one that is part of a parent/child group, is refused unless
+    ``cascade=True``, so an operator cannot quietly destroy part of a case
+    file or slip past the lock that already blocks editing (F2-04).
     """
     obj = _find_by_id(db, object_id)
     if obj is None:
         return
 
+    # F2-04: el candado faltaba. El expediente y el padre ya bloqueaban,
+    # pero un objeto cerrado se borraba sin más, aunque editar estuviera
+    # vetado — dos protecciones distintas para el mismo objeto.
     blockers: list[str] = []
+    if obj.locked and not cascade:
+        blockers.append("está bloqueado")
     if obj.expediente_id and not cascade:
-        blockers.append(f"belongs to expediente {obj.expediente_id}")
+        blockers.append(f"pertenece al expediente {obj.expediente_id}")
     if obj.parent_id and not cascade:
-        blockers.append(f"is a child of object {obj.parent_id}")
+        blockers.append(f"es hijo del objeto {obj.parent_id}")
     if blockers:
         raise MapServiceError(
-            f"Object {object_id} cannot be deleted: {'; '.join(blockers)}. "
-            "Pass cascade=true to remove it anyway."
+            f"No se puede borrar el objeto {object_id}: {'; '.join(blockers)}. "
+            "Pasa cascade=true para borrarlo igual."
         )
 
     otype = obj.type
@@ -772,16 +778,66 @@ def delete_object(
 
 
 def clear_layer(db: Session, layer_id: int, cascade: bool = False) -> int:
-    """Remove every object in a layer. Requires ``cascade=True``."""
+    """Borra los objetos **libres** de una capa. Requiere ``cascade=True``.
+
+    F2-04: el ``delete()`` masivo iba filtrado sólo por ``layer_id`` y se
+    llevaba bloqueados, vinculados a un expediente y, con ellos, las notas
+    y el historial que los ``ON DELETE CASCADE`` destruían sin vuelta
+    atrás. Lo protegido queda donde está:
+
+    * ``locked`` — el candado protege el borrado igual que protege la
+      edición;
+    * ``expediente_id`` — arrancar así una pieza de un caso;
+    * ``parent_id``, o ser el padre de otro objeto — no se parte un grupo.
+
+    Devuelve cuántos borró. Los que quedan los cuenta la ruta, que es
+    quien decide si la capa puede borrarse o si hay que contestar 409.
+    """
     if not cascade:
         raise MapServiceError(
-            "clear_layer requires cascade=true; it deletes every object in the layer."
+            "clear_layer requiere cascade=true: borra los objetos libres de la capa."
         )
-    count = db.query(MapObject).filter(MapObject.layer_id == layer_id).delete(
-        synchronize_session=False
+
+    candidatos = (
+        db.query(
+            MapObject.id, MapObject.locked, MapObject.expediente_id,
+            MapObject.parent_id,
+        )
+        .filter(MapObject.layer_id == layer_id)
+        .all()
     )
+    # Un padre no se va solo: si su hijo se queda, el `ON DELETE SET NULL`
+    # le borraría el vínculo en silencio.
+    padres = {
+        pid
+        for (pid,) in db.query(MapObject.parent_id)
+        .filter(MapObject.parent_id.isnot(None))
+        .distinct()
+    }
+    libres = [
+        oid
+        for oid, locked, expediente_id, parent_id in candidatos
+        if not locked
+        and expediente_id is None
+        and parent_id is None
+        and oid not in padres
+    ]
+
+    count = 0
+    if libres:
+        count = (
+            db.query(MapObject)
+            .filter(MapObject.id.in_(libres))
+            .delete(synchronize_session=False)
+        )
     db.commit()
-    object_log.warning("layer.cleared", "layer cleared", layer_id=layer_id, removed=count)
+    object_log.warning(
+        "layer.cleared",
+        "layer cleared",
+        layer_id=layer_id,
+        removed=count,
+        kept=len(candidatos) - count,
+    )
     return count
 
 

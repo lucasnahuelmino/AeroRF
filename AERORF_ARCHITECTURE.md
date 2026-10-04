@@ -434,6 +434,7 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_f201_candado_rf.py` (7) | **Fase 2, F2-01**: que las cuatro rutas tipadas no se salten el candado, que un 400 no deje media escritura atrás, que lo desbloqueado siga editándose y que el candado pueda abrirse | `pytest tests/test_f201_candado_rf.py` |
 | `tests/test_f202_historial_tipado.py` (8) | **Fase 2, F2-02**: que el historial de los atributos tipados lleve sólo cambios reales con los dos valores, que no diga que borró lo que sigue ahí, que registre el `azimuth`/`radius` que se copian al objeto y que `25.0` y `25` no cuenten como cambio | `pytest tests/test_f202_historial_tipado.py` |
 | `tests/test_f203_evento_serializado.py` (7) | **Fase 2, F2-03**: que el payload de `rf_events` salga en la respuesta del mapa, en el GeoJSON, en las dos columnas del CSV y en el duplicado; y que un evento sin payload no invente uno, que una fuente no lleve bloque de evento y que borrar el evento siga cascadendo | `pytest tests/test_f203_evento_serializado.py` |
+| `tests/test_f204_borrado_filtrado.py` (6) | **Fase 2, F2-04**: que el limpiado masivo se lleve lo libre y deje lo cerrado, lo vinculado y los grupos enteros; que el borrado de a uno respete el candado y siga bloqueando por expediente; y que sin `cascade` no se borre una fila | `pytest tests/test_f204_borrado_filtrado.py` |
 | `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
 | `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
 | `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
@@ -445,14 +446,14 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 | `frontend/tests/p011-guardar.spec.js` (5) | **P0-11**: que el botón esté inactivo sin destino, que lo que se manda sean los campos de `EventoRF` con el mapeo medido en vivo, que un error se muestre como error, y que un fallo de carga no se finja «no hay expedientes» | `npx vitest run tests/p011-guardar.spec.js` |
 
-**Total: 504 de Python sin integración (21 archivos) + 7 de integración + 30
+**Total: 510 de Python sin integración (22 archivos) + 7 de integración + 30
 del motor RF heredado + 675 de paridad + 454 de frontend (31 archivos) + 78 E2E + 43 de
 recorrido real.**
 
-El 504 se mide con `pytest -m "not integration"` y el 454 con `npm test` desde
+El 510 se mide con `pytest -m "not integration"` y el 454 con `npm test` desde
 `frontend/`; el 7 de integración son los de
 `test_websocket.py`, que van con `-m integration` y hoy quedan **los 7 en
-verde (28 s)** contra el backend de 8010 con 0.30.12: `test_feed_does_not_flood`
+verde (28 s)** contra el backend de 8010 con 0.30.13: `test_feed_does_not_flood`
 **pasa** —se cuelgaba porque el servidor reenviaba `lost` cada 10 s sin
 deduplicar, y ese es ahora `tests/test_lost_sin_inundar.py` sin servidor ni
 reloj—, y `test_idle` **pasa desde 0.30.9**: su precondición de lista vacía la
