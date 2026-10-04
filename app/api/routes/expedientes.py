@@ -21,6 +21,7 @@ from typing import List
 
 from app.database.database import get_db
 from app.models.expediente import Expediente
+from app.models.map_object import MapObject
 from app.models.medicion import Medicion
 from app.models.evento_rf import EventoRF
 from app.models.schemas import (
@@ -136,20 +137,43 @@ def update_expediente(
 
 @router.delete("/{id}")
 def delete_expediente(id: int, db: Session = Depends(get_db)):
-    """Delete an expediente (cascade deletes related records)."""
+    """Delete an expediente, refusing while GIS objects still link to it."""
     db_expediente = db.query(Expediente).filter(Expediente.id == id).first()
-    
+
     if not db_expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
-    
+        raise HTTPException(status_code=404, detail=f"No existe el expediente {id}.")
+
+    # P0-02: `MapObject.expediente_id` es ON DELETE SET NULL y la base
+    # corre con foreign_keys=ON, así que este borrado se llevaba el
+    # vínculo en silencio — el expediente se iba y los objetos quedaban
+    # huérfanos de caso, sin que nadie lo viera. El sentido inverso ya
+    # estaba bloqueado (no se puede borrar un objeto con expediente);
+    # el operador decidió que este responda 409.
+    vinculados = [
+        oid
+        for (oid,) in db.query(MapObject.id)
+        .filter(MapObject.expediente_id == id)
+        .order_by(MapObject.id)
+    ]
+    if vinculados:
+        muestra = ", ".join(str(v) for v in vinculados[:10])
+        if len(vinculados) > 10:
+            muestra += ", ..."
+        raise HTTPException(
+            409,
+            f"No se puede borrar el expediente {id}: {len(vinculados)} "
+            f"objetos de mapa siguen vinculados (ids {muestra}). "
+            "Desvinculalos antes de borrarlo.",
+        )
+
     # Delete related records
     db.query(Medicion).filter(Medicion.expediente_id == id).delete()
     db.query(EventoRF).filter(EventoRF.expediente_id == id).delete()
-    
+
     db.delete(db_expediente)
     db.commit()
-    
-    return {"message": f"Expediente {id} deleted"}
+
+    return {"message": f"Expediente {id} eliminado"}
 
 
 # ─── GET /expedientes/{id}/mediciones ──────────────────────────────────────────

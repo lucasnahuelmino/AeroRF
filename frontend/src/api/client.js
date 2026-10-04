@@ -40,6 +40,7 @@ export function describeError(error) {
     }
     if (status === 429) return 'Límite de créditos de OpenSky alcanzado. Pausando consultas.'
     if (status === 503) return 'OpenSky no está configurado en el backend.'
+    if (status === 409) return 'La operación entra en conflicto con el estado actual de los datos.'
     return `Error ${status}`
   }
   if (error.code === 'ECONNABORTED') return 'La solicitud tardó demasiado.'

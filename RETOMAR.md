@@ -639,7 +639,21 @@ código estaba bien; el instrumento no.
 ### La cola de la auditoría de Claude
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
-`test_idle` de 0.30.9, y de la fase 2: F2-01 en 0.30.10 y F2-02 en 0.30.11.**
+`test_idle` de 0.30.9 y P0-02 en 0.30.19; de la fase 2, F2-01 a F2-08
+(0.30.10–0.30.18, con sus entradas más abajo).**
+
+- **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
+  vinculados contesta **409** con los ids en el detalle, en español, y
+  **no borra nada**: antes el `ON DELETE SET NULL` (con
+  `foreign_keys=ON`) devolvía 200 y desvinculaba en silencio — el
+  expediente se iba y los objetos quedaban huérfanos de caso. El
+  sentido inverso ya estaba bloqueado; ahora los dos. El camino bueno
+  (sin vínculos) sigue en 200, y la recuperación es la API pública:
+  `PUT /map/objects/{id}` con `expediente_id: null`. Pasaron a español
+  el 404 y el mensaje de éxito de la misma ruta, y `describeError`
+  aprendió el 409 (regla de contrato: cliente en el mismo commit). 4
+  rojas antes, repetido el bloqueo **por revertida**.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.
@@ -810,7 +824,6 @@ con su commit propio:
   `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
 - **P0-09** — inyección de fórmulas en el CSV, **sólo en campos de texto libre**.
   Prefijar lo que empieza con `-` convertiría las latitudes negativas en texto.
-- **P0-02** — decidido: **bloquear con 409**.
 - **P1, `async def` → `def`** — con SQLite hay que mirar `check_same_thread`
   antes; Claude lo marca como no medido.
 - **P1, correlación temporal** — subiría de prioridad. Compara el evento con las

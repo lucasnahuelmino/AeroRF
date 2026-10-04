@@ -4980,3 +4980,101 @@ revertida**: quitada la línea del `source`, vuelve a decir «user».
 | Frontend | 454 (31 archivos) | **457** (32) |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.19 — P0-02: borrar un expediente ya no se lleva a los objetos GIS
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p002-delete-409` ·
+**Auditoría de Claude, ítem P0-02 — decisión del operador: «bloquear con 409»**
+
+## Qué estaba mal
+
+`DELETE /expedientes/{id}` borraba el expediente y **se llevaba el
+vínculo en silencio**. La cadena era:
+
+- `MapObject.expediente_id` está declarado `ON DELETE SET NULL`;
+- la base corre con `PRAGMA foreign_keys=ON` (lo que hizo P0-06);
+- o sea: el DELETE contestaba **200**, el expediente desaparecía y los
+  objetos de mapa que eran parte del caso quedaban **huérfanos de
+  caso** — dibujos sueltos que nadie desvinculó ni vio.
+
+Y lo más grueso: **el sentido inverso ya estaba bloqueado** — no se
+puede borrar un objeto que pertenece a un expediente (lo niega
+`delete_object` desde hace rato). Se podía destruir el caso entero
+dejando sus piezas por el piso, pero no se podía tocar una pieza.
+El operador lo dijo clarito: «igual que ya pasa al revés».
+
+## El arreglo
+
+Un pre-check en la ruta, **antes** de tocar fila alguna:
+
+```python
+if vinculados:
+    raise HTTPException(409, "No se puede borrar el expediente {id}: "
+        "N objetos de mapa siguen vinculados (ids ...). "
+        "Desvinculalos antes de borrarlo.")
+```
+
+- **409** (no 400): es un conflicto con el estado actual de los datos,
+  no un malformado — y el backend ya usa 409 en `delete_layer`, así
+  que el contrato solo crece donde ya había lenguaje.
+- El detalle trae **los ids** (hasta 10, y si hay más, la coma final
+  con «...») para que el operador sepa exactamente qué desvincular.
+- **En español**, como todo lo que ve el operador.
+
+Y como la regla de contrato exige el cliente en el mismo commit:
+`describeError` aprendió el 409 (fallback en español para un 409 sin
+`detail`; con `detail`, que es el caso normal, sigue mandando el texto
+del backend, que es lo que prefiere desde siempre).
+
+## También en español, en la misma ruta
+
+La regra de «lo que toco habla español» se aplicó a las dos líneas de
+texto que quedaban en inglés **dentro de la función tocada**: el 404
+(`Expediente not found` → `No existe el expediente {id}.`) y el mensaje
+de éxito (`Expediente {id} deleted` → `Expediente {id} eliminado`).
+Los demás 404 de este archivo siguen en la cola de traducción.
+
+## El camino de recuperación, verificado
+
+1. `DELETE` con vínculos → **409**, y **no se borró nada** (el
+   expediente responde 200 y el objeto conserva su `expediente_id`);
+2. `PUT /map/objects/{id}` con `expediente_id: null` → el parcial usa
+   `exclude_none=False`, así que el `null` llega y desvincula;
+3. `DELETE` de nuevo → **200**.
+
+## La guarda
+
+`tests/test_p002_delete_409.py` (4) +
+`frontend/tests/describe-error.spec.js` (3), escritas antes de tocar:
+**4 rojas de backend** (200 en vez de 409, mensaje en inglés, 404 en
+inglés) y **1 roja de frontend** («Error 409» crudo). La del bloqueo se
+repitió **por revertida**: sin el pre-check vuelve `200 == 409`.
+
+## Lo que NO cambia
+
+- **`Medicion` y `EventoRF` siguen borrándose con el expediente** —
+  son registros del propio documento, ésa es la semántica de siempre.
+- El sentido inverso (borrar objeto con expediente) sigue bloqueado
+  **con su 400 de siempre**: la coherencia 400 ↔ 409 es el ítem de
+  contrato aparte, ya encolado.
+- Sin migración: no se toca esquema ni filas existentes.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **534 pasan** (530 + 4 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 29 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (34,7 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 530 | **534** (+4) |
+| Integration | 7 | **7** |
+| Frontend | 457 (32 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
