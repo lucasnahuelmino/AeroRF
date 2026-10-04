@@ -709,6 +709,20 @@ pendientes»**.
   patch, o no entra nada. 1 roja antes (200 y `fields=geometry` en el
   log), 3 verdes después; la roja repetida **por revertida**.
 
+- **F2-07** en 0.30.17 — «un `BackoffController` para los tres pools»:
+  la estructura existía desde el commit inicial, pero nadie la había
+  **medido**. La guarda nueva cruza los pools en las dos direcciones
+  (429 en tracks → el feed no consulta; 429 en states → las trazas no
+  se piden) y pasa: el gate ya cruzaba. Lo que no pasaba era el 429 que
+  no pertenece a ningún pool, el de la **renovación del token**: se
+  disfrazaba de `OpenSkyNotConfigured` («no configurado», en inglés),
+  el frente se apagaba y el feed seguía renovando cada 10 s contra un
+  endpoint que estaba limitando la cuenta. Arreglado con
+  `OpenSkyRateLimited` → `backoff.trip()` sobre el gate compartido →
+  `RateLimitedError` en español, el mismo camino que un 429 de datos.
+  2 verdes de arranque (ya cruzaban) + 1 roja (el token), repetida
+  **por revertida**.
+
 Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
 la decisión de no unificar, confirmada — la tabla se mantiene como
 referencia):
@@ -738,8 +752,6 @@ referencia):
   **resuelto: se queda como está.** Decisión del operador en esta fase:
   no se inventa el vínculo, y se elimina el día que haya un caso de uso real
   (o nunca).
-- **F2-07** — un `BackoffController` para los tres pools: un 429 de `/tracks`
-  pausa también el feed en vivo.
 - **F2-08** — `import_geojson` no pasa `source` y queda `"user"`. No necesita
   migración (no hay `CheckConstraint` en ningún modelo), pero sí hay que agregar
   la etiqueta en `MapEngine.js:1028` o muestra el valor crudo en inglés.

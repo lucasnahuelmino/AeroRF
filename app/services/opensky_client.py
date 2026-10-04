@@ -31,6 +31,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import opensky_log
+from app.services.cache import retry_after_seconds
 
 TOKEN_URL = (
     "https://auth.opensky-network.org/auth/realms/opensky-network/"
@@ -43,6 +44,19 @@ DEFAULT_EXPIRES_IN = 1800
 
 class OpenSkyAuthError(RuntimeError):
     """Authentication against OpenSky failed. Credentials or endpoint."""
+
+
+class OpenSkyRateLimited(OpenSkyAuthError):
+    """The token endpoint answered 429 (spec §49).
+
+    Carries the wait OpenSky asked for so the caller can trip the shared
+    gate instead of reporting missing credentials — a rate limit is not
+    a configuration problem.
+    """
+
+    def __init__(self, message: str, retry_after_s: float = 0.0) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
 
 
 class SecretValue:
@@ -201,8 +215,9 @@ class OpenSkyTokenManager:
                 )
             if status == 429:
                 self.state.last_error = "rate limited"
-                raise OpenSkyAuthError(
-                    "OpenSky rate-limited the token endpoint (HTTP 429)."
+                raise OpenSkyRateLimited(
+                    "OpenSky limitó el endpoint de token (HTTP 429).",
+                    retry_after_s=retry_after_seconds(response.headers) or 0.0,
                 )
             if status >= 400:
                 self.state.last_error = f"token endpoint error ({status})"

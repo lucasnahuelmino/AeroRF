@@ -43,9 +43,11 @@ from app.services.cache import (
     BackoffController,
     CreditAwareClient,
     RateLimitedError,
+    retry_after_seconds,
 )
 from app.services.opensky_client import (
     OpenSkyAuthError,
+    OpenSkyRateLimited,
     OpenSkyTokenManager,
     get_token_manager,
 )
@@ -482,7 +484,9 @@ class OpenSkyService:
             return False
         return path.startswith("states/")
 
-    async def _headers(self, path: str = "") -> dict[str, str]:
+    async def _headers(
+        self, path: str = "", pool: str = POOL_STATES
+    ) -> dict[str, str]:
         """Auth headers for a request, or none when running anonymous."""
         if not self.configured:
             if not self._can_reach(path):
@@ -495,6 +499,18 @@ class OpenSkyService:
             return {}
         try:
             return await self.tokens.auth_headers()
+        except OpenSkyRateLimited as exc:
+            # Un 429 del token es el mismo tope que un 429 de datos: cierra
+            # el gate compartido. Si no, se disfrazaba de «credenciales no
+            # configuradas» (F2-07), el frente se apagaba y el feed seguía
+            # renovando cada 10 s contra un endpoint que nos limitaba.
+            delay = self.backoff.trip(exc.retry_after_s)
+            raise RateLimitedError(
+                f"OpenSky limitó la renovación del token (429); "
+                f"pausa de {delay:.0f}s.",
+                retry_after_s=delay,
+                pool=pool,
+            ) from exc
         except OpenSkyAuthError as exc:
             raise OpenSkyNotConfigured(str(exc)) from exc
 
@@ -513,7 +529,7 @@ class OpenSkyService:
         anonymous = not self.configured
 
         for attempt in (1, 2):
-            headers = await self._headers(path)
+            headers = await self._headers(path, pool=pool)
             query = {k: v for k, v in (params or {}).items() if v is not None}
 
             with timed(
@@ -873,19 +889,7 @@ def _clamp(begin: int, end: int, max_span_s: int) -> tuple[int, int]:
 
 
 def _retry_after(response: httpx.Response) -> Optional[float]:
-    raw = response.headers.get("X-Rate-Limit-Retry-After-Seconds")
-    if raw:
-        try:
-            return float(raw)
-        except ValueError:
-            pass
-    raw = response.headers.get("Retry-After")
-    if raw:
-        try:
-            return float(raw)
-        except ValueError:
-            pass
-    return None
+    return retry_after_seconds(response.headers)
 
 
 def _decode(response: httpx.Response) -> Any:

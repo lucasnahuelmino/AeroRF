@@ -4830,3 +4830,79 @@ escritura parcial.
 | Frontend | 454 | **454** |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.17 — F2-07: un 429 tiene que pausar el feed, venga de donde venga
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f207-backoff-compartido` ·
+**Fase 2 de la auditoría, ítem 7 de 8**
+
+## Qué pedía y qué había
+
+La auditoría pide «un `BackoffController` para los tres pools: un 429 de
+`/tracks` pausa también el feed en vivo». La estructura existía desde el
+commit inicial — `OpenSkyService` crea **un** controlador y se lo pasa a
+los tres `CreditAwareClient` —, pero eso no era una garantía medida: era
+un comentario en el código. La guarda nueva lo mide en las dos
+direcciones con la red mockeada y **pasa**: el gate ya cruzaba pools.
+
+Lo que NO pasaba es el 429 que no pertenece a ningún pool: la
+**renovación del token**. `OpenSkyTokenManager` contestaba 429 y
+`_headers` lo disfrazaba de `OpenSkyNotConfigured`:
+
+- el feed seguía renovando cada 10 s contra un endpoint que estaba
+  limitando la cuenta — cada intento otro 429, y el gate quedaba abierto;
+- el operador veía `not_configured` con un mensaje en inglés: apagado el
+  frente e informado de algo falso. No son credenciales faltantes, es un
+  tope, y un tope se levanta solo.
+
+## El arreglo
+
+- **`OpenSkyRateLimited(OpenSkyAuthError)`** con `retry_after_s`: el 429
+  del token deja de confundirse con «no configurado».
+- **`_headers` lo atrapa y hace lo mismo que un 429 de datos**:
+  `backoff.trip(retry_after)` sobre el gate compartido →
+  `RateLimitedError` **en español**. El poller ya sabía manejarla
+  (`send_throttled` → la franja en español con los segundos), las rutas
+  ya la traducen a 429 y `client.js` ya la pinta en español. El replay
+  de 401 vuelve a pasar por `_headers`, así que también queda cubierto.
+- **`retry_after_seconds(headers)` en `cache.py`**: los dos nombres de
+  header viven una sola vez, compartidos por el camino de datos y el de
+  token.
+
+## La guarda
+
+`tests/test_f207_backoff_compartido.py`, 3 pruebas escritas antes de
+tocar nada: **2 verdes** — el cruce de pools que la auditoría nombra, en
+las dos direcciones (ninguna consulta sale a la red después del tope) —
+y **1 roja**: el 429-del-token esperaba `RateLimitedError` y recibía
+`OpenSkyNotConfigured`. La roja se volvió a medir **por revertida**:
+restaurada la conversión vieja, vuelve a fallar.
+
+## Lo que NO cambia
+
+- Las credenciales de verdad siguen sin estar: 401/403 siguen siendo
+  `OpenSkyNotConfigured`, y su texto en inglés queda en la cola de
+  traducción — igual que `TokenState.last_error = "rate limited"`,
+  que es diagnóstico interno.
+- Sin tocar el mensaje del 429 de datos ni el contrato de status: 429
+  sigue siendo 429, ahora también cuando el tope viene del token.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **527 pasan** (524 + 3 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 38 s** |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (38,3 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 524 | **527** (+3) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

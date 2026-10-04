@@ -171,7 +171,7 @@ alrededor de eso:
 | Recorte de la ventana al límite del endpoint | `_clamp()` |
 | Un solo refresh de token bajo concurrencia | `asyncio.Lock` en `TokenManager` |
 | Un solo request upstream bajo concurrencia | *single-flight* en `TTLCache` |
-| Pausa total ante 429 | `BackoffController` compartido por los tres pools |
+| Pausa total ante 429 | `BackoffController` compartido por los tres pools **y** por la renovación del token (0.30.17): un tope en `auth` cierra el gate igual que un tope en `/tracks` |
 | `upstream_calls` cuenta ejecuciones reales | Envuelve la factory, no la petición |
 
 **Sobre las trayectorias.** OpenSky documenta que `/tracks` es

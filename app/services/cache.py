@@ -140,6 +140,23 @@ class TTLCache:
             return self._locks.setdefault(key, asyncio.Lock())
 
 
+def retry_after_seconds(headers) -> Optional[float]:
+    """Seconds OpenSky asked us to wait, from either rate-limit header.
+
+    Shared by the data path (`opensky_service`) and the token path
+    (`opensky_client`): both see the same 429 contract (spec §49), so the
+    header names live here once instead of twice.
+    """
+    for name in ("X-Rate-Limit-Retry-After-Seconds", "Retry-After"):
+        raw = headers.get(name)
+        if raw:
+            try:
+                return float(raw)
+            except ValueError:
+                continue
+    return None
+
+
 class BackoffController:
     """Rate-limit gate driven by OpenSky 429 responses (spec §49)."""
 
