@@ -189,7 +189,7 @@ datos a cualquier exportación.
 
 ### 3.6 Procedencia
 
-Cinco valores, aplicados a cada dato y conservados de extremo a extremo
+Seis valores, aplicados a cada dato y conservados de extremo a extremo
 (spec §58):
 
 | Valor | Significado | Ejemplo |
@@ -199,6 +199,7 @@ Cinco valores, aplicados a cada dato y conservados de extremo a extremo
 | `live` | Vector de estado actual | Posición en vivo |
 | `calculated` | Derivado por AeroRF | Distancia, correlación, círculo |
 | `user` | Tecleado por el operador | Radio, azimut, descripción |
+| `imported` | Importado de un archivo GeoJSON | Capa importada (0.30.18) |
 
 El origen se etiqueta en el modelo (`MapObject.source`,
 `AircraftTrack.source`, `RFSource.provenance`), viaja en la respuesta de

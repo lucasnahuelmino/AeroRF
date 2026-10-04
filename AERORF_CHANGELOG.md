@@ -4906,3 +4906,77 @@ restaurada la conversión vieja, vuelve a fallar.
 | Frontend | 454 | **454** |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.18 — F2-08: el import ya no dice que lo tecleaste tú
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f208-source-importado` ·
+**Fase 2 de la auditoría, ítem 8 de 8 — cierra la F2**
+
+## Qué decía la auditoría
+
+«`import_geojson` no pasa `source` y queda `"user"`. No necesita
+migración (no hay `CheckConstraint` en ningún modelo), pero sí hay que
+agregar la etiqueta en `MapEngine.js:1028` o muestra el valor crudo en
+inglés.»
+
+Un archivo importado aparecía en el Inspector como «Introducido por el
+usuario» y salía así en las exportaciones: **la procedencia mentía sobre
+el origen del dato**, que es justo lo que la trazabilidad existe para
+impedir.
+
+## El arreglo — las tres bocas a la vez
+
+Arreglar solo una dejaba el dato cayéndose por otra, así que las tres:
+
+1. **`PROVENANCE_IMPORTED = "imported"`** en `constants.py`, sumado a
+   `PROVENANCE_VALUES` — el validador de `MapObjectCreate` rechaza todo
+   lo que no esté en la tupla: el alta a mano con `source: "imported"`
+   devolvía **422** («source debe ser uno de: observed, historical,
+   live, calculated, user») — y a `PROVENANCE_LABELS_ES` con «Dato
+   importado», que es lo que sirve `/map/vocabulary` y lee la leyenda de
+   `LayerPanel`.
+2. **`import_geojson` pasa `source=PROVENANCE_IMPORTED`** a
+   `create_object`. Sin migración: la columna ya existe con su default.
+3. **`MapEngine.js`: `imported: 'Importado'`** en `PROVENANCE_LABELS` —
+   `provenanceLabel` tiene tabla propia y no lee el vocabulario del
+   backend, así que sin esta línea el Inspector habría pintado el crudo
+   «imported», en inglés.
+
+## La guarda
+
+`tests/test_f208_source_importado.py` (3) +
+`frontend/tests/provenance-label.spec.js` (3), escritas **antes** de
+tocar el código: **4 rojas** — source «user», vocabulario sin
+«imported», create en 422, etiqueta cruda en inglés — y 2 verdes de
+arranque que quedan como salvaguarda de los cinco valores originales y
+del guion largo. La roja del import se volvió a medir **por
+revertida**: quitada la línea del `source`, vuelve a decir «user».
+
+## Lo que NO cambia
+
+- **Las filas ya importadas en bases existentes siguen con `"user"`:**
+  no hay migración y el ítem lo dice expresamente. Reetiquetar historia
+  retroactiva sería inventar datos; si algún día hace falta, es una
+  decisión del operador sobre sus propios datos.
+- La tupla solo crece: ningún valor viejo deja de ser válido, ningún
+  contrato cambia (misma ruta, mismos campos, misma respuesta).
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **530 pasan** (527 + 3 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 28 s** |
+| `npm test` (frontend) | **457 pasan**, 32 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (33,3 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 527 | **530** (+3) |
+| Integration | 7 | **7** |
+| Frontend | 454 (31 archivos) | **457** (32) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

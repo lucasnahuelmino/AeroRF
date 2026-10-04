@@ -723,6 +723,19 @@ pendientes»**.
   2 verdes de arranque (ya cruzaban) + 1 roja (el token), repetida
   **por revertida**.
 
+- **F2-08** en 0.30.18 — el import ya no dice que lo tecleaste tú: la
+  tercera y ultima de la F2. Un archivo importado aparecia en el
+  Inspector como «Introducido por el usuario» — la procedencia mentia
+  sobre el origen del dato. Arreglado en las **tres bocas a la vez**:
+  constante `PROVENANCE_IMPORTED` + `PROVENANCE_VALUES` (el validador
+  rechazaba el valor con 422), `import_geojson` pasa `source=`, y
+  etiqueta tanto en `PROVENANCE_LABELS_ES` (vocabulario/leyenda) como
+  en `MapEngine.provenanceLabel`, que tiene tabla propia y pintaba el
+  crudo en inglés. Sin migración, como decia el item: las filas viejas
+  conservan su `"user"` (reetiquetar historia seria inventar datos).
+  Guarda: 3 backend + 3 frontend, **4 rojas** antes de tocar nada, la
+  del import repetida **por revertida**.
+
 Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
 la decisión de no unificar, confirmada — la tabla se mantiene como
 referencia):
@@ -752,9 +765,6 @@ referencia):
   **resuelto: se queda como está.** Decisión del operador en esta fase:
   no se inventa el vínculo, y se elimina el día que haya un caso de uso real
   (o nunca).
-- **F2-08** — `import_geojson` no pasa `source` y queda `"user"`. No necesita
-  migración (no hay `CheckConstraint` en ningún modelo), pero sí hay que agregar
-  la etiqueta en `MapEngine.js:1028` o muestra el valor crudo en inglés.
 - **Decisión de Épsilon: el historial ya contaminado de F2-02** — y antes de
   decidir, **contarlo** (`field LIKE 'rf.%' AND new_value IS NULL`).
 

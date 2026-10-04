@@ -282,6 +282,8 @@ def import_geojson(
     db: Session = Depends(get_db),
 ):
     """Import GeoJSON features as map objects (spec §17, §46)."""
+    from app.models.constants import PROVENANCE_IMPORTED
+
     features: list[dict]
     if body.get("type") == "FeatureCollection":
         features = body.get("features") or []
@@ -328,6 +330,9 @@ def import_geojson(
                 label=params.get("label"),
                 layer_key=layer_key,
                 properties=params.get("properties"),
+                # Un archivo importado no lo tecleó nadie: la procedencia
+                # tiene que decirlo (F2-08).
+                source=PROVENANCE_IMPORTED,
                 user=user,
                 comment="Importado desde GeoJSON",
             )

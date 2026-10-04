@@ -1031,6 +1031,7 @@ const PROVENANCE_LABELS = {
   live: 'Dato en vivo',
   calculated: 'Dato calculado',
   user: 'Introducido por el usuario',
+  imported: 'Importado',
 }
 
 export function provenanceLabel(value) {
