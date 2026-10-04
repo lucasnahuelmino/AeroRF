@@ -69,9 +69,17 @@ async def rf_aircraft(
     """
     object_id = body.get("object_id")
     if object_id is None:
-        raise HTTPException(400, "`object_id` is required")
+        raise HTTPException(400, "object_id es obligatorio.")
+    # El cuerpo llega crudo (`body: dict`): un id no numérico era
+    # ValueError → 500 (F2-05).
+    try:
+        oid = int(object_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            400, "object_id debe ser un número entero."
+        ) from None
 
-    obj = svc.get_object(db, int(object_id))
+    obj = svc.get_object(db, oid)
     if obj is None:
         raise HTTPException(404, f"Object {object_id} not found")
     if obj.latitude is None or obj.longitude is None:

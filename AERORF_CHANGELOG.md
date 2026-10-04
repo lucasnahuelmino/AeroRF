@@ -4667,3 +4667,99 @@ Un test que se cuelga es peor que uno roto: el colgado no dice nada.
 |---|---|
 | `pytest -m integration` (8010 arriba) | **7 pasan en 35 s** (antes: colgado > 420 s) |
 | `pytest -m "not integration"` | **510 pasan** (el test vive en la suite de integración) |
+# 0.30.15 — F2-05: ninguna entrada inválida llega a 500
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f205-entradas-invalidas` ·
+**Fase 2 de la auditoría, ítem 5 de 8**
+
+## Qué pasaba
+
+Tres ejemplos de la auditoría (`null` en `visible`, `layer_id`
+inexistente, `kind` inválido) y cinco vías más al mismo hueco:
+
+| entrada | dónde estallaba | por qué |
+|---|---|---|
+| `layer_id` / `expediente_id` que no existe | al hacer commit | FK: `_resolve_layer_id` devolvía el id sin mirar si la capa existía |
+| `visible: null` (u otra columna NOT NULL) en un update | al escribir | el patch escribía `None` en una columna que no admite `null` |
+| `kind: "Basura"` en `POST /rf/sources` | dentro del handler | `_coerce` construye el modelo adentro de la vista: su `ValidationError` no lo atrapa nadie |
+| `opacity: "media"` en `POST /map/layers` | dentro del handler | `float(payload[...])` sobre el cuerpo crudo |
+| `object_id: "no-numero"` en `correlation/rf-aircraft` | dentro del handler | `int(...)` sobre el cuerpo crudo |
+
+Y el ojo que anota la auditoría: si esto se arreglaba pasando a Pydantic,
+los 500 se convertían en **422 en inglés** («Input should be a valid
+boolean…»), que `describeError` pinta tal cual en pantalla. Por eso el
+traductor va **en el mismo commit**.
+
+## El arreglo: tres capas
+
+1. **Antes de escribir** (`map_service`): `_existe_referencia` chequea
+   capa y expediente tanto en el alta como en el update; y el patch
+   completo se chequea contra la nulidad **real** de las columnas
+   (`MapObject.__table__.columns[...]`) antes de tocar la fila. Así un
+   `null` en NOT NULL dice «El campo visible no admite null: es
+   obligatorio.» en vez de romper el commit — y el chequeo corre antes
+   de cualquier `setattr`, así que no hay escritura parcial.
+2. **Traductor global** (`app/api/errors.py`, nuevo; registrado desde
+   `app.main`): `RequestValidationError` → **422** con `msg` en español
+   (pisa el handler de FastAPI); `pydantic.ValidationError` → **422**
+   igual, que es lo que cubre la validación dentro del handler;
+   `IntegrityError` → **400** genérico en español con la causa real en
+   el log. El 400 es un piso de seguridad para cualquier FK o NOT NULL
+   que no tenga chequeo propio — los casos del operador sí lo tienen,
+   con mensaje que nombra lo que falta («No existe la capa 999999.»).
+3. **Los 14 validadores de `schemas_gis.py` hablan español** (`kind
+   debe ser uno de: …`). No es cosmético: para `value_error` el
+   traductor muestra el mensaje del validador tal cual, así que un
+   validador en inglés produce un 422 en inglés.
+
+Los dos guards de cuerpo crudo (`create_layer`, `rf_aircraft`)
+convierten con `try/except` → 400 que nombra el campo.
+
+## La guarda
+
+`tests/test_f205_entradas_invalidas.py`, **11 pruebas escritas antes del
+arreglo**. Rojo-antes registrado: contra el código original, **7 de 8**
+fallaban en la primera corrida (los tres de la auditoría incluidos; la
+única verde era la guarda de que lo válido sigue funcionando). Con los
+handlers ya puestos y sin los chequeos del servicio quedaban **7 rojas**
+— cada familia midió su propio rojo. El corte de `rf-aircraft` se
+verificó aparte, **por revertida**: sin el `try/except`,
+`ValueError: invalid literal for int()` vuelve a salir del TestClient.
+Al final: **11 verdes**.
+
+La guarda del contrato: un 422 sigue siendo 422 (el traductor no cambia
+status, sólo el idioma), y lo válido sigue creando con 201.
+
+## Lo que NO cambia
+
+- **`client.js`: ningún diff.** El interceptor ya prefiere `detail` y
+  `describeError` ya une `loc: msg`; el traductor devuelve exactamente
+  ese formato (`{type, loc, msg}`), así que la pantalla recibe español
+  sin que el frontend se entere.
+- **`type` conserva el código de Pydantic** (`bool_parsing`, `missing`…):
+  es un identificador para máquinas, no prosa, y no se muestra. Lo que
+  se muestra es `msg`, y ése siempre sale en español.
+- **No se migró ninguna ruta a `body: dict` ni al revés.** El traductor
+  cubre las dos formas de validación; cambiar el estilo de las rutas
+  sería otra cosa.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **521 pasan** (510 + 11 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 35 s** |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (39,7 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 510 | **521** (+11) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

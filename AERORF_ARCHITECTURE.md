@@ -254,6 +254,31 @@ es `SAAR`. Eso se verificó contra la fuente.
 `tools/build_airports.py` informa los códigos que pidió y no encontró, para que
 un vacío nunca sea silencioso.
 
+### 3.10 Errores: ninguna entrada del operador devuelve 500
+
+`app/api/errors.py` registra tres handlers (`install_error_handlers`,
+llamado desde `app.main`):
+
+| handler | cuándo entra | respuesta |
+|---|---|---|
+| `RequestValidationError` | la validación de FastAPI/Pydantic; **pisa** la del framework | **422**, `msg` traducido |
+| `pydantic.ValidationError` | validación hecha **dentro** del handler (las rutas con `body: dict`) — sin esto salía 500 | **422**, `msg` traducido |
+| `sqlalchemy.exc.IntegrityError` | lo que Pydantic dejó pasar y SQLite frenó (FK, NOT NULL) | **400** genérico en español; la causa real, al log |
+
+El traductor mapea el `type` de Pydantic a texto en español, y para
+`value_error` toma el mensaje del validador — que ya está en español
+(`schemas_gis.py`) — y devuelve `[{type, loc, msg}]`: `describeError`
+del frontend une `loc: msg` y lo pinta en pantalla. `type` conserva el
+código original porque es un identificador para máquinas; `msg`, que sí
+se lee, nunca sale en inglés.
+
+La red de `IntegrityError` es un piso, no el diseño. Los casos que el
+operador encuentra a diario — `layer_id` o `expediente_id` inexistentes,
+`null` en una columna NOT NULL — tienen chequeo propio en `map_service`
+**antes** de escribir, con el mensaje que nombra lo que falta («No existe
+la capa 999999.»). Validar el patch completo antes de tocar la fila
+también evita escrituras parciales: o entra todo, o no entra nada.
+
 ## 4. Frontend
 
 ### 4.1 Por qué `MapEngine` es una clase y no un composable

@@ -49,6 +49,7 @@ from app.models.constants import (
     TYPE_RF_EVENT,
     TYPE_RF_SOURCE,
 )
+from app.models.expediente import Expediente
 from app.models.layer import Layer
 from app.models.map_object import MapObject
 from app.models.measurement import Measurement
@@ -263,6 +264,9 @@ def create_object(
     """Create one map object with its type-specific payload and history."""
     otype = validate_type(object_type)
 
+    if expediente_id is not None:
+        _existe_referencia(db, Expediente, expediente_id, "el expediente")
+
     if latitude is not None and longitude is not None:
         if not valid_latlon(latitude, longitude):
             raise MapServiceError(
@@ -354,6 +358,18 @@ def create_object(
     return obj
 
 
+def _existe_referencia(
+    db: Session, modelo, identificador: int, etiqueta: str
+) -> None:
+    """Una FK no inventa su destino: si el registro no existe, no se escribe.
+
+    Antes esto llegaba al commit y estallaba en ``IntegrityError`` → 500;
+    ahora el operador ve cuál de los dos referentes falta (F2-05).
+    """
+    if db.query(modelo.id).filter(modelo.id == identificador).first() is None:
+        raise MapServiceError(f"No existe {etiqueta} {identificador}.")
+
+
 def _resolve_layer_id(
     db: Session,
     layer_id: Optional[int],
@@ -361,6 +377,7 @@ def _resolve_layer_id(
     otype: str,
 ) -> Optional[int]:
     if layer_id is not None:
+        _existe_referencia(db, Layer, layer_id, "la capa")
         return layer_id
     if layer_key:
         layer = db.query(Layer).filter(Layer.key == layer_key).first()
@@ -594,6 +611,23 @@ def update_object(
         )
 
     require_unlocked(obj, patch)
+
+    # Primero se valida el patch completo y recién después se escribe: un
+    # null en una columna NOT NULL no puede significar «borrar el valor»
+    # (se escribía y SQLite respondía con IntegrityError → 500), y una FK
+    # apuntando a lo que no existe tampoco llega hasta el commit (F2-05).
+    for campo, valor in patch.items():
+        columna = MapObject.__table__.columns.get(campo)
+        if valor is None and columna is not None and not columna.nullable:
+            raise MapServiceError(
+                f"El campo {campo} no admite null: es obligatorio."
+            )
+    if patch.get("layer_id") is not None:
+        _existe_referencia(db, Layer, patch["layer_id"], "la capa")
+    if patch.get("expediente_id") is not None:
+        _existe_referencia(
+            db, Expediente, patch["expediente_id"], "el expediente"
+        )
 
     for field, value in patch.items():
         if value is None and field not in {"description", "label", "name"}:

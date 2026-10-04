@@ -685,6 +685,20 @@ pendientes»**.
   supervivientes. Mensajes de esa ruta en español. 4 rojas antes, 6 verdes
   después.
 
+- **F2-05** en 0.30.15 — las entradas inválidas llegaban hasta SQLite y
+  estallaban en 500: `layer_id` y `expediente_id` inexistentes (FK),
+  `null` en columnas NOT NULL (`visible` al actualizar), `kind` inválido
+  validado **dentro** del handler, y `opacity`/`object_id` convertidos con
+  `float()`/`int()` sobre el cuerpo crudo. Arreglado en tres capas:
+  chequeo de referencias y de nulidad **antes** de escribir (`map_service`),
+  traductor global de validación (422 con `msg` en español, pisa el
+  inglés de FastAPI) y red de `IntegrityError` → 400 para lo que no tenga
+  chequeo propio. Los 14 mensajes de los validadores de `schemas_gis.py`
+  pasaron a español: el traductor los muestra tal cual. 11 verdes; el
+  rojo-antes quedó registrado (7 de 8 en la primera corrida, y el corte de
+  `correlation` verificado por revertida: sin él, `ValueError` otra vez).
+  Detalle en 0.30.15.
+
 Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
 la decisión de no unificar, confirmada — la tabla se mantiene como
 referencia):
@@ -714,10 +728,6 @@ referencia):
   **resuelto: se queda como está.** Decisión del operador en esta fase:
   no se inventa el vínculo, y se elimina el día que haya un caso de uso real
   (o nunca).
-- **F2-05** — entradas inválidas que devuelven 500 (`null` en `visible`,
-  `layer_id` inexistente, `kind` inválido). Ojo al arreglo: pasar de `body: dict`
-  a Pydantic convierte 500 en **422 de FastAPI, en inglés** — hay que meter el
-  traductor en el mismo commit.
 - **F2-06** — `update_object` no valida geometría; `create_object` sí.
 - **F2-07** — un `BackoffController` para los tres pools: un 429 de `/tracks`
   pausa también el feed en vivo.
@@ -855,6 +865,11 @@ código de 0.30.9**, y quedó en **7 pasan, 0 caen** en **28 s**:
 - `test_feed_does_not_flood` **pasa**. Antes se colgaba — sin salida a los 150 s
   — porque `lost` llegaba cada 10 s y el timeout de 22 s por lectura nunca
   expiraba. Arreglado el inundador, el test se cae en silencio y termina.
+  **(04/10: volvió a colgarse — pero ahora por `states` cada 10 s, con
+  OpenSky configurado y una aeronave real transmitiendo. La dedupe de
+  `lost` no alcanzaba: el test seguía midiendo *silencio* y no *tiempo*.
+  En **0.30.14** la ventana pasó a ser de tiempo total, así que el corte
+  ya no depende del entorno.)**
 - `test_idle_when_nothing_is_tracked` **pasa desde 0.30.9**: la precondición se
   arregla sola en la prueba (vacía la lista por la API pública y la restaura en
   un `finally`), en vez de saltarse. **Costo conocido: `added_at` no se puede

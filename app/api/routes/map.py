@@ -569,13 +569,24 @@ def create_layer(payload: dict = Body(...), db: Session = Depends(get_db)):
     if db.query(Layer).filter(Layer.key == key).first():
         raise HTTPException(400, f"Layer key {key!r} already exists")
 
+    # El cuerpo llega crudo (`body: dict`): sin este corte, un `opacity`
+    # no numérico era ValueError → 500 (F2-05).
+    try:
+        opacity = float(payload.get("opacity", 1.0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "opacity debe ser un número.") from None
+    try:
+        order_index = int(payload.get("order_index", 500))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "order_index debe ser un número entero.") from None
+
     layer = Layer(
         key=key,
         name=payload.get("name") or key,
         description=payload.get("description"),
         visible=bool(payload.get("visible", True)),
-        opacity=float(payload.get("opacity", 1.0)),
-        order_index=int(payload.get("order_index", 500)),
+        opacity=opacity,
+        order_index=order_index,
         is_system=False,
     )
     db.add(layer)

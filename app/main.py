@@ -32,6 +32,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.errors import install_error_handlers
 from app.core.config import get_settings
 from app.core.logging import log, setup_logging
 from app.database.database import init_db
@@ -98,6 +99,12 @@ app = FastAPI(
     contact={"name": "AeroRF"},
     license_info={"name": "Internal use only"},
 )
+
+# ─── Errores en español (F2-05) ──────────────────────────────────────────────
+# Pisa el 422 en inglés de FastAPI, atrapa la validación que las rutas con
+# `body: dict` hacen dentro del handler (eso salía 500) y traduce cualquier
+# IntegrityError a un 400 legible. Ver app/api/errors.py.
+install_error_handlers(app)
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
 # Tighten CORS_ORIGINS in production to the real domain.
