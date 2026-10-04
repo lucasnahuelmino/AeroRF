@@ -194,29 +194,88 @@ class TestFlightWebSocket:
         A query with no `icao24` is a *global* one, costing 4 credits.
         Polling it every 10 s with nothing tracked would burn 24 credits
         an hour for data nobody asked for.
+
+        The premise used to be *assumed*: a comment said the watchlist was
+        empty because the walkthrough cleaned after itself. The operator
+        started keeping his own aircraft in there (two, since 02/10) and the
+        test stopped passing its precondition on the one machine it runs on.
+        A guard that never runs is no guard, and skipping here would disable
+        exactly the case worth checking.
+
+        So the premise is arranged instead: snapshot, empty through the
+        public API, assert, and put everything back in `finally`. Restored
+        through the same API: icao24, callsign, slot (re-added in slot
+        order, so colour follows it), the three flags and last_position.
+        Not restorable, because `GET /flights/tracked` does not return it
+        and `update_selection` does not accept it: `added_at`. It is read
+        nowhere in the codebase, and the alternative — never running —
+        costs more than it saves.
         """
-        # The watchlist is empty for this test run: the walkthrough cleans
-        # up after itself and no other suite populates it.
         import json as _json
         import urllib.request
+        from urllib.parse import urlencode
+        from urllib.request import Request
 
-        with urllib.request.urlopen(
-            _BASE + "/flights/tracked", timeout=15
-        ) as r:
-            watchlist = _json.loads(r.read().decode())
-        assert watchlist["count"] == 0, (
-            "this test needs an empty watchlist; "
-            f"found {watchlist['count']} entries"
-        )
+        def _http(path, method="GET", body=None):
+            data = None
+            headers = {}
+            if body is not None:
+                data = _json.dumps(body).encode("utf-8")
+                headers["Content-Type"] = "application/json"
+            req = Request(
+                _BASE + path, data=data, headers=headers, method=method
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return _json.loads(r.read().decode("utf-8"))
 
-        async def go():
-            async with websockets.connect(_ws_url(), open_timeout=10) as ws:
-                # The idle notice should arrive on the first tick.
-                return await _recv_until(
-                    ws, {"status"}, timeout=20, skip=("states", "lost")
+        def _restore(rows):
+            # Slot first: `add_selection` hands out the lowest free slot, so
+            # re-adding in slot order puts every aircraft back where it was,
+            # colour included.
+            for row in sorted(rows, key=lambda r: r["slot"]):
+                query = {"icao24": row["icao24"]}
+                if row.get("callsign"):
+                    query["callsign"] = row["callsign"]
+                _http("/flights/tracked?" + urlencode(query), "POST")
+                patch = {
+                    "show_track": row["show_track"],
+                    "show_marker": row["show_marker"],
+                    "selected": row["selected"],
+                }
+                if row.get("last_position") is not None:
+                    patch["last_position"] = row["last_position"]
+                _http(
+                    f"/flights/tracked/{row['icao24']}", "PATCH", patch
                 )
 
-        msg = run(go())
-        assert msg.get("type") == "status"
-        assert msg.get("opensky") == "idle"
-        assert "créditos" in msg.get("message", "").lower()
+        before = _http("/flights/tracked")["slots"]
+        try:
+            for row in before:
+                _http(f"/flights/tracked/{row['icao24']}", "DELETE")
+
+            restantes = _http("/flights/tracked")
+            assert restantes["count"] == 0, (
+                "could not empty the watchlist for this test: "
+                f"{restantes['count']} entries left"
+            )
+
+            async def go():
+                async with websockets.connect(_ws_url(), open_timeout=10) as ws:
+                    # The idle notice should arrive on the first tick.
+                    return await _recv_until(
+                        ws, {"status"}, timeout=20, skip=("states", "lost")
+                    )
+
+            msg = run(go())
+            assert msg.get("type") == "status"
+            assert msg.get("opensky") == "idle"
+            assert "créditos" in msg.get("message", "").lower()
+        finally:
+            _restore(before)
+
+        # The watchlist is the operator's, not the test's: leaving it empty
+        # would be worse than never running this at all.
+        after = _http("/flights/tracked")["slots"]
+        assert [(r["icao24"], r["slot"], r["callsign"]) for r in after] == [
+            (r["icao24"], r["slot"], r["callsign"]) for r in before
+        ], f"the watchlist was not restored: {after}"

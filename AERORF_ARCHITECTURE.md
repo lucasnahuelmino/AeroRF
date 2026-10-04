@@ -418,7 +418,7 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_map_objects.py` (70) | CRUD, notas, historial, estados, bloqueo, consultas espaciales, grabación, lista de seguimiento | `pytest tests/test_map_objects.py` |
 | `tests/test_opensky_flights_contract.py` (24) | **Contrato real** de `/tracks/*` y `/flights/*`: camelCase, altitudes imposibles, resolución | `pytest tests/test_opensky_flights_contract.py` |
 | `tests/walkthrough_real.py` (43) | **Recorrido §57 contra OpenSky real** — gasta créditos | `python tests/walkthrough_real.py` (backend activo) |
-| `tests/test_websocket.py` (7) | Ciclo de vida, suscripción, anti-inundación | `pytest tests/test_websocket.py` (backend activo) |
+| `tests/test_websocket.py` (7) | Ciclo de vida, suscripción, anti-inundación; la última **vacía y restaura la lista de seguimiento** para poder asertar `idle` | `pytest tests/test_websocket.py` (backend activo) |
 | `app/rf_engine/test_rf_engine.py` (30) | Motor RF heredado | `pytest app/rf_engine` |
 | `tests/geo_parity.mjs` (675) | Paridad JS ↔ Python | `node tests/geo_parity.mjs` |
 | `tests/smoke_e2e.py` (78) | Recorrido completo por HTTP real | `python tests/smoke_e2e.py` |
@@ -448,12 +448,16 @@ recorrido real.**
 
 El 482 se mide con `pytest -m "not integration"` y el 453 con `npm test` desde
 `frontend/`; el 7 de integración son los de
-`test_websocket.py`, que van con `-m integration` y hoy quedan en **6 pasan, 1
-cae** contra el backend de 8010 reiniciado con 0.30.8: `test_feed_does_not_flood`
+`test_websocket.py`, que van con `-m integration` y hoy quedan **los 7 en
+verde (28 s)** contra el backend de 8010 con 0.30.9: `test_feed_does_not_flood`
 **pasa** —se cuelgaba porque el servidor reenviaba `lost` cada 10 s sin
 deduplicar, y ese es ahora `tests/test_lost_sin_inundar.py` sin servidor ni
-reloj— y sigue cayendo `test_idle`, que exige lista de seguimiento vacía y hay
-2 entradas del operador. **Los
+reloj—, y `test_idle` **pasa desde 0.30.9**: su precondición de lista vacía la
+arma la propia prueba (vacía por la API pública y restaura en un `finally`),
+en lugar de saltarse. **Costo: `added_at` no vuelve al valor anterior**, porque
+ni `GET /flights/tracked` ni `update_selection` lo exponen; todo lo demás sí
+(`icao24`, `callsign`, `slot`, `color`, `show_track`, `show_marker`,
+`selected`). **Los
 30 de
 `app/rf_engine/test_rf_engine.py` no los recoge un `pytest` a secas**:
 `pytest.ini` dice `testpaths = tests`, así que ese directorio queda fuera por

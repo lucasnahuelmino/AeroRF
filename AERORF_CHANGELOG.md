@@ -4021,9 +4021,10 @@ Cada uno para su commit:
 
 Resueltos hasta ahora en la auditoría: **P0-06** (base anclada, respaldo
 automático, versión de esquema), **P0-04** (el WebSocket en modo anónimo),
-**P0-11** (el botón que decía «guardado») y, en 0.30.8, el **`lost`** que se
-reenviaba cada 10 s: ya se deduplica y `test_feed_does_not_flood` volvió a
-pasar.
+**P0-11** (el botón que decía «guardado»), en 0.30.8 el **`lost`** que se
+reenviaba cada 10 s, y en **0.30.9 la precondición de `test_idle`**: la
+prueba vacía la lista por la API y la restaura en un `finally`, y la
+integración quedó en **7 pasan, 0 caen**.
 
 **Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro y
 en espera de commit propio:
@@ -4032,14 +4033,13 @@ en espera de commit propio:
   tiene manejador: el marcador de una aeronave que se fue sigue quedando en
   pantalla. O se agrega el manejo, o se quita el frame — **decisión del
   operador**, porque cambia cómo se ve el mapa.
-- **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
-  exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O el test se
-  adapta, o se salta cuando la lista no está vacía; **no borrarlo**.
 - **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
 - **El aviso de arranque dice «flight features disabled»** cuando en modo
   anónimo las de vuelo sí funcionan.
 - **`GET /expedientes` corta en 10 sin paginación** (arriba, en Hallazgos).
-- **`toolbar.spec.js` flaky**, una vez, sin repro.
+- **`toolbar.spec.js` flaky**, tres veces ya: un archivo que no cargó, luego
+  `toolbar` y ahora 4 pruebas en 3 archivos en una corrida a 210 s — sola
+  37/37 y la completa 453/453. **Sin repro, sin atribución posible.**
 
 Decisiones que tomó el operador al revisar la auditoría:
 
@@ -4150,3 +4150,87 @@ entradas del watchlist — otro ítem, que no toca este.
 |---|---|---|
 | Python sin integración | 477 | **482** (+5) |
 | Integration | 5 passed / 2 failed | **6 passed / 1 failed** |
+
+---
+
+# 0.30.9 — La precondición de `test_idle_when_nothing_is_tracked`
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/test-idle-lista-vacia` ·
+**Archivos:** 1 (una prueba)
+
+## El problema
+
+Era el último rojo de integración. La prueba exige `count == 0` en la lista de
+seguimiento y en la base del operador hay 2 (`ARG1646`, `LVKMT`, del 02/10),
+así que cae en `assert 2 == 0`. La precondición no se cumple tocando el
+código: hay que dejar la lista vacía.
+
+## Las tres opciones
+
+- **Saltarla** cuando la lista no está vacía: la más barata y la peor. Sería
+  la única de las 7 de integración que no corre donde importa. **Un guardia
+  que nunca corre no es un guardia.**
+- **Borrarla**: prohibido por las reglas de trabajo, además de irreversible.
+- **Elegida: arreglar la precondición.** Fotografiar la lista, vaciarla por la
+  API pública, asertar que quedó vacía, correr el aserto del `idle` y
+  **restaurar en un `finally`**, con un aserto extra de que la restauración
+  devolvió exactamente lo que había.
+
+La guarda unitaria de P0-04
+(`test_nada_se_pregunta_si_no_hay_aeronaves_en_seguimiento`, línea 148) ya
+afirma `["idle"]` y que no se consulta nada. Esta mitad es la del transporte:
+que el frame `idle` llegue **por el WebSocket de verdad**, no sólo en el
+servicio.
+
+## Lo que cuesta
+
+**`added_at` no se puede restaurar.** `GET /flights/tracked` no lo devuelve y
+`update_selection` sólo acepta `callsign, show_track, show_marker, selected,
+color, last_seen, last_position`. O sea: **cada corrida mueve `added_at` a la
+fecha de hoy**.
+
+Sí se devuelve y se restaura campo por campo: `icao24`, `callsign`, `slot`,
+`color`, `show_track`, `show_marker`, `selected`. `last_seen` y
+`last_position` se dejan en `NULL`, como estaban (la columna es de fecha y
+hora; meterle el string de la API sería mentirle al tipo).
+
+`added_at` no se lee en ninguna parte: 0 coincidencias en `frontend/src` y en
+el backend sólo se devuelve. Es el único dato que se pierde, y se pierde a la
+vista:
+
+| | antes | después de la corrida |
+|---|---|---|
+| filas | 2 | **2** |
+| `icao24`, `callsign`, `slot`, `color` | — | **idénticos** |
+| `show_track`, `show_marker`, `selected` | 1, 1, 0 | **1, 1, 0** |
+| `added_at` | 02/10 18:52 | 04/10 05:18 ← el costo |
+
+Verificado leyendo la base del operador después de la corrida, no de memoria.
+Y el `added_at` original se repuso a mano al terminar
+(`2026-10-02 18:52:11.055863` y `2026-10-02 18:52:44.498771`); la próxima
+corrida lo vuelve a mover.
+
+## Verificación
+
+| | antes | después |
+|---|---|---|
+| `test_idle_when_nothing_is_tracked` | **falla** (`assert 2 == 0`) | **PASA** (6,3 s) |
+| suite `integration` completa | 6 passed, 1 failed (47 s) | **7 passed, 0 failed (28 s)** |
+
+No hay asertos que fallen antes de tocar nada: esto es una prueba, no un
+cambio de producción. Lo que se verifica es que la precondición se arregla
+sola **y que la lista vuelve como estaba**.
+
+**Ruido registrado, sin atribuir.** En la misma ventana, una corrida de vitest
+con el equipo cargado falló **4 pruebas en 3 archivos** en 210 s (lo normal son
+55 s); repetido, los mismos 3 archivos dieron **37/37 en 10 s** y la corrida
+completa después **453/453 en 99 s**. Tercera aparición del mismo síntoma,
+distinto archivo, sin repro y sin ningún cambio de frontend de por medio.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 482 | **482** (sin cambios: esto es una prueba) |
+| Integration | 6 passed, 1 failed | **7 passed, 0 failed** |
+| Frontend | 453 | **453** |

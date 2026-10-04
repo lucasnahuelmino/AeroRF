@@ -638,7 +638,8 @@ código estaba bien; el instrumento no.
 
 ### La cola de la auditoría de Claude
 
-**Hechos: P0-06, P0-04, P0-11 y el `lost` de 0.30.8.** Lo demás, con el criterio acordado: rama nueva, un
+**Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8 y la precondición de
+`test_idle` de 0.30.9.** Lo demás, con el criterio acordado: rama nueva, un
 commit por ítem, prueba que falle antes y pase después, y **preguntar antes de
 tocar nada de «Decisiones pendientes»**.
 
@@ -656,16 +657,15 @@ con su commit propio:
   que era justo lo que el comentario del código quería evitar. O se agrega el
   manejo, o se quita el frame — **decisión del operador**, porque cambia cómo
   se ve el mapa.
-- **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
-  exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O se adapta o se
-  salta cuando la lista no está vacía. **No borrarlo.**
 - **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
 - **El aviso de arranque dice «flight features disabled»** cuando en modo
   anónimo las de vuelo sí funcionan.
 - **`GET /expedientes` corta en 10 y nadie pagina** — los cinco llamadores van
   sin parámetro y la pantalla de expedientes muestra a lo sumo 10 sin decirlo.
-- **`toolbar.spec.js` flaky**, una vez al cargar en corrida completa (441/453),
-  sola 12/12 y 453/453 después. **Sin repro.**
+- **`toolbar.spec.js` flaky, tres veces.** Una al cargar en corrida completa
+  (441/453), sola 12/12 y 453/453 después; después 4 pruebas en 3 archivos
+  distintos en una corrida que tardó 210 s, con los mismos 3 archivos en verde
+  (37/37) y la completa en verde (453/453). **Sin repro.**
 - **P0-07** — middleware de `Origin`/`Host`, **acotado a los orígenes de CORS
   configurados**. Con el proxy de Vite el `Origin` es `5199` y el `Host` es
   `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
@@ -735,25 +735,33 @@ no la remoción.
 | `tests/geo_parity.mjs` | 675 pasan |
 | Build | limpio (`✓ built in 1m 30s`) |
 
-**Observado y sin explicar, dos veces.** La primera corrida de vitest de esta
+**Observado y sin explicar, tres veces.** La primera corrida de vitest de esta
 sesión falló **1 archivo de 30**; no volvió en **10 corridas seguidas** y el
 detalle se perdió por un filtro mal puesto en la salida. La segunda, ya con
 31 archivos, falló **`toolbar.spec.js` al cargar** (441 de 453, 12 pruebas sin
-correr): pasó sola 12/12 y la corrida siguiente dio **453/453**. Mismo síntoma,
-distinto archivo, **sin repro y sin atribución posible** — en particular, no se
-puede decir que sea por el commit de P0-11 ni que no lo sea. Si vuelve a fallar,
-no lo atribuya a la casualidad: capture la salida entera la primera vez.
+correr): pasó sola 12/12 y la corrida siguiente dio **453/453**. La tercera,
+durante la verificación de 0.30.9: **4 pruebas en 3 archivos** en una corrida
+de 210 s (lo normal, 55 s), y los mismos 3 archivos solos dieron **37/37 en
+10 s** y la completa **453/453 en 99 s**. Mismo síntoma, distinto archivo,
+**sin repro y sin atribución posible** — en particular, no se puede decir que
+sea por ningún commit ni que no lo sea; en la tercera no había ni un solo
+archivo de frontend tocado. Si vuelve a fallar, no lo atribuya a la
+casualidad: capture la salida entera la primera vez.
 
 **Sobre la suite de integración** (`pytest -m integration`, 7 pruebas): no entra
-en la cifra de arriba. Se corrió **contra el backend del 8010 reiniciado con el
-código de 0.30.8**, y quedó en **6 pasan, 1 cae** en **47 s**:
+en la cifra de arriba. Se corrió **contra el backend del 8010 levantado con el
+código de 0.30.9**, y quedó en **7 pasan, 0 caen** en **28 s**:
 
 - `test_feed_does_not_flood` **pasa**. Antes se colgaba — sin salida a los 150 s
   — porque `lost` llegaba cada 10 s y el timeout de 22 s por lectura nunca
   expiraba. Arreglado el inundador, el test se cae en silencio y termina.
-- Sigue cayendo `test_idle_when_nothing_is_tracked`: exige lista de seguimiento
-  vacía y hay 2 (`ARG1646`, `LVKMT`). Es la precondición, no lo que mide; va
-  después, y **no se borra**.
+- `test_idle_when_nothing_is_tracked` **pasa desde 0.30.9**: la precondición se
+  arregla sola en la prueba (vacía la lista por la API pública y la restaura en
+  un `finally`), en vez de saltarse. **Costo conocido: `added_at` no se puede
+  restaurar**, porque ni `GET /flights/tracked` ni `update_selection` lo
+  exponen — cada corrida lo mueve a la fecha de hoy. Lo demás (`icao24`,
+  `callsign`, `slot`, `color` y los tres flags) vuelve idéntico, y se comprobó
+  leyendo la base después de la corrida.
 
 Base de objetos: **0**. Los tres del operador fueron borrados; lo que se veia eran capas que no se quitaban.
 una anotación (id 3). 
@@ -766,5 +774,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.8) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.9) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |
