@@ -718,6 +718,9 @@ def duplicate_object(
         antenna=_payload_dict(src.antenna),
         reference=_payload_dict(src.reference),
         measurement=_payload_dict(src.measurement),
+        # El evento era el único satélite que el duplicado se quedaba sin
+        # copiar: `event=` existía en `create_object` desde el origen.
+        event=_payload_dict(src.rf_event),
     )
     return new_obj
 

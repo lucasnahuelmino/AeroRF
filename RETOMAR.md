@@ -663,12 +663,24 @@ pendientes»**.
   **y** al objeto padre (el `azimuth` y el `radius` copiados ahí mismo se
   iban sin registrar). 7 rojas antes, 8 verdes después.
 
-Faltan, en el orden del anexo:
+- **F2-03** en 0.30.12 — el payload de `rf_events` no se serializaba: ni la
+  respuesta del mapa, ni el GeoJSON, ni el CSV (`export_service` ya leía
+  `props["event"]` y salía vacío), ni el duplicado. Arreglado con la relación
+  `MapObject.rf_event` (la única que faltaba), `props["event"]` en
+  `object_to_feature`, `event=` en `duplicate_object` y el Inspector pasando
+  a leer `p.event.*`. 4 rojas antes, 7 verdes después; +1 en frontend,
+  verificada por revertida. **La decisión de arquitectura: no unificar**
+  (la comparación campo por campo queda abajo, como referencia) y
+  `calculated_evento_id` **sigue sin escribirse** por decisión del
+  operador: queda declarado hasta que exista un caso de uso real.
 
-- **F2-03** — el payload de `rf_events` nunca se serializa (Inspector vacío,
-  CSV vacío, duplicado sin payload). **El bug y la decisión van separados**:
-  serializar hace falta en cualquier caso; decidir es si encima se unifican
-  las dos arquitecturas. La comparación campo por campo, hecha:
+Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
+la decisión de no unificar, confirmada — la tabla se mantiene como
+referencia):
+
+- **Anexo de F2-03 — comparación campo por campo de las dos arquitecturas**
+  (hecha; el bug quedó en 0.30.12 y la decisión fue **no unificar**, además
+  de **dejar `calculated_evento_id` como está**):
 
   | | **A — `eventos_rf`** (legacy SIARI) | **B — `rf_events`** (spec §34) |
   |---|---|---|
@@ -687,8 +699,10 @@ Faltan, en el orden del anexo:
   el `ORDER BY score_probabilidad` del motor y el cascade del mapa. **El
   modelo ya lo dice en su docstring** («kept untouched for the RF engine»).
   Lo único flojo de ese enlace: `calculated_evento_id` **está declarado y
-  nadie lo escribe** (3 apariciones: modelo, schema y changelog) — o se usa,
-  o es peso muerto. **Eso es lo que hay que decidir.**
+  nadie lo escribe** (3 apariciones: modelo, schema y changelog) —
+  **resuelto: se queda como está.** Decisión del operador en esta fase:
+  no se inventa el vínculo, y se elimina el día que haya un caso de uso real
+  (o nunca).
 - **F2-04** — `clear_layer` borra todo con un `delete()` masivo: sin filtro
   `locked`, sin filtro `expediente_id`, y con cascade de notas e historial.
   **Decisión pendiente:** ¿baja lógica (`deleted_at`) en vez de borrado físico?

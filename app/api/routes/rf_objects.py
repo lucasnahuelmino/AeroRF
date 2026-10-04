@@ -621,6 +621,7 @@ def _loaders():
         selectinload(MapObject.antenna),
         selectinload(MapObject.reference),
         selectinload(MapObject.measurement),
+        selectinload(MapObject.rf_event),
     )
 
 

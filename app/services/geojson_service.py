@@ -402,6 +402,26 @@ def object_to_feature(obj, include_history: bool = False) -> dict | None:
             "total_nm": m.total_nm,
             "segments": m.segments,
         }
+    # El evento RF era la única sin serializar (F2-03): `export_service.to_csv`
+    # ya leía `props["event"]` y salía con las columnas vacías, y el Inspector
+    # no tenía nada que mostrar. Se emite el mismo bloque que declara
+    # `RFEventPayload`, incluido `calculated_evento_id` —hoy siempre nulo—
+    # para que la exportación diga exactamente lo que hay en la fila.
+    if getattr(obj, "rf_event", None):
+        e = obj.rf_event
+        props["event"] = {
+            "frequency_mhz": e.frequency_mhz,
+            "level_dbm": e.level_dbm,
+            "bandwidth_khz": e.bandwidth_khz,
+            "event_at": _iso(e.event_at),
+            "classification": e.classification,
+            "source_kind": e.source_kind,
+            "description": e.description,
+            "observations": e.observations,
+            "event_kind": e.event_kind,
+            "provenance": e.provenance,
+            "calculated_evento_id": e.calculated_evento_id,
+        }
 
     if obj.properties:
         props["properties"] = obj.properties

@@ -277,6 +277,41 @@ describe('InspectorPanel', () => {
     expect(w.text()).toContain('Introducido por el usuario')
     w.unmount()
   })
+
+  it('muestra el payload del evento leído de properties.event (F2-03)', async () => {
+    // El backend serializa el evento como `properties.event`, igual que
+    // `rf`, `antenna` y `reference` (geojson_service.object_to_feature).
+    // El panel lo leía en plano (`p.frequency_mhz`) y, como el backend no
+    // emitía nada, la sección salía vacía: F2-03.
+    const pinia = makePinia()
+    const map = useMapStore()
+    const w = mountComponent(InspectorPanel, { pinia })
+    map.upsert({
+      id: 41, type: 'rf_event', name: 'Evento RF 118.300', status: 'Activo',
+      geometry_type: 'Point', latlng: [-34.55, -58.44], latlngs: [[-34.55, -58.44]],
+      latitude: -34.55, longitude: -58.44,
+      visible: true, locked: false, layer: 'rf_events',
+      provenance: 'user',
+      properties: {
+        layer_name: 'Eventos RF',
+        event: {
+          frequency_mhz: 118.3,
+          level_dbm: -62.5,
+          classification: 'Interferencia aeronaútica',
+        },
+      },
+      created_at: '2026-10-01T10:00:00', updated_at: '2026-10-01T10:00:00',
+    })
+    map.select(41)
+    await flushPromises()
+
+    const texto = w.text()
+    expect(texto).toContain('Atributos del evento')
+    expect(texto).toContain('118.3 MHz')
+    expect(texto).toContain('-62.5 dBm')
+    expect(texto).toContain('Interferencia aeronaútica')
+    w.unmount()
+  })
 })
 
 describe('LayerPanel', () => {

@@ -4440,3 +4440,95 @@ comparación anterior (sólo texto) da
 | Python sin integración | 489 | **497** (+8) |
 | Integration | 7 | **7** |
 | Frontend | 453 | **453** |
+---
+
+# 0.30.12 — F2-03: el payload de `rf_events` no se serializaba
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f203-evento-serializado` ·
+**Archivos:** 8 · **Fase 2 de la auditoría, ítem 3 de 8** (la parte del bug)
+
+## Qué pasaba
+
+`object_to_feature` serializa cuatro payloads tipados — `rf`, `antenna`,
+`reference`, `measurement` — y **nunca `event`**. `RFEvent` es además el
+único satélite sin relación en el lado del objeto: `RFEvent.object`
+(`rf.py:189`) es de una sola vía, así que no había por dónde llegar al
+registro desde el `MapObject`.
+
+Tres consumidores esperaban ese bloque y no lo recibían:
+
+| quién | lo que esperaba | lo que salía |
+|---|---|---|
+| `export_service.to_csv` (líneas 224-226) | `props["event"].level_dbm` y `.classification` | columnas `event_level_dbm` y `classification` **vacías en toda exportación** |
+| el Inspector (`InspectorPanel.vue:856`) | `p.frequency_mhz` en plano | nada: no había payload que leer |
+| `duplicate_object` | `event=` en `create_object` (keyword que existe desde el origen, `map_service.py:260`) | el duplicado se perdía el payload completo |
+
+El CSV es la prueba de que el bloque estaba previsto: el código que lo leía
+ya estaba escrito, apuntando a una clave que ningún backend emitía.
+
+## La guarda
+
+`tests/test_f203_evento_serializado.py`, siete pruebas. Las cuatro primeras
+se escribieron y corrieron **antes** de tocar el código: **4 en rojo**
+(respuesta del mapa, GeoJSON, CSV y duplicado). Las otras tres ya daban
+verde y quedan como guarda de lo que no debe romperse:
+
+1. un evento **sin** payload no inventa un bloque;
+2. una fuente sigue llevando `rf` y **no** lleva `event`;
+3. borrar un evento sigue funcionando — ésta protege la relación nueva:
+   con `cascade="all, delete-orphan"` ahora es el ORM el que cascadea
+   (antes lo hacía sólo la base con `ondelete=CASCADE`).
+
+En el frontend, una prueba nueva en `tests/components.spec.js` monta el
+Inspector con `properties.event` anidado y exige que se muestren la
+frecuencia, el nivel y la clasificación. **Verificada por revertida**: con
+la lectura plana anterior da exactamente 1 fallo (`118.3 MHz` no aparece)
+y con la lectura nueva, pasa.
+
+## El arreglo
+
+- **`MapObject.rf_event`** (`uselist=False`, `lazy="selectin"`,
+  `cascade="all, delete-orphan"`) con `back_populates` en las dos
+  direcciones: la única relación que faltaba entre objeto y satélite.
+- **`object_to_feature` emite `props["event"]`** con las mismas 11 columnas
+  que declara `RFEventPayload`, incluido `calculated_evento_id`.
+- **`duplicate_object` pasa `event=_payload_dict(src.rf_event)`**, como ya
+  hacía con los otros cuatro satélites.
+- **`_loaders()`** agrega `selectinload(MapObject.rf_event)`, para que la
+  lista de eventos no dispare una consulta por fila.
+- **`InspectorPanel.vue`** pasa de `p.frequency_mhz` a
+  `p.event.frequency_mhz`, igual que `p.rf.*` para las fuentes: es el único
+  cambio de contrato, y va en el mismo commit.
+
+## Lo que NO se toca, y por qué
+
+- **`calculated_evento_id` sigue sin escribirse.** Decisión del operador:
+  queda declarado hasta que exista un caso de uso real, porque nada en el
+  flujo vincula un evento del mapa con un resultado de la calculadora y
+  escribirlo sería inventar el vínculo.
+- **No se unifican las dos arquitecturas de eventos** (recomendación del
+  anexo de F2-03 en `RETOMAR.md`): dueños distintos, semánticas distintas,
+  y ya están enlazadas por esa clave.
+- **La fila `rf_events` no se toca**: sólo se serializa lo que ya estaba
+  guardado. No hay migración de esquema.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **504 pasan** (497 + 7 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (35,9 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 497 | **504** (+7) |
+| Integration | 7 | **7** |
+| Frontend | 453 | **454** (+1) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

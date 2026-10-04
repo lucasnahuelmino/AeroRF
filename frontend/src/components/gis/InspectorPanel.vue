@@ -853,9 +853,12 @@ const typePayload = computed(() => {
       editable: true,
       endpoint: 'rf/events',
       rows: [
-        { key: 'frequency_mhz', label: 'Frecuencia', value: fmt(p.frequency_mhz, ' MHz') },
-        { key: 'level_dbm', label: 'Nivel', value: fmt(p.level_dbm, ' dBm') },
-        { key: 'classification', label: 'Clasificación', value: p.classification },
+        // El payload viaja anidado en `properties.event`, igual que `rf`,
+        // `antenna` y `reference` (F2-03): antes se leía en plano y estaba
+        // siempre vacío porque el backend no lo serializaba.
+        { key: 'frequency_mhz', label: 'Frecuencia', value: fmt(p.event?.frequency_mhz, ' MHz') },
+        { key: 'level_dbm', label: 'Nivel', value: fmt(p.event?.level_dbm, ' dBm') },
+        { key: 'classification', label: 'Clasificación', value: p.event?.classification },
       ],
       fields: [
         { key: 'frequency_mhz', label: 'Frecuencia (MHz)', type: 'number', step: '0.001' },
