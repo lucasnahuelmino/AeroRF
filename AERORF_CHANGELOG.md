@@ -5078,3 +5078,93 @@ repitió **por revertida**: sin el pre-check vuelve `200 == 409`.
 | Frontend | 457 (32 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.20 — P0-07: el middleware de Origin/Host, acotado a la lista configurada
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p007-origin-host` ·
+**Auditoría de Claude, ítem P0-07 — decisión del operador: acotarlo a
+los orígenes de CORS configurados**
+
+## Qué pedía y por qué así
+
+La auditoría pide un middleware de `Origin`/`Host`. El modelo de
+despliegue sigue sin decidir (una PC por técnico vs. servidor
+compartido), así que la decisión fue **acotarlo a `CORS_ORIGINS`** —
+el mismo `.env` — que sirve en los dos modelos: cada técnico pone sus
+orígenes, el servidor compartido los suyos.
+
+Y la advertencia, que era la parte fina: «con el proxy de Vite el
+`Origin` es `5199` y el `Host` es `8010`: sin esa lista rechaza la
+interfaz entera **y los tests salen verdes**» — los tests no mandan
+`Origin`, así que un guard con lista inventada rompería la interfaz
+sin que ninguna prueba se enterara. Medido: los 540 tests siguen
+verdes **porque** el guard usa la lista configurada.
+
+## Qué cierra cada mitad
+
+| | `Origin` | `Host` |
+|---|---|---|
+| qué ataca | CSRF de sitio: formularios y XHR que **hacen** — CORS sólo niega **leer** | DNS rebinding: `evil.com` → 127.0.0.1, same-origin para el browser, y **lee** |
+| por qué no basta el otro | — | el rebinding **no manda** `Origin` |
+| rechazo | 403 «Origen no permitido: …» | 403 «Host no permitido: …» |
+
+- **Una sola lista para los dos**: el guard lee
+  `settings.cors_origin_list` — cualquier origen que
+  `CORSMiddleware` sirve, el guard lo deja llegar; los dos leen el
+  mismo `.env` y nunca se contradicen.
+- **`ALLOWED_HOSTS`** (nuevo, en `.env.example`): loopback +
+  `testserver` (el `Host` que manda TestClient), **más** los hostnames
+  de los orígenes configurados: la lista de hosts aprende de la de
+  orígenes.
+- **ASGI puro**, no `BaseHTTPMiddleware`: cubre también el scope
+  `websocket` — el upgrade trae `Origin` y `Host`, y si no se miran, el
+  rebinding entra por ahí con la misma facilidad.
+- 403 con `{"detail"}` en español: el formato que `describeError` ya
+  entiende.
+
+## La guarda
+
+`tests/test_p007_origin_host.py`, 6 escritas **antes** de tocar: **3
+rojas** — el origin evil pasaba (200), el host evil pasaba (200), y el
+websocket ni siquiera tenía módulo — y 3 verdes de arranque (origin
+configurado, host local, control sin cabeceras). La roja del cableado
+se volvió a medir **por revertida**: sin `install_origin_guard(app)`
+vuelven las dos de API.
+
+**En vivo contra el 8010 real**: evil `Origin` → **403** ·
+`Origin: http://localhost:5199` (el de `.env`) → **200** · evil
+`Host` → **403** · sin cabeceras → **200**.
+
+## Lo que NO cambia
+
+- **Sin `Origin` la petición pasa** (curl, tests, integración): el
+  guard es defensa de browser, no autenticación — la API no tiene auth
+  todavía, que es otro ítem.
+- El default de `ALLOWED_HOSTS` acepta `testserver`: inofensivo (un
+  browser no puede mandarlo a propósito; el rebinding manda su propio
+  dominio, que queda rechazado).
+- Orden de middleware: guard → CORS → rutas; CORS sigue agregando sus
+  cabeceras a las peticiones que el guard deja pasar.
+- El default de `CORS_ORIGINS` en `config.py` (5173) no se tocó: lo
+  mandan `.env`/`.env.example` (5199), como antes de este ítem.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **540 pasan** (534 + 6 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 36 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (54,6 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+| En vivo contra 8010 | evil origin 403 · origin configurado 200 · evil host 403 · sin cabeceras 200 |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 534 | **540** (+6) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

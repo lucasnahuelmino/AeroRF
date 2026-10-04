@@ -214,6 +214,21 @@ class Settings:
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    # ─── Hosts permitidos (P0-07) ─────────────────────────────────────────
+    # El middleware de Origin/Host acota el `Host` a ésta (más los
+    # hostnames de CORS_ORIGINS): defensa contra DNS rebinding. El
+    # `testserver` es el Host que manda TestClient.
+    allowed_hosts: str = field(
+        default_factory=lambda: _env(
+            "ALLOWED_HOSTS",
+            "127.0.0.1,localhost,::1,testserver",
+        )
+    )
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        return [h.strip().lower() for h in self.allowed_hosts.split(",") if h.strip()]
+
     @property
     def has_opensky_credentials(self) -> bool:
         """True when OAuth2 client credentials are configured."""

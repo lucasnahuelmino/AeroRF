@@ -639,8 +639,8 @@ código estaba bien; el instrumento no.
 ### La cola de la auditoría de Claude
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
-`test_idle` de 0.30.9 y P0-02 en 0.30.19; de la fase 2, F2-01 a F2-08
-(0.30.10–0.30.18, con sus entradas más abajo).**
+`test_idle` de 0.30.9, P0-02 en 0.30.19 y P0-07 en 0.30.20; de la fase 2,
+F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -653,6 +653,19 @@ código estaba bien; el instrumento no.
   el 404 y el mensaje de éxito de la misma ruta, y `describeError`
   aprendió el 409 (regla de contrato: cliente en el mismo commit). 4
   rojas antes, repetido el bloqueo **por revertida**.
+
+- **P0-07** en 0.30.20 — middleware de `Origin`/`Host` montado y
+  **acotado a `CORS_ORIGINS`**, como decidió el operador: el guard lee
+  la misma lista que `CORSMiddleware`, así que nunca se contradicen y
+  sirve tanto con PC por técnico como con servidor compartido. Cierra
+  dos huecos distintos: el CSRF de sitio (Origin: CORS niega *leer*, el
+  guard niega *hacer*) y el DNS rebinding (Host: el rebinding no manda
+  Origin). `ALLOWED_HOSTS` nuevo en `.env.example` — loopback +
+  `testserver`, más los hostnames aprendidos de los orígenes —, ASGI
+  puro para cubrir también el scope `websocket`, y 403 con `detail` en
+  español. 6 guardas, **3 rojas** antes (origin evil, host evil y el
+  websocket sin módulo), la del cableado repetida **por revertida**, y
+  en vivo contra el 8010: evil → 403, `5199` → 200.
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
@@ -819,9 +832,6 @@ con su commit propio:
   `eventos_rf` en 0), pero desde ahora **se corre contra una base temporal**:
   `DATABASE_URL` descartable en un puerto aparte. La prueba de ese método dio
   **77 de 78**, con la única falla del chequeo de capas de arriba.
-- **P0-07** — middleware de `Origin`/`Host`, **acotado a los orígenes de CORS
-  configurados**. Con el proxy de Vite el `Origin` es `5199` y el `Host` es
-  `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
 - **P0-09** — inyección de fórmulas en el CSV, **sólo en campos de texto libre**.
   Prefijar lo que empieza con `-` convertiría las latitudes negativas en texto.
 - **P1, `async def` → `def`** — con SQLite hay que mirar `check_same_thread`

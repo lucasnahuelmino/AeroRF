@@ -217,6 +217,14 @@ capas, y en las exportaciones.
 - `RedactingFilter` es la segunda barrera, applied a cada registro.
 - No existe ruta de código desde la API hasta las cadenas de secreto.
 - Test dedicado: `/system/config` no contiene ninguna clave de secreto.
+- **Middleware de `Origin`/`Host` (P0-07, 0.30.20)** — acotado a los
+  orígenes de `CORS_ORIGINS`: el mismo `.env` que gobierna CORS, así los
+  dos nunca se contradicen. CORS niega la *lectura* de la respuesta; el
+  guard niega la *petición* (formularios y XHR de otro sitio) y cierra
+  el hueco que CORS no cubre: el DNS rebinding, que **no** manda
+  `Origin` y entra por el `Host` (`ALLOWED_HOSTS` + los hostnames de
+  los orígenes). 403 con `{"detail"}` en español, y ASGI puro — también
+  mira el scope `websocket`.
 
 ### 3.8 Logging
 

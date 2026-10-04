@@ -33,6 +33,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import install_error_handlers
+from app.api.origin_guard import install_origin_guard
 from app.core.config import get_settings
 from app.core.logging import log, setup_logging
 from app.database.database import init_db
@@ -115,6 +116,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Origin/Host (P0-07) ─────────────────────────────────────────────────────
+# Acotado a los orígenes de CORS configurados: cualquier origen que
+# CORSMiddleware (arriba) sirve, éste lo deja llegar — los dos leen el
+# mismo .env y nunca se contradicen. CORS niega la *lectura*; el guard
+# niega la *petición* (formularios, XHR de otro sitio) y cierra el hueco
+# que CORS no cubre: el DNS rebinding, que no manda Origin y entra por
+# el Host. Ver app/api/origin_guard.py.
+install_origin_guard(app)
 
 # ─── Routers ─────────────────────────────────────────────────────────────────
 API = settings.api_prefix
