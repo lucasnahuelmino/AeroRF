@@ -4763,3 +4763,70 @@ status, sólo el idioma), y lo válido sigue creando con 201.
 | Frontend | 454 | **454** |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.16 — F2-06: el update escribía geometría sin validarla
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f206-geometria-update` ·
+**Fase 2 de la auditoría, ítem 6 de 8**
+
+## Qué pasaba
+
+`create_object` valida la geometría con `gjs.validate_geometry` antes de
+escribir — el propio comentario avisa del riesgo: «one bad ring used to
+be stored happily and then took down the whole listing endpoint with a
+500» — y el docstring de esa misma función promete estar en «the create
+and **update** paths». El update no la llamaba: `PUT /map/objects/{id}`
+con `geometry` en el body pasaba por `MUTABLE_FIELDS` y escribía el
+valor tal cual.
+
+La consecuencia no era un 500 inmediato, porque la lectura ya está
+blindada (`object_to_leaflet` devuelve «Objeto sin geometría derivable»
+en vez de romper el listado). Era peor para el operador: el PUT
+contestaba **200**, el objeto se guardaba «bien», y después
+desaparecía del mapa sin ningún aviso de por qué. Un anillo roto
+guardado hoy sigue roto mañana, y nadie lo señala.
+
+## La guarda
+
+`tests/test_f206_geometria_update.py`, 3 pruebas escritas antes del
+arreglo: **1 roja** (el PUT devolvía 200 y el log confirmaba
+`fields=geometry`) y 2 verdes que quedan como guarda — la geometría
+válida sigue pasando, y la puerta del alta sigue cerrada. La roja se
+volvió a medir **por revertida**, con el chequeo anulado: vuelve el 200.
+
+Detalle de la aserción clave: mira la **columna**
+(`db.get(MapObject, oid).geometry is None`), no la respuesta del GET —
+ésta devuelve un Point derivado de `latitude`/`longitude` que taparía la
+diferencia entre «no se escribió» y «se escribió otro».
+
+## El arreglo
+
+Un chequeo en `update_object`, **antes** de tocar la fila y junto a los
+demás pre-cheques del patch que agregó F2-05: `gjs.validate_geometry`
+y, ante `GeometryError`, `MapServiceError` → 400 con el mensaje en
+español que la función ya trae («Un polígono necesita al menos 4
+posiciones…», «El anillo del polígono no está cerrado…»).
+
+Mismo criterio que el alta, en el mismo lugar donde ya se chequeaban
+referencias y nulidad: o entra todo el patch, o no entra nada — sin
+escritura parcial.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **524 pasan** (521 + 3 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 37 s** |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (37,5 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 521 | **524** (+3) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |

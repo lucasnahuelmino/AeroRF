@@ -699,6 +699,16 @@ pendientes»**.
   `correlation` verificado por revertida: sin él, `ValueError` otra vez).
   Detalle en 0.30.15.
 
+- **F2-06** en 0.30.16 — el update escribía `geometry` sin validar:
+  `create_object` llamaba a `gjs.validate_geometry` (y el docstring de
+  esa función prometía estar en el alta **y** el update), pero el PUT no
+  lo hacía. El PUT contestaba **200**, guardaba el anillo roto y el
+  objeto después desaparecía del mapa como «sin geometría derivable»,
+  sin avisar por qué. Arreglado con el mismo chequeo, junto a los
+  pre-cheques de F2-05, **antes** de tocar la fila: o entra todo el
+  patch, o no entra nada. 1 roja antes (200 y `fields=geometry` en el
+  log), 3 verdes después; la roja repetida **por revertida**.
+
 Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
 la decisión de no unificar, confirmada — la tabla se mantiene como
 referencia):
@@ -728,7 +738,6 @@ referencia):
   **resuelto: se queda como está.** Decisión del operador en esta fase:
   no se inventa el vínculo, y se elimina el día que haya un caso de uso real
   (o nunca).
-- **F2-06** — `update_object` no valida geometría; `create_object` sí.
 - **F2-07** — un `BackoffController` para los tres pools: un 429 de `/tracks`
   pausa también el feed en vivo.
 - **F2-08** — `import_geojson` no pasa `source` y queda `"user"`. No necesita

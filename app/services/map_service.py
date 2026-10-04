@@ -629,6 +629,18 @@ def update_object(
             db, Expediente, patch["expediente_id"], "el expediente"
         )
 
+    # Rechazar una geometría rota antes de guardarla, igual que en el alta
+    # (F2-06): `create_object` ya la validaba y el update era la puerta que
+    # quedó abierta — el docstring de `validate_geometry` hasta prometía
+    # estar en ambos caminos. Un anillo malo guardado «feliz» no rompía el
+    # commit: hacía que el objeto desapareciera del mapa como «sin
+    # geometría derivable», sin decirle al operador por qué.
+    if patch.get("geometry") is not None:
+        try:
+            gjs.validate_geometry(patch["geometry"])
+        except gjs.GeometryError as exc:
+            raise MapServiceError(str(exc)) from exc
+
     for field, value in patch.items():
         if value is None and field not in {"description", "label", "name"}:
             # A null for a scalar column would violate NOT NULL defaults.
