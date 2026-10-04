@@ -431,6 +431,7 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_p004_websocket_anonimo.py` (5) | **P0-04**: que el WebSocket consulte en modo anónimo en vez de rendirse, que la compuerta siga cerrada sin forma de consultar, y que la lista vacía gane al chequeo de credenciales | `pytest tests/test_p004_websocket_anonimo.py` |
 | `tests/test_p011_guardar_en_expediente.py` (6) | **P0-11**: que guardar y volver a leer por el `GET` que ya existía dé algo, que ningún campo cambie en el ida y vuelta, que los dos expedientes no se mezclen, y que 404 y 400 salgan en español sin escribir nada | `pytest tests/test_p011_guardar_en_expediente.py` |
 | `tests/test_lost_sin_inundar.py` (5) | **§48**: que el frame `lost` salga una vez por caída y no uno por tick, que deduplicar no lo silencie para siempre, que al volver se reenvíe su estado aunque no haya cambiado, y que el aviso siga en español | `pytest tests/test_lost_sin_inundar.py` |
+| `tests/test_f201_candado_rf.py` (7) | **Fase 2, F2-01**: que las cuatro rutas tipadas no se salten el candado, que un 400 no deje media escritura atrás, que lo desbloqueado siga editándose y que el candado pueda abrirse | `pytest tests/test_f201_candado_rf.py` |
 | `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
 | `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
 | `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
@@ -442,11 +443,11 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 | `frontend/tests/p011-guardar.spec.js` (5) | **P0-11**: que el botón esté inactivo sin destino, que lo que se manda sean los campos de `EventoRF` con el mapeo medido en vivo, que un error se muestre como error, y que un fallo de carga no se finja «no hay expedientes» | `npx vitest run tests/p011-guardar.spec.js` |
 
-**Total: 482 de Python sin integración (18 archivos) + 7 de integración + 30
+**Total: 489 de Python sin integración (19 archivos) + 7 de integración + 30
 del motor RF heredado + 675 de paridad + 453 de frontend (31 archivos) + 78 E2E + 43 de
 recorrido real.**
 
-El 482 se mide con `pytest -m "not integration"` y el 453 con `npm test` desde
+El 489 se mide con `pytest -m "not integration"` y el 453 con `npm test` desde
 `frontend/`; el 7 de integración son los de
 `test_websocket.py`, que van con `-m integration` y hoy quedan **los 7 en
 verde (28 s)** contra el backend de 8010 con 0.30.9: `test_feed_does_not_flood`

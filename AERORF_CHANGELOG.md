@@ -4234,3 +4234,108 @@ distinto archivo, sin repro y sin ningún cambio de frontend de por medio.
 | Python sin integración | 482 | **482** (sin cambios: esto es una prueba) |
 | Integration | 6 passed, 1 failed | **7 passed, 0 failed** |
 | Frontend | 453 | **453** |
+
+---
+
+# 0.30.10 — F2-01: el candado se salteaba por los campos RF
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f201-candado-rf` ·
+**Archivos:** 4 · **Fase 2 de la auditoría, ítem 1 de 8**
+
+## El problema, reproducido
+
+Las cuatro rutas tipadas escribían el satélite y hacían `commit` **antes** de
+llamar a `svc.update_object`, y el único punto que verificaba el candado era
+`update_object` (`map_service.py`). Con la fuente bloqueada:
+
+| repro | qué pasaba |
+|---|---|
+| `PUT /rf/sources/{id} {"frequency_mhz": 200}` | **200** y la frecuencia de 98.1 a 200 |
+| `PUT … {"frequency_mhz": 201, "name": "otro"}` | **400** por candado, pero **201 ya quedó guardado** |
+
+La auditoría marcaba antenas y eventos como «deducido por lectura» y dejaba
+`update_reference` sin leer: las cuatro tienen el mismo esqueleto, y se
+verificó una por una.
+
+`tests/test_f201_candado_rf.py`, siete pruebas escritas y corridas **antes**
+de tocar el código:
+
+| | antes del arreglo | después |
+|---|---|---|
+| las 4 parametrizadas (fuente, antena, evento, referencia) | **fallan**: responden 200 | **pasan** |
+| escritura parcial | **falla**: `la frecuencia pasó a 201.0` | **pasa** |
+| control desbloqueado | pasa | pasa |
+| desbloquear sigue permitido | pasa | pasa |
+
+**5 en rojo, 2 en verde** → 7 en verde.
+
+## El arreglo
+
+- **`map_service.require_unlocked(obj, patch)`**: el chequeo, extraído de
+  `update_object` y con una sola implementación para todos los caminos. Lo
+  nuevo es que las cuatro rutas RF lo llaman **antes** de tocar el satélite.
+- **Una sola transacción**: desaparecen los `db.commit()` intermedios del
+  satélite. Si hay `patch`, el único `commit` es el de `update_object`, y el
+  satélite pendiente viaja en esa misma transacción; si no lo hay, un
+  `db.commit()` final. Si algo falla en el medio, **`db.rollback()`** — antes
+  la ventana de escritura parcial estaba abierta entre los dos `commit`.
+- **El mensaje pasó a español**: `El objeto {id} está bloqueado.
+  Desbloquéalo antes de editar.` `client.js` prefiere el `detail` del
+  backend, así que esa cadena es literalmente lo que ve el operador.
+
+## Una guarda existente que hubo que actualizar
+
+`test_map_objects.py::test_locked_object_refuses_edits` buscaba la palabra
+**«locked»** en el mensaje — que al pasar a español dejó de existir. Se le
+cambió la aserción a **«bloqueado»**: la prueba sigue prohibiendo la edición
+y además de paso queda que el motivo esté en el idioma del operador. No se
+borró ninguna prueba.
+
+## Lo que NO se tocó, y por qué
+
+- **El código sigue siendo 400**, no 409. Cambiarlo es decisión de contrato
+  (coherencia con el 409 ya decidido en P0-02) y no está tomada; además
+  `tests/smoke_e2e.py:353` fija 400. Si se cambia, `client.js` en el mismo
+  commit.
+- **`update_reference:483-484`** cambia `db_obj.radius` sin que eso aparezca
+  en el historial: es F2-02, no éste.
+- **El historial de los satélites** sigue roto (`getattr(obj, "rf.k")` da
+  `None`): F2-02.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **489 pasan** (482 + 7 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **453 pasan**, 31 archivos |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** |
+| `python tests/smoke_e2e.py` (base del operador, 8010) | 75 de 78 |
+
+### Hallazgo al verificar: el E2E contra la base real deja rastro
+
+La primera corrida fue contra la base del operador, como indica el propio
+`ARCHITECTURE`, y **dejó basura**: 3 aviones falsos (`abc001`-`abc003`) en
+la lista de seguimiento, 8 objetos de prueba en el mapa, una fuente enganchada
+al expediente y un expediente `EXP-SMOKE-001`. Todo se repuso por la API
+pública y se verificó contra la base: **los 2 aviones, los 2 objetos y el
+expediente del operador, con el `added_at` original y `eventos_rf` en 0**.
+
+De ahí salen tres fallas del E2E, ninguna por este cambio:
+
+| falla | causa |
+|---|---|
+| `15 default layers` | el script espera **15** y hoy se siembran **17** (`lines` y `polygons`, del 26/09). **Falla también en base limpia** — expectativa vieja del script |
+| `5 aircraft tracked` → `added=3` | los 2 aviones del operador llenaron la ventana de 5. En base limpia pasa |
+| `geojson lon/lat order` | ambiental. En base limpia pasa |
+
+**Corrección al método**: el E2E hay que correrlo contra una base temporal
+(`DATABASE_URL` apuntando a un descartable), no contra `aerorf.db`.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 482 | **489** (+7) |
+| Integration | 7 | **7** |
+| Frontend | 453 | **453** |

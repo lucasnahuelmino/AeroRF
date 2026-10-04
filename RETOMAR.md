@@ -638,14 +638,56 @@ código estaba bien; el instrumento no.
 
 ### La cola de la auditoría de Claude
 
-**Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8 y la precondición de
-`test_idle` de 0.30.9.** Lo demás, con el criterio acordado: rama nueva, un
-commit por ítem, prueba que falle antes y pase después, y **preguntar antes de
-tocar nada de «Decisiones pendientes»**.
+**Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
+`test_idle` de 0.30.9 y F2-01 de la fase 2 en 0.30.10.** Lo demás, con el
+criterio acordado: rama nueva, un commit por ítem, prueba que falle antes y
+pase después, y **preguntar antes de tocar nada de «Decisiones pendientes»**.
 
 - **P0-01 y P0-03** — `nullable=False` sobre `numero_expediente` y limpiar las
   filas ya guardadas. **Van juntos y ya se pueden**: P0-06 les dio el respaldo y
   la versión de esquema que les faltaba.
+
+### Fase 2 de Claude (los F2)
+
+**Hecho: F2-01** en 0.30.10 — el candado se salteaba por los campos RF en las
+cuatro rutas tipadas. Reproducido (5 rojas, 2 verdes), arreglado con
+`require_unlocked` **antes** de escribir el satélite, una sola transacción y
+`rollback` si algo falla; el mensaje del candado pasó a español. Ver
+`AERORF_CHANGELOG.md` 0.30.10.
+
+Faltan, en el orden del anexo:
+
+- **F2-02** — el historial escribe filas falsas: `_record_history` hace
+  `getattr(obj, "rf.k")`, que da `None`, así que «borra» la frecuencia y no
+  muestra el cambio real. Cubre las cuatro vistas. Reusar `_snapshot()`.
+- **F2-03** — el payload de `rf_events` nunca se serializa (Inspector vacío,
+  CSV vacío, duplicado sin payload). **Antes de tocarlo hay que preguntar**:
+  el arreglo hace oficial a la **arquitectura B**, paralela de `eventos_rf`
+  (la A, que es la que usa P0-11). Si son la misma cosa, toca unificar y el
+  ítem cambia de tamaño.
+- **F2-04** — `clear_layer` borra todo con un `delete()` masivo: sin filtro
+  `locked`, sin filtro `expediente_id`, y con cascade de notas e historial.
+  **Decisión pendiente:** ¿baja lógica (`deleted_at`) en vez de borrado físico?
+- **F2-05** — entradas inválidas que devuelven 500 (`null` en `visible`,
+  `layer_id` inexistente, `kind` inválido). Ojo al arreglo: pasar de `body: dict`
+  a Pydantic convierte 500 en **422 de FastAPI, en inglés** — hay que meter el
+  traductor en el mismo commit.
+- **F2-06** — `update_object` no valida geometría; `create_object` sí.
+- **F2-07** — un `BackoffController` para los tres pools: un 429 de `/tracks`
+  pausa también el feed en vivo.
+- **F2-08** — `import_geojson` no pasa `source` y queda `"user"`. No necesita
+  migración (no hay `CheckConstraint` en ningún modelo), pero sí hay que agregar
+  la etiqueta en `MapEngine.js:1028` o muestra el valor crudo en inglés.
+- **Decisión de Épsilon: el historial ya contaminado de F2-02** — y antes de
+  decidir, **contarlo** (`field LIKE 'rf.%' AND new_value IS NULL`).
+
+**Correcciones que le hice a la fase 2** (verificadas contra el código): los
+números «reales» que da están desactualizados (**482 + 30 / 453**, no 452/438);
+«86 endpoints» hoy son **88** (66 paths, medido con `openapi()`); 19 tablas sí;
+`update_reference` **sí** tiene el candado salteable (no lo había leído) y además
+cambia `db_obj.radius` sin historial; y **el repo es público** (`"private":
+false`), con `r1.txt`…`r6.txt` y `siari.db` en el historial — **el `.env`
+nunca entró**, sólo `.env.example`.
 
 **Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro, cada uno
 con su commit propio:
@@ -666,6 +708,16 @@ con su commit propio:
   (441/453), sola 12/12 y 453/453 después; después 4 pruebas en 3 archivos
   distintos en una corrida que tardó 210 s, con los mismos 3 archivos en verde
   (37/37) y la completa en verde (453/453). **Sin repro.**
+- **`smoke_e2e.py` espera 15 capas y hoy se siembran 17** (`lines` y
+  `polygons`, del 26/09): el chequeo `count == 15` **falla también en base
+  limpia**, o sea que es expectativa vieja del script y no una regresión.
+- **El E2E contra `aerorf.db` deja basura.** La corrida de la verificación de
+  F2-01 dejó 3 aviones falsos (`abc001`-`abc003`), 8 objetos en el mapa, una
+  fuente enganchada a un expediente y un `EXP-SMOKE-001`. Todo se repuso por la
+  API pública y se volvió a leer de la base (2 aviones, 2 objetos, 1 expediente,
+  `eventos_rf` en 0), pero desde ahora **se corre contra una base temporal**:
+  `DATABASE_URL` descartable en un puerto aparte. La prueba de ese método dio
+  **77 de 78**, con la única falla del chequeo de capas de arriba.
 - **P0-07** — middleware de `Origin`/`Host`, **acotado a los orígenes de CORS
   configurados**. Con el proxy de Vite el `Origin` es `5199` y el `Host` es
   `8010`: sin esa lista rechaza la interfaz entera y los tests salen verdes.
@@ -731,8 +783,10 @@ no la remoción.
 | Suite | Estado |
 |---|---|
 | Frontend (vitest) | **453 pasan**, 31 archivos |
-| Python (no integración) | **482 pasan**, 7 deseleccionadas |
+| Python (no integración) | **489 pasan**, 7 deseleccionadas |
+| Integration (`-m integration`) | **7 pasan** contra el 8010 |
 | `tests/geo_parity.mjs` | 675 pasan |
+| `tests/smoke_e2e.py` (base temporal) | **77 de 78** |
 | Build | limpio (`✓ built in 1m 30s`) |
 
 **Observado y sin explicar, tres veces.** La primera corrida de vitest de esta
@@ -774,5 +828,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.9) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.10) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |

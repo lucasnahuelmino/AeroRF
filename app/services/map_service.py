@@ -480,6 +480,24 @@ MUTABLE_FIELDS = {
 _UNIT_FIELDS = {"radius_unit", "length_unit"}
 
 
+def require_unlocked(obj: MapObject, patch: dict[str, Any]) -> None:
+    """Raise unless ``patch`` may touch a locked object.
+
+    A locked object refuses every edit *except* unlocking itself — otherwise
+    it could never be reopened, which would make the lock a one-way trap.
+
+    It lives here, outside `update_object`, because the gate has to run
+    **before** anything is written: the four RF views used to write their
+    satellite and commit it first, and only then reach `update_object`
+    (F2-01) — a locked object's frequency could be edited by a body that
+    carried nothing but RF fields.
+    """
+    if obj.locked and not (set(patch) == {"locked"} and patch["locked"] is False):
+        raise MapServiceError(
+            f"El objeto {obj.id} está bloqueado. Desbloquéalo antes de editar."
+        )
+
+
 def update_object(
     db: Session,
     object_id: int,
@@ -500,13 +518,7 @@ def update_object(
             f"Editable: {', '.join(sorted(MUTABLE_FIELDS))}"
         )
 
-    # A locked object refuses every edit *except* unlocking itself —
-    # otherwise it could never be reopened, which would make the lock a
-    # one-way trap.
-    if obj.locked and not (set(patch) == {"locked"} and patch["locked"] is False):
-        raise MapServiceError(
-            f"Object {object_id} is locked. Unlock it before editing."
-        )
+    require_unlocked(obj, patch)
 
     for field, value in patch.items():
         if value is None and field not in {"description", "label", "name"}:

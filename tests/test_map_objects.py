@@ -256,7 +256,11 @@ class TestUpdate:
         svc.update_object(db, obj.id, {"locked": True})
         with pytest.raises(MapServiceError) as exc:
             svc.update_object(db, obj.id, {"name": "No"})
-        assert "locked" in str(exc.value).lower()
+        # Este texto llega al operador tal cual (`client.js` prefiere el
+        # `detail` del backend): buscaba la palabra inglesa «locked», que al
+        # pasar a español dejó de existir. Lo que se guarda es que el motivo
+        # sea el candado, y que esté en el idioma del operador.
+        assert "bloqueado" in str(exc.value).lower()
 
     def test_locked_object_can_be_unlocked(self, db):
         """A lock must never be a one-way trap."""

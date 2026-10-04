@@ -61,6 +61,21 @@ def _not_found(oid: int) -> HTTPException:
     return HTTPException(404, f"Object {oid} not found")
 
 
+def _chequear_candado(db_obj: MapObject, patch: dict) -> None:
+    """El candado se chequea **antes** de escribir el satélite (F2-01).
+
+    En las cuatro rutas los campos tipados se escribían y hacían `commit`
+    antes de llegar a `svc.update_object`, único punto que verificaba el
+    candado: con la fuente bloqueada, `PUT ... {"frequency_mhz": 200}`
+    respondía 200, y un cuerpo mixto dejaba el campo RF guardado aunque la
+    respuesta fuera 400.
+    """
+    try:
+        svc.require_unlocked(db_obj, patch)
+    except svc.MapServiceError as exc:
+        raise HTTPException(400, str(exc))
+
+
 # ─── RF sources (spec §32) ───────────────────────────────────────────────────
 
 @router.get("/rf/sources")
@@ -159,31 +174,39 @@ def update_source(
     })
 
     db_obj = db.query(MapObject).filter(MapObject.id == object_id).first()
-    if rf_patch and db_obj.rf_source is None:
-        from app.models.rf import RFSource
-
-        db.add(RFSource(object_id=object_id, **rf_patch))
-        db.commit()
-    elif rf_patch:
-        before = {c.name: getattr(db_obj.rf_source, c.name)
-                  for c in db_obj.rf_source.__table__.columns}
-        for field, value in rf_patch.items():
-            setattr(db_obj.rf_source, field, value)
-        svc._record_history(
-            db, db_obj, {f"rf.{k}": v for k, v in before.items()},
-            comment=payload.comment, user=payload.user,
-        )
-        db.commit()
 
     patch = payload.model_dump(exclude_unset=True, exclude_none=False)
     patch = {k: v for k, v in patch.items() if k not in {"user", "comment"}}
-    if patch:
-        try:
+
+    # F2-01: primero el candado, después escribir, y todo en una sola
+    # transacción — un edit rechazado no puede dejar media escritura atrás.
+    _chequear_candado(db_obj, patch)
+
+    try:
+        if rf_patch and db_obj.rf_source is None:
+            from app.models.rf import RFSource
+
+            db.add(RFSource(object_id=object_id, **rf_patch))
+        elif rf_patch:
+            before = {c.name: getattr(db_obj.rf_source, c.name)
+                      for c in db_obj.rf_source.__table__.columns}
+            for field, value in rf_patch.items():
+                setattr(db_obj.rf_source, field, value)
+            svc._record_history(
+                db, db_obj, {f"rf.{k}": v for k, v in before.items()},
+                comment=payload.comment, user=payload.user,
+            )
+        if patch:
+            # `update_object` hace el único `commit` de este camino: el
+            # satélite pendiente viaja en la misma transacción.
             svc.update_object(
                 db, object_id, patch, user=payload.user, comment=payload.comment
             )
-        except svc.MapServiceError as exc:
-            raise HTTPException(400, str(exc))
+        else:
+            db.commit()
+    except svc.MapServiceError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
     return _to_leaflet(svc.get_object(db, object_id))
 
 
@@ -251,35 +274,40 @@ def update_antenna(
     })
 
     db_obj = db.query(MapObject).filter(MapObject.id == object_id).first()
-    if antenna_patch and db_obj.antenna is None:
-        from app.models.rf import Antenna
-
-        db.add(Antenna(object_id=object_id, **antenna_patch))
-        db.commit()
-    elif antenna_patch:
-        before = {c.name: getattr(db_obj.antenna, c.name)
-                  for c in db_obj.antenna.__table__.columns}
-        for field, value in antenna_patch.items():
-            setattr(db_obj.antenna, field, value)
-        # Keep the object's own azimuth in step so the radial line the map
-        # draws always matches the antenna's recorded pointing direction.
-        if db_obj.antenna.azimuth_deg is not None:
-            db_obj.azimuth = db_obj.antenna.azimuth_deg
-        svc._record_history(
-            db, db_obj, {f"antenna.{k}": v for k, v in before.items()},
-            comment=payload.comment, user=payload.user,
-        )
-        db.commit()
 
     patch = payload.model_dump(exclude_unset=True, exclude_none=False)
     patch = {k: v for k, v in patch.items() if k not in {"user", "comment"}}
-    if patch:
-        try:
+
+    # F2-01: candado primero, una sola transacción para todo el resto.
+    _chequear_candado(db_obj, patch)
+
+    try:
+        if antenna_patch and db_obj.antenna is None:
+            from app.models.rf import Antenna
+
+            db.add(Antenna(object_id=object_id, **antenna_patch))
+        elif antenna_patch:
+            before = {c.name: getattr(db_obj.antenna, c.name)
+                      for c in db_obj.antenna.__table__.columns}
+            for field, value in antenna_patch.items():
+                setattr(db_obj.antenna, field, value)
+            # Keep the object's own azimuth in step so the radial line the map
+            # draws always matches the antenna's recorded pointing direction.
+            if db_obj.antenna.azimuth_deg is not None:
+                db_obj.azimuth = db_obj.antenna.azimuth_deg
+            svc._record_history(
+                db, db_obj, {f"antenna.{k}": v for k, v in before.items()},
+                comment=payload.comment, user=payload.user,
+            )
+        if patch:
             svc.update_object(
                 db, object_id, patch, user=payload.user, comment=payload.comment
             )
-        except svc.MapServiceError as exc:
-            raise HTTPException(400, str(exc))
+        else:
+            db.commit()
+    except svc.MapServiceError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
     return _to_leaflet(svc.get_object(db, object_id))
 
 
@@ -376,33 +404,40 @@ def update_event(
 
     db_obj = db.query(MapObject).filter(MapObject.id == object_id).first()
     event_patch = {k: v for k, v in body.items() if k in RFEventPayload.model_fields}
-    if event_patch:
-        from app.models.rf import RFEvent
-
-        existing = db.query(RFEvent).filter(RFEvent.object_id == object_id).first()
-        if existing is None:
-            db.add(RFEvent(object_id=object_id, **event_patch))
-            db.commit()
-        else:
-            before = {c.name: getattr(existing, c.name)
-                      for c in existing.__table__.columns}
-            for field, value in event_patch.items():
-                setattr(existing, field, value)
-            svc._record_history(
-                db, db_obj, {f"event.{k}": v for k, v in before.items()},
-                comment=payload.comment, user=payload.user,
-            )
-            db.commit()
 
     patch = payload.model_dump(exclude_unset=True, exclude_none=False)
     patch = {k: v for k, v in patch.items() if k not in {"user", "comment"}}
-    if patch:
-        try:
+
+    # F2-01: candado primero, una sola transacción para todo el resto.
+    _chequear_candado(db_obj, patch)
+
+    try:
+        if event_patch:
+            from app.models.rf import RFEvent
+
+            existing = db.query(RFEvent).filter(
+                RFEvent.object_id == object_id
+            ).first()
+            if existing is None:
+                db.add(RFEvent(object_id=object_id, **event_patch))
+            else:
+                before = {c.name: getattr(existing, c.name)
+                          for c in existing.__table__.columns}
+                for field, value in event_patch.items():
+                    setattr(existing, field, value)
+                svc._record_history(
+                    db, db_obj, {f"event.{k}": v for k, v in before.items()},
+                    comment=payload.comment, user=payload.user,
+                )
+        if patch:
             svc.update_object(
                 db, object_id, patch, user=payload.user, comment=payload.comment
             )
-        except svc.MapServiceError as exc:
-            raise HTTPException(400, str(exc))
+        else:
+            db.commit()
+    except svc.MapServiceError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
     return _to_leaflet(svc.get_object(db, object_id))
 
 
@@ -473,30 +508,36 @@ def update_reference(
     existing = db.query(ReferencePoint).filter(
         ReferencePoint.object_id == object_id
     ).first()
-    if ref_patch and existing is None:
-        db.add(ReferencePoint(object_id=object_id, **ref_patch))
-        db.commit()
-    elif ref_patch:
-        before = {c.name: getattr(existing, c.name) for c in existing.__table__.columns}
-        for field, value in ref_patch.items():
-            setattr(existing, field, value)
-        if ref_patch.get("radius") is not None and db_obj.radius is None:
-            db_obj.radius = ref_patch["radius"]
-        svc._record_history(
-            db, db_obj, {f"reference.{k}": v for k, v in before.items()},
-            comment=payload.comment, user=payload.user,
-        )
-        db.commit()
 
     patch = payload.model_dump(exclude_unset=True, exclude_none=False)
     patch = {k: v for k, v in patch.items() if k not in {"user", "comment"}}
-    if patch:
-        try:
+
+    # F2-01: candado primero, una sola transacción para todo el resto.
+    _chequear_candado(db_obj, patch)
+
+    try:
+        if ref_patch and existing is None:
+            db.add(ReferencePoint(object_id=object_id, **ref_patch))
+        elif ref_patch:
+            before = {c.name: getattr(existing, c.name)
+                      for c in existing.__table__.columns}
+            for field, value in ref_patch.items():
+                setattr(existing, field, value)
+            if ref_patch.get("radius") is not None and db_obj.radius is None:
+                db_obj.radius = ref_patch["radius"]
+            svc._record_history(
+                db, db_obj, {f"reference.{k}": v for k, v in before.items()},
+                comment=payload.comment, user=payload.user,
+            )
+        if patch:
             svc.update_object(
                 db, object_id, patch, user=payload.user, comment=payload.comment
             )
-        except svc.MapServiceError as exc:
-            raise HTTPException(400, str(exc))
+        else:
+            db.commit()
+    except svc.MapServiceError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
     return _to_leaflet(svc.get_object(db, object_id))
 
 
