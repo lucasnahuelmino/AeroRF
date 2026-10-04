@@ -155,22 +155,29 @@ class TestFlightWebSocket:
         forever is exactly what the spec forbids.
         """
         poll = 10  # seconds; matches LIVE_POLL_INTERVAL_S
+        window_s = poll * 2 + 2
 
         async def go():
             async with websockets.connect(_ws_url(), open_timeout=10) as ws:
                 received = []
-                try:
-                    while True:
-                        raw = await asyncio.wait_for(
-                            ws.recv(), timeout=poll * 2 + 2
-                        )
-                        received.append(json.loads(raw))
-                except (asyncio.TimeoutError, websockets.ConnectionClosed):
-                    pass
+                # La ventana mide `window_s` en total, no `window_s` de
+                # silencio. Con OpenSky configurado y aeronaves en la lista,
+                # el servidor emite `states` cada poll (10 s) y el corte por
+                # silencio no llegaba nunca: el test se colgaba en vez de
+                # fallar, y un test colgado es peor que uno roto.
+                limite = asyncio.get_event_loop().time() + window_s
+                while True:
+                    restante = limite - asyncio.get_event_loop().time()
+                    if restante <= 0:
+                        break
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=restante)
+                    except (asyncio.TimeoutError, websockets.ConnectionClosed):
+                        break
+                    received.append(json.loads(raw))
                 return received
 
         messages = run(go())
-        window_s = poll * 2 + 2
 
         # The handshake and (at most) one acknowledgement per condition.
         # Anything more than a handful of frames per poll interval means

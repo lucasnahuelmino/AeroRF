@@ -4628,3 +4628,42 @@ corrieron antes del arreglo: **4 en rojo, 2 verdes**.
 | Frontend | 454 | **454** |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.14 — el test del flood se colgaba: medía silencio, no tiempo
+
+**Fecha:** 2026-10-04 · **Rama:** `tests/flood-ventana-acotada` ·
+**Archivos:** 1 (sólo el test) · **reparación de un test, no del producto**
+
+## Qué pasaba
+
+`test_feed_does_not_flood` (spec §48) mide los frames que llegan en una
+ventana de `poll * 2 + 2 = 22 s`, pero aplicaba esa ventana como **22 s de
+silencio**: sólo cortaba cuando `ws.recv()` se quedaba sin nada que dar.
+Con OpenSky configurado y aeronaves en la lista — estado normal de esta
+máquina — el servidor emite `states` cada `LIVE_POLL_INTERVAL_S = 10 s`,
+y la medición nunca terminaba: el test corría para siempre.
+
+Demostrado, no supuesto: un registro de 40 s contra el WS del 8010 anotó
+`hello`, `lost` y tres `states` a 0,9 s / 11,7 s / 22,5 s — frames cada
+10,8 s, todos dentro de la ventana. Tres corridas de integración se
+agotaron sin terminar (300 s, 420 s, 150 s) mientras las cinco pruebas
+anteriores ya habían pasado: el colgado no falla, sólo deja el resto del
+módulo sin ejecutar (`test_idle_when_nothing_is_tracked` quedaba a la
+espera).
+
+## El arreglo
+
+La ventana pasó a ser de **tiempo total**: un `limite` con
+`loop.time() + window_s`, y `wait_for(..., timeout=restante)` en cada
+lectura. Si llegan frames, se acumulan hasta agotar la ventana; si no
+llegan, se corta igual. Ninguna aserción cambió: siguen mandando
+`len(messages) <= 6` y `len(statuses) <= 1`, que es lo que la spec §48
+exige — sólo cambió cuándo deja de mirar.
+
+Un test que se cuelga es peor que uno roto: el colgado no dice nada.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m integration` (8010 arriba) | **7 pasan en 35 s** (antes: colgado > 420 s) |
+| `pytest -m "not integration"` | **510 pasan** (el test vive en la suite de integración) |
