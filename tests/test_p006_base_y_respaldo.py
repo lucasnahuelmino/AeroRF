@@ -305,4 +305,9 @@ def test_una_migracion_que_falla_no_deja_la_version_avanzada(tmp_path, monkeypat
     with pytest.raises(sqlite3.Error):
         asegurar_version(ruta)
 
-    assert _version(ruta) == 0, "la versión avanzó con la migración rota"
+    # El paso 1 (sin sentencias) sí corrió: la versión avanza hasta el
+    # último paso completado y se queda ahí — nunca reclama el paso que
+    # revientó. Con VERSION_ESQUEMA = 1 esto era 0; con 2, es 1.
+    assert _version(ruta) == VERSION_ESQUEMA - 1, (
+        "la versión avanzó con la migración rota"
+    )

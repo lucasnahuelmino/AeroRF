@@ -29,7 +29,7 @@ class Expediente(Base):
     __tablename__ = "expedientes"
 
     id = Column(Integer, primary_key=True, index=True)
-    numero_expediente = Column(String(50), unique=True, index=True)
+    numero_expediente = Column(String(50), nullable=False, unique=True, index=True)
     
     # Affected frequency
     freq_mhz = Column(Float, index=True)

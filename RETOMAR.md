@@ -639,9 +639,9 @@ código estaba bien; el instrumento no.
 ### La cola de la auditoría de Claude
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
-`test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20 y P0-09 en
-0.30.21; de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas
-más abajo).**
+`test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
+0.30.21 y P0-01 + P0-03 en 0.30.22; de la fase 2, F2-01 a F2-08
+(0.30.10–0.30.18, con sus entradas más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -680,13 +680,31 @@ más abajo).**
   (cara que el arreglo tiene prohibida romper) y la del CSV repetida
   **por revertida**.
 
+- **P0-01 + P0-03** en 0.30.22 — el número de expediente ya no se
+  puede perder. **P0-01**: `nullable=False` en el modelo, y la API
+  dejó de fabricar el problema — `PUT` con `null` explicitado pasaba
+  por `exclude_unset`, **commiteaba** y recién la respuesta reventaba
+  en 500 (fila sucia y error en inglés, en ese orden); ahora validador
+  en la schema → **422** en español y el número guardado intacto, lo
+  mismo para el vacío. **P0-03**: SQLite no sabe `ALTER COLUMN`, así
+  que la migración **2** reconstruye la tabla — primero
+  `CREATE TABLE IF NOT EXISTS` de forma vieja (una base recién creada
+  la atraviesa con cero filas), después el llenado: `SIN-NUMERO-{id}`
+  en las filas `NULL`/vacías, **sin borrar ninguna** (mediciones,
+  eventos y vínculos siguen enteros; el marcador dice la ausencia sin
+  inventar un número de causa), `INSERT` con lista de columnas
+  explícita, `DROP`+`RENAME` e índices con los nombres de siempre. En
+  vivo contra la base real: respaldo previo, `user_version 1 → 2`,
+  el expediente idéntico y `notnull = 1`. Colaterales honestos: el
+  aserto de `test_p006` que fijaba versión `0` tras un paso roto pasó
+  a `VERSION_ESQUEMA - 1` (la intención —nunca reclamar el paso que
+  revienta— queda más fuerte), y el log de «adoptado como versión 1»
+  ahora dice «llevado a la versión {VERSION}». 7 guardas, **6 rojas**
+  antes, repetidas **por revertida**.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.
-
-- **P0-01 y P0-03** — `nullable=False` sobre `numero_expediente` y limpiar las
-  filas ya guardadas. **Van juntos y ya se pueden**: P0-06 les dio el respaldo y
-  la versión de esquema que les faltaba.
 
 ### Fase 2 de Claude (los F2)
 

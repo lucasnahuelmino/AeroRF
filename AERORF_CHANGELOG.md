@@ -5268,3 +5268,126 @@ dio **460/460 en 90 s**.
 | Frontend | 460 (33 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.22 — P0-01 + P0-03: el número de expediente ya no se puede perder
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p001-p003-numero-obligatorio` ·
+**Auditoría de Claude, ítems P0-01 y P0-03 — «van juntos y ya se pueden»**
+
+## Qué estaba mal, por dos frentes
+
+**La base lo permitía.** `numero_expediente` era anulable: cualquier
+escritura directa dejaba expedientes sin número, y el número ES el
+identificador del caso — sin él, la fila es un documento sin firma.
+
+**La API lo hacía sola.** `PUT /expedientes/{id}` con
+`{"numero_expediente": null}` pasaba por `exclude_unset` — el `None`
+vino **explicitado**, no omitido —, el route hacía `setattr(None)` y
+**commiteaba**; recién después la validación de la respuesta reventaba
+en 500. O sea, en ese orden: fila sucia **y** error en inglés. Ese era
+el origen real de las filas que P0-03 manda a limpiar.
+
+P0-06 (0.30.5) se hizo antes exactamente para éste: un respaldo previo
+y una versión de esquema. Acá están los dos.
+
+## P0-01: `nullable=False`
+
+Modelo (`app/models/expediente.py`):
+
+```python
+numero_expediente = Column(String(50), nullable=False, unique=True, index=True)
+```
+
+Y **la API deja de fabricar el problema** — validadores en las schemas
+(patron del proyecto, F2-05 traduce `value_error` con nuestro mensaje):
+
+- `ExpedienteUpdate`: `null` explícito → **422** «el número de
+  expediente no admite null»; vacío o en blanco → 422 «no puede quedar
+  vacío». La fila guardada queda **intacta** (lo que antes se perdía).
+- `ExpedienteCreate`: número en blanco → 422 con el mismo mensaje.
+- Sin cambio de contrato con el frontend: el **422 en lista** era ya la
+  forma que `describeError` parsea desde el POST (F2-05), así que
+  `client.js` no se toca. Lo que cambia es que el PUT con `null` pasó
+  de 200-con-500-detrás a 422 temprano.
+
+## P0-03: limpiar sin borrar
+
+SQLite **no sabe** `ALTER COLUMN`, así que la migración reconstruye la
+tabla. Los pasos (versión 1 → 2):
+
+1. `CREATE TABLE IF NOT EXISTS expedientes (forma vieja)` — los pasos
+   corren **antes** de `create_all`, así que una base recién creada
+   atraviesa la migración con cero filas en vez de romper con «no such
+   table».
+2. **La limpieza**: `UPDATE … SET numero_expediente = 'SIN-NUMERO-' || id
+   WHERE numero_expediente IS NULL OR TRIM(numero_expediente) = ''`.
+   - **No se borra ninguna fila**: mediciones, eventos y vínculos siguen
+     enteros. Borrar un caso porque le falte el número sería tirar la
+     investigación por una etiqueta.
+   - `SIN-NUMERO-5` **no inventa un número de causa**: es un marcador
+     de ausencia, legible, único (el `id` lo es), y el operador puede
+     poner el número real después por la API de siempre.
+   - Determinista: la migración es un solo paso transaccional y
+     repetible.
+3. `CREATE TABLE expedientes_nuevo (… NOT NULL)` + `INSERT … SELECT`
+   **con lista de columnas explícita** (el orden de la tabla vieja de
+   una base que nadie vio no está garantizado; el de la nueva, sí).
+4. `DROP` + `RENAME` (con `foreign_keys` OFF en esta conexión, como
+   siempre) y recreación de los tres índices con sus nombres de siempre.
+
+**En la base real, en vivo**: respaldo automático previo
+(`aerorf-20261004-204642.db`), `user_version: 1 → 2`, el expediente
+del operador **idéntico** (`EX-2026-37478934-…`, 118.85, abierto), y
+`notnull = 1` leído de `PRAGMA table_info`. Cero filas tocadas (la base
+real no tenía ninguna sucia).
+
+## Lo que tuve que adaptar al subir la versión
+
+- `test_p006` fijaba `_version == 0` tras una migración rota: con
+  `VERSION_ESQUEMA = 2` el paso 1 (sin sentencias) **sí** corre y el
+  fallo del paso 2 deja la versión en 1. El aserto ahora es
+  `VERSION_ESQUEMA - 1` — la intención («nunca reclamar el paso que
+  revienta») queda intacta y queda más fuerte: además mide el avance
+  parcial legítimo.
+- El log «esquema sin versionar **adoptado como versión 1**» mintió
+  apenas hubo pasos: ahora dice «llevado a la versión {VERSION}».
+- El docstring de `lifecycle.py` que decía que este cambio «ya estaba
+  encolado» pasó a decir que **es** la migración 2.
+
+## La guarda
+
+`tests/test_p001_p003_numero_obligatorio.py`, 7 escritas **antes** de
+tocar: **6 rojas** (esquema anulable, PUT null, PUT vacío, POST vacío,
+migración de base vieja, migración de base nueva) y **1 verde** de
+arranque (crear sin número ya era 422). Repetidas **por revertida**
+(`git stash` de los cuatro archivos de implementación): mismas 6 rojas.
+Detalle del primer intento de revertida: la base temporal ya estaba en
+v2 y la app revertida la rechazó con `BaseDeDatosMasNueva` — el
+mecanismo de P0-06 haciendo su trabajo; para el rojo por aserto se
+limpió la base temporal (desechable por diseño).
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **551 pasan** (544 + 7 nuevas) |
+| `pytest -m integration` (8010 reiniciado, migración aplicada) | **7 pasan en 27 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (1 m 19 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+| Base real del operador (solo lectura tras el reinicio) | v2, respaldo previo, 1 expediente intacto, `notnull=1` |
+
+Nota de suite: la primera corrida de frontend corrió **en paralelo con
+el build** y sacó 448/460 con el perfil documentado del flaky; la
+corrida limpia inmediata dio **460/460 en 77 s**.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 544 | **551** (+7) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+| Versión del esquema | 1 | **2** |

@@ -26,9 +26,9 @@ is about every backup taken while the server is live.
 installed database, and the only mechanism in the project is
 ``create_all``, which creates *missing* tables and is structurally incapable of
 adding a column or a constraint to an existing one. So the first time a column
-is added — ``numero_expediente`` losing its nullability is already queued up —
-every database already in the field would break. The version is what makes that
-step possible instead of destructive.
+is added — ``numero_expediente`` losing its nullability, which is now migration
+2 — every database already in the field would break. The version is what makes
+that step possible instead of destructive.
 
 The rule when the stored version is *ahead* of this build: touch nothing and
 say so in Spanish. A newer database is not a database to fix up.
@@ -51,14 +51,68 @@ from app.core.logging import log
 #: when versioning was introduced, which is why there is no migration into it.
 #: Existing databases are adopted into it by setting `user_version` alone —
 #: `create_all` has already created whatever table they were missing.
-VERSION_ESQUEMA = 1
+#:
+#: Version 2 is P0-01 + P0-03: ``numero_expediente`` loses its nullability.
+#: SQLite cannot ``ALTER COLUMN``, so the table is rebuilt — and because these
+#: steps run *before* ``create_all``, the first statement creates the table in
+#: its old shape when it does not exist yet: a brand-new database walks through
+#: this migration with zero rows instead of failing on a missing table.
+VERSION_ESQUEMA = 2
 
 #: ``version`` -> statements applied to a database sitting at ``version - 1``.
 #:
 #: Each element must be a **single** statement: they run through
 #: ``cursor.execute``, which rejects anything else. One entry per element, in
 #: order, and the version is bumped only after the whole step commits.
-MIGRACIONES: dict[int, list[str]] = {}
+MIGRACIONES: dict[int, list[str]] = {
+    # ─── 2: P0-01 + P0-03 ────────────────────────────────────────────────
+    # Limpiar antes de exigir, y reconstruir porque SQLite no sabe hacer
+    # `ALTER COLUMN`. El `|| id` del marcador es determinista (y único,
+    # porque el id lo es): `SIN-NUMERO-5` dice lo que falta sin inventar
+    # un número de causa que nadie registró.
+    2: [
+        (
+            "CREATE TABLE IF NOT EXISTS expedientes ("
+            "id INTEGER NOT NULL, numero_expediente VARCHAR(50), "
+            "freq_mhz FLOAT, aeropuerto VARCHAR(100), lat FLOAT, "
+            "lon FLOAT, fecha_creacion DATETIME, fecha_actualizacion DATETIME, "
+            "estado VARCHAR(20), severidad VARCHAR(20), "
+            "inspector_responsable VARCHAR(100), observaciones TEXT, "
+            "descripcion TEXT, PRIMARY KEY (id))"
+        ),
+        # P0-03: ninguna fila se borra (mediciones, eventos y vínculos
+        # siguen enteros) — el marcador deja a la vista la ausencia y el
+        # operador puede poner el número real después.
+        "UPDATE expedientes SET numero_expediente = 'SIN-NUMERO-' || id "
+        "WHERE numero_expediente IS NULL OR TRIM(numero_expediente) = ''",
+        (
+            "CREATE TABLE expedientes_nuevo ("
+            "id INTEGER NOT NULL, numero_expediente VARCHAR(50) NOT NULL, "
+            "freq_mhz FLOAT, aeropuerto VARCHAR(100), lat FLOAT, "
+            "lon FLOAT, fecha_creacion DATETIME, fecha_actualizacion DATETIME, "
+            "estado VARCHAR(20), severidad VARCHAR(20), "
+            "inspector_responsable VARCHAR(100), observaciones TEXT, "
+            "descripcion TEXT, PRIMARY KEY (id))"
+        ),
+        # Lista de columnas explícita: el orden de la tabla vieja no está
+        # garantizado en una base que nadie vio, el de la nueva sí.
+        (
+            "INSERT INTO expedientes_nuevo (id, numero_expediente, freq_mhz, "
+            "aeropuerto, lat, lon, fecha_creacion, fecha_actualizacion, "
+            "estado, severidad, inspector_responsable, observaciones, "
+            "descripcion) SELECT id, numero_expediente, freq_mhz, aeropuerto, "
+            "lat, lon, fecha_creacion, fecha_actualizacion, estado, severidad, "
+            "inspector_responsable, observaciones, descripcion FROM expedientes"
+        ),
+        "DROP TABLE expedientes",
+        "ALTER TABLE expedientes_nuevo RENAME TO expedientes",
+        "CREATE INDEX IF NOT EXISTS ix_expedientes_id ON expedientes (id)",
+        "CREATE INDEX IF NOT EXISTS ix_expedientes_freq_mhz "
+        "ON expedientes (freq_mhz)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_expedientes_numero_expediente "
+        "ON expedientes (numero_expediente)",
+    ],
+}
 
 
 class BaseDeDatosMasNueva(RuntimeError):
@@ -204,13 +258,14 @@ def asegurar_version(ruta: Path) -> int:
                 hasta=paso,
             )
 
-        # A database at 0 is one created before versioning existed. Its shape
-        # already matches, so it is adopted rather than migrated — and saying
-        # so matters, because "0 -> 1" with an empty step is easy to misread as
-        # a migration that did nothing by accident.
+        # A database at 0 is one created before versioning existed. It now
+        # walks every step (2 does have statements, harmless on an empty
+        # database), so the message says "carried to the current version",
+        # which is what actually happened — the old "adopted as version 1"
+        # would have been a lie once steps were queued.
         log.info(
             "db.version",
-            "esquema sin versionar adoptado como versión 1"
+            f"esquema sin versionar llevado a la versión {VERSION_ESQUEMA}"
             if encontrada == 0
             else f"esquema actualizado a la versión {VERSION_ESQUEMA}",
             version=VERSION_ESQUEMA,
