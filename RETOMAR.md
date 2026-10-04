@@ -666,10 +666,29 @@ pendientes»**.
 Faltan, en el orden del anexo:
 
 - **F2-03** — el payload de `rf_events` nunca se serializa (Inspector vacío,
-  CSV vacío, duplicado sin payload). **Antes de tocarlo hay que preguntar**:
-  el arreglo hace oficial a la **arquitectura B**, paralela de `eventos_rf`
-  (la A, que es la que usa P0-11). Si son la misma cosa, toca unificar y el
-  ítem cambia de tamaño.
+  CSV vacío, duplicado sin payload). **El bug y la decisión van separados**:
+  serializar hace falta en cualquier caso; decidir es si encima se unifican
+  las dos arquitecturas. La comparación campo por campo, hecha:
+
+  | | **A — `eventos_rf`** (legacy SIARI) | **B — `rf_events`** (spec §34) |
+  |---|---|---|
+  | dueño | `expediente_id` → el **documento** | `object_id` → el **objeto del mapa** (CASCADE) |
+  | qué es | **salida calculada**: `formula`, `tipo_producto`, `error_khz`, `score_probabilidad`, `proximidad` | **evento medido/reportado**: `level_dbm`, `classification`, `event_kind`, `provenance` |
+  | frecuencia | `frecuencia_resultado_mhz` + `freq_1_mhz`, `freq_2_mhz` | `frequency_mhz` + `bandwidth_khz` |
+  | tiempo | `timestamp` | `event_at` (duplicado de `observed_at` del padre) |
+  | posición | **no tiene** | la tiene, vía su `MapObject` |
+  | quién escribe | `rf_service` (motor) y el botón de P0-11 | el Inspector del mapa |
+  | en la API | `GET/POST /expedientes/{id}/eventos`, `/candidates` | `GET/POST/PUT /rf/events` |
+
+  **Recomendación: no unificar.** Son dueños distintos (documento vs.
+  dibujo), semánticas distintas (producto intermodulado vs. medición) y ya
+  están enlazadas por `rf_events.calculated_evento_id → eventos_rf.id`. Una
+  tabla única tendría ~10 columnas nulas sin sentido en un lado y rompería
+  el `ORDER BY score_probabilidad` del motor y el cascade del mapa. **El
+  modelo ya lo dice en su docstring** («kept untouched for the RF engine»).
+  Lo único flojo de ese enlace: `calculated_evento_id` **está declarado y
+  nadie lo escribe** (3 apariciones: modelo, schema y changelog) — o se usa,
+  o es peso muerto. **Eso es lo que hay que decidir.**
 - **F2-04** — `clear_layer` borra todo con un `delete()` masivo: sin filtro
   `locked`, sin filtro `expediente_id`, y con cascade de notas e historial.
   **Decisión pendiente:** ¿baja lógica (`deleted_at`) en vez de borrado físico?
