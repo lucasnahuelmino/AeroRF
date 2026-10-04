@@ -65,6 +65,12 @@ _HISTORY_SKIP = {
     "id",
 }
 
+#: Same idea for a type-specific satellite: its own identity columns (`id`,
+#: `object_id`) are plumbing, not values the operator edits. Handing those to
+#: the generic diff is what produced rows saying the parent link had been
+#: deleted (F2-02).
+_SATELLITE_SKIP = _HISTORY_SKIP | {"object_id"}
+
 
 class MapServiceError(ValueError):
     """Invalid object payload."""
@@ -83,6 +89,25 @@ def _scalar(value: Any) -> Optional[str]:
     return str(value)
 
 
+def _mismo_valor(old: Any, new: Any, old_s: str, new_s: str) -> bool:
+    """True when the value did not really change.
+
+    Comparing the rendered strings alone is not enough: `25.0` and `25`
+    render differently but are the same number, so re-sending an integer for
+    a decimal column would write a history row claiming a change that never
+    happened. `old_s`/`new_s` are the pre-rendered strings (they are what
+    history stores, so rendering them twice would be waste).
+    """
+    if old_s == new_s:
+        return True
+    if (
+        isinstance(old, (int, float)) and not isinstance(old, bool)
+        and isinstance(new, (int, float)) and not isinstance(new, bool)
+    ):
+        return float(old) == float(new)
+    return False
+
+
 def _record_history(
     db: Session,
     obj: MapObject,
@@ -97,7 +122,7 @@ def _record_history(
             continue
         new = getattr(obj, field, None)
         old_s, new_s = _scalar(old), _scalar(new)
-        if old_s == new_s:
+        if _mismo_valor(old, new, old_s, new_s):
             continue
         row = ObjectHistory(
             object_id=obj.id,
@@ -109,6 +134,56 @@ def _record_history(
         )
         db.add(row)
         rows.append(row)
+    return rows
+
+
+def record_typed_history(
+    db: Session,
+    obj: MapObject,
+    satellite,
+    prefix: str,
+    before_satellite: dict[str, Any],
+    before_object: dict[str, Any],
+    comment: str | None = None,
+    user: str | None = None,
+) -> list[ObjectHistory]:
+    """Diff a type-specific satellite **and** its parent object (F2-02).
+
+    Both diffs are here for one reason: both are changes the operator caused,
+    and only one of them was being recorded correctly.
+
+    The satellite one compares its **own** snapshot against itself. The
+    generic `_record_history` was being handed `{"rf.power_dbm": 40}` and then
+    did `getattr(obj, "rf.power_dbm")` over the *MapObject*, which carries no
+    such attribute — so every field came back `None`: the history claimed the
+    frequency and the kind had been deleted, while the real change (40 → 41)
+    went unrecorded.
+
+    `before_object` covers the parent's own edits made in the same breath:
+    `update_antenna` copies `azimuth_deg` onto the object and
+    `update_reference` may copy `radius`, and neither used to reach a diff.
+    """
+    rows: list[ObjectHistory] = []
+
+    for field, old in before_satellite.items():
+        if field in _SATELLITE_SKIP:
+            continue
+        new = getattr(satellite, field, None) if satellite is not None else None
+        old_s, new_s = _scalar(old), _scalar(new)
+        if _mismo_valor(old, new, old_s, new_s):
+            continue
+        row = ObjectHistory(
+            object_id=obj.id,
+            field=f"{prefix}.{field}",
+            old_value=old_s,
+            new_value=new_s,
+            comment=comment,
+            user=user,
+        )
+        db.add(row)
+        rows.append(row)
+
+    rows.extend(_record_history(db, obj, before_object, comment=comment, user=user))
     return rows
 
 

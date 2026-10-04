@@ -4339,3 +4339,104 @@ De ahí salen tres fallas del E2E, ninguna por este cambio:
 | Python sin integración | 482 | **489** (+7) |
 | Integration | 7 | **7** |
 | Frontend | 453 | **453** |
+
+---
+
+# 0.30.11 — F2-02: el historial escribía filas falsas
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f202-historial-tipado` ·
+**Archivos:** 3 · **Fase 2 de la auditoría, ítem 2 de 8**
+
+## Qué pasaba
+
+`_record_history(db, db_obj, {"rf.power_dbm": 40})` hace
+`getattr(obj, "rf.power_dbm")` sobre el **MapObject** — y ese atributo no
+existe, porque `obj` es el objeto y no el satélite. Devuelve `None`. Entonces,
+para **cada** campo del satélite que tenga valor, el historial graba que pasó
+a `None`.
+
+El repro de la auditoría: cambiando sólo `power_dbm` de 40 a 41, se generaban
+6 filas:
+
+| fila del historial | lo que afirma |
+|---|---|
+| `rf.id '1' → None` | se borró la clave del satélite |
+| `rf.object_id '1' → None` | se borró el enlace con el objeto |
+| `rf.kind 'FM' → None` | se borró el tipo |
+| `rf.frequency_mhz '98.1' → None` | **se borró la frecuencia** |
+| `rf.provenance 'user' → None` | se borró la procedencia |
+| `rf.power_dbm '40.0' → None` | se borró la potencia |
+
+**Y el cambio de verdad, 40 → 41, no aparecía en ninguna parte.** El historial
+era exactamente al revés de lo que había pasado: contradecía el guardado que
+acababa de ocurrir y no registraba el que había ocurrido.
+
+Las cuatro vistas tenían la misma copia del mismo error (`rf.`, `antenna.`,
+`event.`, `reference.`), y la auditoría sólo había leído dos.
+
+## La guarda
+
+`tests/test_f202_historial_tipado.py`, ocho pruebas. Las primeras siete se
+escribieron y corrieron **antes** de tocar el código: **7 en rojo**. Cada una
+lee el historial **por la API** (`GET /map/objects/{id}/history`), no con la
+sesión interna, para que el aserto sea sobre lo que queda guardado.
+
+1. `test_un_campo_cambiado_produce_exactamente_una_fila` (4 parametrizadas):
+   cambio un solo campo de una fuente, una antena, un evento y una referencia →
+   **exactamente una** fila, con su campo, su valor viejo y su valor nuevo.
+2. `test_no_afirma_que_se_borro_lo_que_sigue_ahi`: ninguna fila con
+   `new_value: None`.
+3. `test_el_cambio_real_aparece_con_los_dos_valores`: el repro 40 → 41.
+4. `test_el_cambio_del_objeto_padre_tambien_aparece`: el caso que la
+   auditoría no vio (abajo).
+
+La octava llegó con el arreglo y se verificó **por revertida**: con la
+comparación anterior (sólo texto) da
+`[('rf.height_m', '25.0', '25')]` y falla; con la nueva, pasa.
+
+## El arreglo
+
+- **`map_service.record_typed_history(...)`** — un solo camino para las
+  cuatro rutas. Compara el satélite **contra su propio snapshot** (no contra
+  el objeto) y devuelve sólo los campos que cambiaron.
+- **`_SATELLITE_SKIP = _HISTORY_SKIP | {"object_id"}`**: `id` y `object_id`
+  son identidad, no valores editados — de ahí salían las filas «se borró la
+  clave».
+- **`_mismo_valor(old, new, old_s, new_s)`**: `25.0` y `25` son el mismo
+  número. Sin esto, reenviar una medida como entero generaría **otra** fila
+  falsa («pasó de 25.0 a 25»). Se aplica a **los dos** diffs, el del satélite
+  y el del objeto.
+- **El diff del objeto padre**, que era la parte que faltaba: `update_antenna`
+  copia `azimuth_deg` a `db_obj.azimuth` y `update_reference` puede copiar
+  `radius` **ahí mismo, sin pasar por ningún diff** — el objeto cambiaba y el
+  historial no se enteraba. Las rutas ahora sacan una foto del objeto antes
+  (`_snapshot`) y la pasan junto con la del satélite.
+
+## Lo que NO se toca, y por qué
+
+- **El formato sigue asimétrico**: el valor viejo es `40.0` (la creación sí
+  pasa por Pydantic) y el nuevo es `41` (el `PUT` arma el satélite con el
+  cuerpo **crudo**, `body.items()` filtrado por `.model_fields`, sin validar).
+  Esa falta de validación es **F2-05**, no éste; por eso las pruebas comparan
+  el valor como **número** y no como texto, y lo dicen en el comentario.
+- **Las altas de satélite siguen sin dejar fila**: si el satélite no existía
+  y hay que crearlo, no hay `before` que difuminar. Es registro de creación,
+  no de cambio; el `__created__` del objeto ya cubre el alta.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **497 pasan** (489 + 8 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **453 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (igual que en 0.30.10: el chequeo viejo de capas) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 489 | **497** (+8) |
+| Integration | 7 | **7** |
+| Frontend | 453 | **453** |

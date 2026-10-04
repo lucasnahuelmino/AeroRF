@@ -181,6 +181,9 @@ def update_source(
     # F2-01: primero el candado, después escribir, y todo en una sola
     # transacción — un edit rechazado no puede dejar media escritura atrás.
     _chequear_candado(db_obj, patch)
+    # F2-02: foto del objeto antes de que el bloque de abajo le cambie el
+    # radio o el azimuth, para que ese cambio también tenga su diff.
+    before_obj = svc._snapshot(db_obj)
 
     try:
         if rf_patch and db_obj.rf_source is None:
@@ -192,8 +195,8 @@ def update_source(
                       for c in db_obj.rf_source.__table__.columns}
             for field, value in rf_patch.items():
                 setattr(db_obj.rf_source, field, value)
-            svc._record_history(
-                db, db_obj, {f"rf.{k}": v for k, v in before.items()},
+            svc.record_typed_history(
+                db, db_obj, db_obj.rf_source, "rf", before, before_obj,
                 comment=payload.comment, user=payload.user,
             )
         if patch:
@@ -280,6 +283,8 @@ def update_antenna(
 
     # F2-01: candado primero, una sola transacción para todo el resto.
     _chequear_candado(db_obj, patch)
+    # F2-02: foto del objeto antes de que le cambien el azimuth.
+    before_obj = svc._snapshot(db_obj)
 
     try:
         if antenna_patch and db_obj.antenna is None:
@@ -295,8 +300,8 @@ def update_antenna(
             # draws always matches the antenna's recorded pointing direction.
             if db_obj.antenna.azimuth_deg is not None:
                 db_obj.azimuth = db_obj.antenna.azimuth_deg
-            svc._record_history(
-                db, db_obj, {f"antenna.{k}": v for k, v in before.items()},
+            svc.record_typed_history(
+                db, db_obj, db_obj.antenna, "antenna", before, before_obj,
                 comment=payload.comment, user=payload.user,
             )
         if patch:
@@ -410,6 +415,8 @@ def update_event(
 
     # F2-01: candado primero, una sola transacción para todo el resto.
     _chequear_candado(db_obj, patch)
+    # F2-02: foto del objeto antes de que el bloque de abajo escriba.
+    before_obj = svc._snapshot(db_obj)
 
     try:
         if event_patch:
@@ -425,8 +432,8 @@ def update_event(
                           for c in existing.__table__.columns}
                 for field, value in event_patch.items():
                     setattr(existing, field, value)
-                svc._record_history(
-                    db, db_obj, {f"event.{k}": v for k, v in before.items()},
+                svc.record_typed_history(
+                    db, db_obj, existing, "event", before, before_obj,
                     comment=payload.comment, user=payload.user,
                 )
         if patch:
@@ -514,6 +521,8 @@ def update_reference(
 
     # F2-01: candado primero, una sola transacción para todo el resto.
     _chequear_candado(db_obj, patch)
+    # F2-02: foto del objeto antes de que le copien el radio.
+    before_obj = svc._snapshot(db_obj)
 
     try:
         if ref_patch and existing is None:
@@ -525,8 +534,8 @@ def update_reference(
                 setattr(existing, field, value)
             if ref_patch.get("radius") is not None and db_obj.radius is None:
                 db_obj.radius = ref_patch["radius"]
-            svc._record_history(
-                db, db_obj, {f"reference.{k}": v for k, v in before.items()},
+            svc.record_typed_history(
+                db, db_obj, existing, "reference", before, before_obj,
                 comment=payload.comment, user=payload.user,
             )
         if patch:

@@ -639,9 +639,10 @@ código estaba bien; el instrumento no.
 ### La cola de la auditoría de Claude
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
-`test_idle` de 0.30.9 y F2-01 de la fase 2 en 0.30.10.** Lo demás, con el
-criterio acordado: rama nueva, un commit por ítem, prueba que falle antes y
-pase después, y **preguntar antes de tocar nada de «Decisiones pendientes»**.
+`test_idle` de 0.30.9, y de la fase 2: F2-01 en 0.30.10 y F2-02 en 0.30.11.**
+Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
+falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
+pendientes»**.
 
 - **P0-01 y P0-03** — `nullable=False` sobre `numero_expediente` y limpiar las
   filas ya guardadas. **Van juntos y ya se pueden**: P0-06 les dio el respaldo y
@@ -649,17 +650,21 @@ pase después, y **preguntar antes de tocar nada de «Decisiones pendientes»**.
 
 ### Fase 2 de Claude (los F2)
 
-**Hecho: F2-01** en 0.30.10 — el candado se salteaba por los campos RF en las
-cuatro rutas tipadas. Reproducido (5 rojas, 2 verdes), arreglado con
-`require_unlocked` **antes** de escribir el satélite, una sola transacción y
-`rollback` si algo falla; el mensaje del candado pasó a español. Ver
-`AERORF_CHANGELOG.md` 0.30.10.
+**Hechos:**
+
+- **F2-01** en 0.30.10 — el candado se salteaba por los campos RF en las
+  cuatro rutas tipadas. Reproducido (5 rojas, 2 verdes), arreglado con
+  `require_unlocked` **antes** de escribir el satélite, una sola transacción y
+  `rollback` si algo falla; el mensaje del candado pasó a español.
+- **F2-02** en 0.30.11 — el historial inventaba: `getattr(obj, "rf.k")` sobre
+  el objeto en vez del satélite daba `None`, así que decía que se borraron la
+  frecuencia y el tipo y el cambio real (40 → 41) no aparecía. Arreglado con
+  `record_typed_history`, que difumina el satélite contra su propio snapshot
+  **y** al objeto padre (el `azimuth` y el `radius` copiados ahí mismo se
+  iban sin registrar). 7 rojas antes, 8 verdes después.
 
 Faltan, en el orden del anexo:
 
-- **F2-02** — el historial escribe filas falsas: `_record_history` hace
-  `getattr(obj, "rf.k")`, que da `None`, así que «borra» la frecuencia y no
-  muestra el cambio real. Cubre las cuatro vistas. Reusar `_snapshot()`.
 - **F2-03** — el payload de `rf_events` nunca se serializa (Inspector vacío,
   CSV vacío, duplicado sin payload). **Antes de tocarlo hay que preguntar**:
   el arreglo hace oficial a la **arquitectura B**, paralela de `eventos_rf`
@@ -783,7 +788,7 @@ no la remoción.
 | Suite | Estado |
 |---|---|
 | Frontend (vitest) | **453 pasan**, 31 archivos |
-| Python (no integración) | **489 pasan**, 7 deseleccionadas |
+| Python (no integración) | **497 pasan**, 7 deseleccionadas |
 | Integration (`-m integration`) | **7 pasan** contra el 8010 |
 | `tests/geo_parity.mjs` | 675 pasan |
 | `tests/smoke_e2e.py` (base temporal) | **77 de 78** |
@@ -828,5 +833,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.10) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.11) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |
