@@ -843,9 +843,29 @@ la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
   enlaces: 5 → 4). **479 frontend (34 archivos), build ✓, backend sin
   cambios.**
 
+- **Panel se fue entero** en 0.30.33 — segunda baja total pedida por el
+  operador, con el mismo patrón del ítem 2: `BrandBar` sin la sección,
+  `/dashboard` fuera del enrutador (la dirección vieja cae en el
+  catch-all y vuelve al mapa) y `DashboardView.vue` borrada del fuente.
+  Se fue también `StatCard.vue`, su único consumidor —se grepeó antes:
+  `DataTable` la sigue usando `ExpedientesView` y ésa queda—. Lo que NO
+  se tocó: el contrato de la API (`rf.summary` queda en el cliente sin
+  quien lo llame) ni los datos. **3 guardas rojas antes** en
+  `brandbar.spec.js` (menú, ruta, fuente) y 5 adaptadas con la intención
+  escrita: las pruebas que usaban `/dashboard` como «otra sección
+  cualquiera» ahora usan `/expedientes`, y el piso de enlaces baja
+  4 → 3. De yapa quedaron reparadas dos guardas que el **build del
+  0.30.32 dejó obsoletas sin que nadie volviera a correr la suite**:
+  `theme.spec` pedía `bg-sky-700`, que sólo usaba un botón de
+  `EspectroView` (esa clase salió de la lista), y `chart-loading.spec`
+  exigía chunk propio para `Chart.vue`, que Rollup ya no separa porque la
+  baja de Espectro le dejó un solo importador dinámico (ahora se mide el
+  peso del chunk que lo lleva: 16 KB, con plotly siempre en su chunk de
+  1000 KB). **482 frontend (34 archivos), build ✓, backend sin cambios.**
+
 **Cola del paquete A** (auditoría de Claude; un ítem, una rama, un
 commit, con su prueba roja): 1 círculo seleccionado solo ✔ (0.30.29);
-2 Espectro ✔ (0.30.32); 3 **Panel — baja total**; 4 **expediente →
+2 Espectro ✔ (0.30.32); 3 Panel ✔ (0.30.33); 4 **expediente →
 campo de nota por objeto** (no se borra: se transforma); 5 reestructura
 de los paneles laterales; 6 **exportar PNG, KMZ y PDF** más imprimir;
 7 reordenar los botones de la barra. Respuestas del operador ya dadas

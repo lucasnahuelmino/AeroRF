@@ -50,10 +50,10 @@ body {
   background-color: var(--ink);
   color: var(--texto);
   line-height: 1.6;
-  /* No page-level overflow lock here. The GIS shell is exactly 100dvh and
-     scrolls inside its own panels, but the document views (dashboard,
-     expedientes, spectrum) are taller than the window and must still scroll
-     normally. */
+  /* No hay bloqueo de scroll a nivel de página acá. El shell GIS es
+     exactamente 100dvh y scrollea dentro de sus propios paneles, pero las
+     vistas de documento (expedientes) son más altas que la ventana y tienen
+     que seguir scrolleando normal. */
 }
 
 /*
@@ -72,12 +72,12 @@ body {
  * `--texto-tenue` directly, which is what they meant.
  */
 
-/* ─── Content pages ──────────────────────────────────────────────────────────
- * The management views (dashboard, expedientes, spectrum) read as documents
- * and want a centred column. The GIS shell does NOT: it is a full-bleed
- * workspace, and capping it at 1180px was leaving a wide monitor with the
- * map floating in the middle of empty space. The cap is applied to
- * `.page-doc` instead, which those views use, and never to `<main>` at large.
+/* ─── Páginas de contenido ───────────────────────────────────────────────────
+ * Las vistas de gestión (expedientes) se leen como documentos y quieren una
+ * columna centrada. El shell GIS NO: es un workspace a sangre completa, y
+ * limitarlo a 1180px dejaba un monitor ancho con el mapa flotando en el medio
+ * del vacío. El tope va en `.page-doc` en su lugar, que es la que usan esas
+ * vistas, y nunca en `<main>` en pantallas grandes.
  * ------------------------------------------------------------------------- */
 
 .page-doc {

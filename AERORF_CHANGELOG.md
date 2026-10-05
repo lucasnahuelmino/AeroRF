@@ -6009,3 +6009,48 @@ vieja; 3 adaptadas con la intención escrita en el test (la lista de
 secciones esperadas y el piso de enlaces bajan de 5 a 4).
 
 **479 frontend (34 archivos) - build V - backend sin cambios.**
+## 0.30.33 - Panel, baja total: se fue el menu, la ruta y la vista
+
+Segunda baja total que pide el operador, con el mismo patrón del 0.30.32 y en
+los mismos tres archivos donde una sección puede sobrevivir sin que nada la
+contradiga:
+
+- `BrandBar.vue` ya no ofrece la sección Panel: quedan tres enlaces (Mapa,
+  Expedientes, Calculadora RF).
+- El enrutador ya no registra `/dashboard`: la dirección vieja cae en el
+  catch-all y vuelve al mapa, sin una pantalla rota.
+- `src/views/DashboardView.vue` fue borrada del fuente, y con ella
+  `src/components/StatCard.vue`, que era su único consumidor (se grepeó antes
+  de borrar: `DataTable` la sigue usando `ExpedientesView` y ésa queda).
+
+Lo que NO se tocó, a propósito: el contrato de la API. `rf.summary` sigue en
+`frontend/src/api/client.js` aunque se quede sin quien lo llame, porque recortar
+un cliente es un cambio de contrato y no hace falta para dar de baja una
+pantalla. Los datos del operador tampoco se tocan.
+
+Pruebas: 3 guardas nuevas en `brandbar.spec.js` - **rojas antes** (el menú
+ofrecía `/dashboard`, el enrutador la registraba, y el view y el StatCard
+seguían en el fuente) -, una por archivo editado a mano. 5 adaptadas con la
+intención escrita en el test: las que usaban `/dashboard` como «otra sección
+cualquiera» (navegación, marca, lockup y pie) ahora usan `/expedientes`, y el
+piso de enlaces baja de 4 a 3.
+
+De yapa, dos guardas que el build del 0.30.32 había dejado obsoletas y que
+aparecieron recién al correr la suite contra ese build:
+
+- `theme.spec` exigía que el CSS generara `bg-sky-700`. Ese era su único uso
+  en todo el fuente (un botón de `EspectroView`), así que el CSS dejó de
+  generarla y la guarda estaba pidiendo una ausencia. Salió de la lista; el
+  acento sky sigue cubierto por `text-sky-400` y por la cuenta de clases sky.
+- `chart-loading.spec` exigía un chunk propio para `Chart.vue`. Con la baja de
+  Espectro, Rollup ya no lo separa - un solo importador dinámico lo deja
+  adentro del chunk de la calculadora -, así que la guarda ahora mide el peso
+  del chunk que lo lleva: 16 KB, con plotly siempre en su chunk de 1000 KB. Lo
+  que la guarda protegía, que el wrapper no arrastre la librería, sigue
+  midiéndose igual.
+
+El MANUAL y el README pasan de cuatro secciones a tres, con las secciones
+renumeradas, y los comentarios de `App.vue` y `styles.css` que nombraban
+pantallas ya borradas quedaron corregidos.
+
+**482 frontend (34 archivos) - build V - backend sin cambios.**

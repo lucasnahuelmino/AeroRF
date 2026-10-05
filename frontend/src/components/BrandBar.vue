@@ -110,11 +110,11 @@ const flightsStore = useFlightsStore()
 
 const sections = [
   { path: '/', label: 'Mapa', icon: '◈' },
-  { path: '/dashboard', label: 'Panel', icon: '▤' },
   { path: '/expedientes', label: 'Expedientes', icon: '▣' },
   { path: '/calculadora', label: 'Calculadora RF', icon: '∑' },
-  // Espectro se dio de baja total (0.30.32): la sección desapareció del
-  // menú, del enrutador y del fuente. Las guardas están en brandbar.spec.
+  // Espectro (0.30.32) y Panel (0.30.33) se dieron de baja total: las
+  // secciones desaparecieron del menú, del enrutador y del fuente. Las
+  // guardas están en brandbar.spec.
 ]
 
 const isActive = (path) =>

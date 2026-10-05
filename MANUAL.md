@@ -1,6 +1,6 @@
 # Manual de uso — AeroRF
 
-Guía de las cuatro secciones y las diez herramientas del mapa. Para quien opera
+Guía de las tres secciones y las diez herramientas del mapa. Para quien opera
 la herramienta, no para quien la mantiene.
 
 > Para instalar y para el diseño interno, ver **[README.md](README.md)** y
@@ -33,7 +33,7 @@ altura al mapa.
 | Elemento | Qué hace |
 |---|---|
 | Marca **AeroRF** | Vuelve al mapa, que es la pantalla principal. |
-| **Mapa · Panel · Expedientes · Calculadora RF** | Navegación. El elemento activo lleva un filo celeste. |
+| **Mapa · Expedientes · Calculadora RF** | Navegación. El elemento activo lleva un filo celeste. |
 | **Tres puntos** | Estado: backend, OpenSky, canal de vuelos en vivo. Verde = bien, ámbar = atención, gris = inactivo. Pasá el cursor sobre cada uno para el detalle. |
 | **ENACOM** | Lockup institucional: Dirección Nacional de Control y Fiscalización. |
 
@@ -148,18 +148,7 @@ lector entender la otra.
 
 ---
 
-## Sección 2 — Panel
-
-Estado del sistema en un vistazo: cuántos objetos hay en el mapa, cuántos
-expedientes están abiertos, cuántas fuentes y eventos RF, cuántas aeronaves
-están en seguimiento.
-
-Si OpenSky no está configurado, aparece arriba un aviso que explica qué
-configurar. El resto de la herramienta funciona igual sin eso.
-
----
-
-## Sección 3 — Expedientes
+## Sección 2 — Expedientes
 
 Un expediente es un caso de investigación: un conjunto de objetos del mapa,
 notas, mediciones y Radio_events, con su historial.
@@ -176,7 +165,7 @@ y el nuevo. No se puede perder: es lo que sostiene una denuncia.
 
 ---
 
-## Sección 4 — Calculadora RF
+## Sección 3 — Calculadora RF
 
 Motor de cálculo de frecuencias, sin mapa. Para el trabajo de gabinete.
 

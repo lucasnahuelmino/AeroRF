@@ -130,7 +130,7 @@ onBeforeUnmount(() => {
   color: var(--texto-tenue);
 }
 
-/* A section card, used by the dashboard and the management views. */
+/* Una tarjeta de sección, usada por las vistas de gestión (expedientes). */
 .card {
   border-radius: 0.625rem;
   border: 1px solid var(--panel-alto);

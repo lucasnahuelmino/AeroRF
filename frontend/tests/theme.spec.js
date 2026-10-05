@@ -121,11 +121,15 @@ describe('the built CSS generates what the templates ask for', () => {
     // Utility names as they appear in class attributes: plain, no variant.
     // La lista siguió la migración de plantillas (0.30.28): lo que antes era
     // la escala slate ya se llama por el token al que resuelve.
+    // `bg-sky-700` salió de la lista al construirse la baja de Espectro
+    // (0.30.32): era su único uso en todo el fuente, así que el CSS dejó de
+    // generarla y la guarda pedía una ausencia. El acento sky sigue cubierto
+    // por `text-sky-400` y por la cuenta de clases sky de la prueba de arriba.
     const USED = [
       'border-borde', 'border-borde-fuerte', 'bg-panel', 'bg-panel-alto',
       'bg-panel-hondo', 'bg-on-ink-wash', 'bg-velo', 'bg-velo-suave',
       'text-texto-medio', 'text-texto-tenue', 'text-texto-invisible',
-      'text-sky-400', 'bg-sky-700', 'text-amber-300', 'text-emerald-400',
+      'text-sky-400', 'text-amber-300', 'text-emerald-400',
       'border-rose-700', 'bg-amber-950', 'text-rose-300',
     ]
     const missing = USED.filter((c) => !built.includes(`.${c}`))

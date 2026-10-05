@@ -96,7 +96,7 @@ procesos con las variables ya configuradas.
 
 ---
 
-## Las cuatro secciones
+## Las tres secciones
 
 La barra superior está presente en **todas** las secciones, así que siempre se
 sabe dónde se está y siempre se puede ir a otro lugar.
@@ -104,7 +104,6 @@ sabe dónde se está y siempre se puede ir a otro lugar.
 | Sección | Para qué es |
 |---|---|
 | **Mapa** | La herramienta principal. Todo el trabajo geográfico ocurre acá. |
-| **Panel** | Estado del sistema: objetos, expedientes, fuentes, y aeronaves en seguimiento. |
 | **Expedientes** | Casos de investigación. Cada expediente agrupa objetos, notas e historial. |
 | **Calculadora RF** | Frecuencias, armónicos e intermodulación. Motor de cálculo, sin mapa. |
 
@@ -203,7 +202,7 @@ AeroRF/
 │   ├── components/gis/ paneles del shell
 │   ├── map/            MapEngine, dibujo, medición, aeronaves
 │   ├── stores/         estado de Pinia
-│   └── views/          las cuatro secciones
+│   └── views/          las tres secciones
 ├── tests/              suite de Python y paridad
 ├── tools/              generadores de datos de referencia
 └── .env.example
