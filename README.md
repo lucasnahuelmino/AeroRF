@@ -96,7 +96,7 @@ procesos con las variables ya configuradas.
 
 ---
 
-## Las cinco secciones
+## Las cuatro secciones
 
 La barra superior está presente en **todas** las secciones, así que siempre se
 sabe dónde se está y siempre se puede ir a otro lugar.
@@ -107,7 +107,6 @@ sabe dónde se está y siempre se puede ir a otro lugar.
 | **Panel** | Estado del sistema: objetos, expedientes, fuentes, y aeronaves en seguimiento. |
 | **Expedientes** | Casos de investigación. Cada expediente agrupa objetos, notas e historial. |
 | **Calculadora RF** | Frecuencias, armónicos e intermodulación. Motor de cálculo, sin mapa. |
-| **Espectro** | Análisis espectral de mediciones. |
 
 El detalle de cada una está en **[MANUAL.md](MANUAL.md)**.
 
@@ -204,7 +203,7 @@ AeroRF/
 │   ├── components/gis/ paneles del shell
 │   ├── map/            MapEngine, dibujo, medición, aeronaves
 │   ├── stores/         estado de Pinia
-│   └── views/          las cinco secciones
+│   └── views/          las cuatro secciones
 ├── tests/              suite de Python y paridad
 ├── tools/              generadores de datos de referencia
 └── .env.example

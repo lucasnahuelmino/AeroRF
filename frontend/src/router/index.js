@@ -45,11 +45,8 @@ const routes = [
     name: 'CalculadoraRF',
     component: () => import('../views/CalculadoraRFView.vue'),
   },
-  {
-    path: '/espectro',
-    name: 'Espectro',
-    component: () => import('../views/EspectroView.vue'),
-  },
+  // Espectro se dio de baja total (0.30.32): sin ruta propia, la dirección
+  // vieja cae en el redireccionamiento de abajo y vuelve al mapa.
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

@@ -5984,3 +5984,28 @@ herramienta -, así que el test del panel lo pone directo, que es
 justamente el contrato del componente.
 
 **476 frontend (34 archivos) - build V - backend sin cambios.**
+## 0.30.32 - Espectro, baja total: se fue el menú, la ruta y la vista
+
+El operador eligió la baja total de la sección Espectro, y la baja se hizo en
+los tres archivos donde la sección podía sobrevivir:
+
+- `BrandBar.vue` ya no ofrece la sección: quedan cuatro enlaces en el menú
+  (Mapa, Panel, Expedientes, Calculadora RF).
+- El enrutador ya no registra `/espectro`: la dirección vieja cae en el
+  redireccionamiento catch-all y vuelve al mapa, sin una pantalla rota.
+- `src/views/EspectroView.vue` fue borrada del fuente.
+
+Lo que NO se tocó, a propósito: `Chart.vue` y plotly siguen, porque la
+Calculadora RF grafica con el mismo componente, y el backend de
+espectrogramas queda intacto - la baja es de la pantalla, no de los datos
+del operador. El comentario de `vite.config.js` que atribuía plotly sólo a
+la vista de espectro quedó corregido: lo usa la calculadora, bajo demanda.
+El MANUAL y el README pasan de cinco secciones a cuatro.
+
+Pruebas: 3 guardas nuevas en `brandbar.spec.js` - **rojas antes** (el menú
+ofrecía `/espectro`, el enrutador la registraba y el view existía) -, una
+por archivo editado a mano, para que la sección no vuelva por una entrada
+vieja; 3 adaptadas con la intención escrita en el test (la lista de
+secciones esperadas y el piso de enlaces bajan de 5 a 4).
+
+**479 frontend (34 archivos) - build V - backend sin cambios.**

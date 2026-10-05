@@ -1,6 +1,6 @@
 # Manual de uso — AeroRF
 
-Guía de las cinco secciones y las diez herramientas del mapa. Para quien opera
+Guía de las cuatro secciones y las diez herramientas del mapa. Para quien opera
 la herramienta, no para quien la mantiene.
 
 > Para instalar y para el diseño interno, ver **[README.md](README.md)** y
@@ -33,7 +33,7 @@ altura al mapa.
 | Elemento | Qué hace |
 |---|---|
 | Marca **AeroRF** | Vuelve al mapa, que es la pantalla principal. |
-| **Mapa · Panel · Expedientes · Calculadora RF · Espectro** | Navegación. El elemento activo lleva un filo celeste. |
+| **Mapa · Panel · Expedientes · Calculadora RF** | Navegación. El elemento activo lleva un filo celeste. |
 | **Tres puntos** | Estado: backend, OpenSky, canal de vuelos en vivo. Verde = bien, ámbar = atención, gris = inactivo. Pasá el cursor sobre cada uno para el detalle. |
 | **ENACOM** | Lockup institucional: Dirección Nacional de Control y Fiscalización. |
 
@@ -199,13 +199,6 @@ Los resultados guardados aparecen en **Expedientes → detalle → Análisis RF 
 Guardados en este expediente**. Se guardan en la base, así que siguen ahí
 cuando vuelve a entrar, a diferencia de **Resultados del último cálculo**, que
 es lo que arrojó el cálculo de esta sesión y se pierde al salir.
-
----
-
-## Sección 5 — Espectro
-
-Análisis espectral de las mediciones registradas. Carga un archivo de captura y
-muestra su contenido espectral. Para las mediciones que llegan del instrumental.
 
 ---
 

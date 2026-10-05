@@ -69,13 +69,15 @@ vi.mock('@/api/client', () => {
   }
 })
 
+// El stub de /espectro se quitó con la baja total de la sección (0.30.32):
+// esta lista imita el enrutador real, y el enrutador real ya no registra
+// esa ruta. Las guardas de la baja están al final del archivo.
 const ROUTES = [
   { path: '/', name: 'Map', component: { template: '<div class="gis-map" />' } },
   { path: '/map', name: 'Mapa', component: { template: '<div class="gis-map" />' } },
   { path: '/dashboard', name: 'Panel', component: { template: '<div />' } },
   { path: '/expedientes', name: 'Expedientes', component: { template: '<div />' } },
   { path: '/calculadora', name: 'CalculadoraRF', component: { template: '<div />' } },
-  { path: '/espectro', name: 'Espectro', component: { template: '<div />' } },
 ]
 
 async function mountApp({ path = '/' } = {}) {
@@ -101,7 +103,10 @@ describe('the section menu', () => {
   })
 
   it('renders on every other section', async () => {
-    for (const path of ['/dashboard', '/expedientes', '/calculadora', '/espectro', '/map']) {
+    // /espectro se quitó de la lista con la baja total de la sección
+    // (0.30.32): la ruta ya no existe, el enlace tampoco. Las guardas de
+    // esa baja están al final del archivo.
+    for (const path of ['/dashboard', '/expedientes', '/calculadora', '/map']) {
       const { w } = await mountApp({ path })
       expect(w.find('.brandbar').exists(), `sin menu en ${path}`).toBe(true)
       w.unmount()
@@ -111,7 +116,10 @@ describe('the section menu', () => {
   it('links to every section', async () => {
     const { w } = await mountApp({ path: '/' })
     const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
-    for (const p of ['/', '/dashboard', '/expedientes', '/calculadora', '/espectro']) {
+    // La lista es la de las secciones que quedan: Espectro se dio de baja
+    // total (0.30.32), y la guarda al final del archivo comprueba que no
+    // vuelva a aparecer.
+    for (const p of ['/', '/dashboard', '/expedientes', '/calculadora']) {
       expect(hrefs, `falta el enlace a ${p}`).toContain(p)
     }
     w.unmount()
@@ -123,7 +131,9 @@ describe('the section menu', () => {
     const { w } = await mountApp({ path: '/' })
     const nav = w.find('.brandbar-nav').element
     // The links are in the document, not behind a click.
-    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(5)
+    // Cuatro enlaces desde la baja de Espectro (0.30.32): Mapa, Panel,
+    // Expedientes y Calculadora RF.
+    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(4)
     expect(w.find('.brandbar-nav [aria-expanded]').exists()).toBe(false)
     w.unmount()
   })
@@ -311,5 +321,38 @@ describe('the bar is thin', () => {
     const h = logo.match(/height:\s*(\d+(?:\.\d+)?)px/)
     const ch = bar[1].match(/height:\s*(\d+(?:\.\d+)?)px/)
     expect(Number(h[1])).toBeLessThan(Number(ch[1]))
+  })
+})
+
+// ─── La baja de Espectro ────────────────────────────────────────────────────
+
+describe('Espectro fue dado de baja', () => {
+  // El operador decidió la baja total de la sección (0.30.32): el menú, la
+  // ruta y la vista desaparecen. Tres guardas, porque son tres archivos que
+  // se editan a mano — un menú, un enrutador y un view — y en una baja lo
+  // que vuelve a romperse es exactamente eso: una entrada vieja que
+  // sobrevive porque nadie miró ese archivo.
+  it('no figura en el menú de secciones', async () => {
+    const { w } = await mountApp({ path: '/' })
+    const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
+    expect(hrefs, 'el menú volvió a ofrecer /espectro').not.toContain('/espectro')
+    expect(w.text(), 'el menú volvió a nombrar Espectro').not.toContain('Espectro')
+    w.unmount()
+  })
+
+  it('la ruta /espectro ya no está registrada', async () => {
+    const { default: router } = await import('@/router')
+    const r = router.resolve('/espectro')
+    expect(
+      r.matched.some((m) => m.path === '/espectro'),
+      'el enrutador todavía registra /espectro',
+    ).toBe(false)
+  })
+
+  it('la vista fue borrada del fuente', () => {
+    expect(
+      existsSync(join(here, '..', 'src', 'views', 'EspectroView.vue')),
+      'sigue src/views/EspectroView.vue: la baja total no se hizo',
+    ).toBe(false)
   })
 })

@@ -832,6 +832,25 @@ la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
   build ✓, backend sin cambios**; en vivo en 5199: la sección y sus
   cuatro opciones en el DOM, cero errores de consola.
 
+- **Espectro se fue entero** en 0.30.32 — baja total pedida por el
+  operador: menú (`BrandBar`), ruta (la dirección vieja cae en el
+  catch-all y vuelve al mapa) y vista (`EspectroView.vue` borrada).
+  `Chart`/plotly quedan porque la Calculadora RF grafica con el mismo
+  componente, y el backend de espectrogramas queda intacto: la baja es
+  de la pantalla, no de los datos. **3 guardas rojas antes** en
+  `brandbar.spec.js` — una por archivo editado a mano — y 3 adaptadas
+  con la intención escrita en el test (lista de secciones y piso de
+  enlaces: 5 → 4). **479 frontend (34 archivos), build ✓, backend sin
+  cambios.**
+
+**Cola del paquete A** (auditoría de Claude; un ítem, una rama, un
+commit, con su prueba roja): 1 círculo seleccionado solo ✔ (0.30.29);
+2 Espectro ✔ (0.30.32); 3 **Panel — baja total**; 4 **expediente →
+campo de nota por objeto** (no se borra: se transforma); 5 reestructura
+de los paneles laterales; 6 **exportar PNG, KMZ y PDF** más imprimir;
+7 reordenar los botones de la barra. Respuestas del operador ya dadas
+para el 3, 4 y 6.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.

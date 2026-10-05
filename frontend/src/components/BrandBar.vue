@@ -113,7 +113,8 @@ const sections = [
   { path: '/dashboard', label: 'Panel', icon: '▤' },
   { path: '/expedientes', label: 'Expedientes', icon: '▣' },
   { path: '/calculadora', label: 'Calculadora RF', icon: '∑' },
-  { path: '/espectro', label: 'Espectro', icon: '∿' },
+  // Espectro se dio de baja total (0.30.32): la sección desapareció del
+  // menú, del enrutador y del fuente. Las guardas están en brandbar.spec.
 ]
 
 const isActive = (path) =>
