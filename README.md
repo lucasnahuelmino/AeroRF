@@ -162,7 +162,7 @@ forma más común de que un mapa dibuje una cosa y la base guarde otra.
 | Componentes (78) | Montaje real en jsdom: shell, paneles, motores | `npm test` |
 | Layout (15) | Proporciones del shell, leídas del CSS construido | `npm run test:layout` |
 | Objetos (11) | Traducción de geometría, cierre de anillos | `npm run test:objects` |
-| Aeropuertos (31) | Datos, capa conmutable, medición | `npm run test:airports` |
+| Aeropuertos (43) | Datos, capa conmutable, medición, lista del operador | `npm run test:airports` |
 | Barra (12) | Botones de herramientas, área de clic | `npm run test:toolbar` |
 | Marca (14) | Cabecera, menú, lockup institucional | `npm run test:brandbar` |
 
@@ -218,8 +218,14 @@ Software developed for the **Dirección Nacional de Control y Fiscalización
 (ENACOM)**.
 
 Los puntos de referencia de aeródromo provienen de **OurAirports** (dominio
-público) y se generan con `tools/build_airports.py`. Los datos de vuelo
-provienen de la **OpenSky Network** bajo su respetiva licencia.
+público) y se generan con `tools/build_airports.py`; la capa del mapa dibuja
+además la lista de sitios que cargó el operador
+(`frontend/src/composables/useAirport.js`), sin persistirla. Los iconos del
+mapa —el avión de aeropuerto y las fuentes de punto (FM, TPRS, Otro)— son de
+**Font Awesome Free 6.7.2** (iconos CC BY 4.0) y viven en
+`frontend/public/iconos/` con su `LEEME.txt`: se cambian reemplazando el
+archivo. Los datos de vuelo provienen de la **OpenSky Network** bajo su
+respetiva licencia.
 
 La marca ENACOM no se reproduce en el software: se usa un lockup tipográfico.
 Si la institución suministra el archivo oficial, se coloca en

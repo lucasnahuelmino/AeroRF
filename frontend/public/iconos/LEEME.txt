@@ -1,0 +1,30 @@
+Iconos del mapa — AeroRF
+========================
+
+Qué es
+------
+Estos archivos son las imágenes que el mapa muestra en los marcadores.
+El código sólo nombra la ruta (`/iconos/...`), así que para cambiar un
+dibujo basta con reemplazar el archivo, conservando el MISMO nombre y
+formato (.svg). No hay que tocar código ni reiniciar nada: en desarrollo
+se recarga solo.
+
+Archivos
+--------
+aeropuerto.svg  Aeropuertos de la capa de referencia (lista del operador
+                y archivo publicado). Se muestra sobre un disco claro
+                (clase `aerorf-airport-icon` en styles.css) para que se
+                lea sobre el mapa oscuro.
+fm.svg          Punto cuya fuente es una emisora FM.
+tprs.svg        Punto cuya fuente es TPRS.
+otro.svg        Punto cuya fuente es otra (la opción "Otro").
+
+Procedencia
+-----------
+Descargados de Font Awesome Free 6.7.2
+https://fontawesome.com - https://github.com/FortAwesome/Font-Awesome
+Licencia de los iconos: CC BY 4.0 (el texto de licencia también viaja
+dentro de cada archivo SVG). Tipografías: SIL OFL 1.1. Código: MIT.
+
+Cuando los reemplace por imágenes de su interés, deje este archivo
+actualizado con la procedencia de las nuevas.

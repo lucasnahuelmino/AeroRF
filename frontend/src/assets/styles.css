@@ -332,6 +332,32 @@ table thead th {
   opacity: 0.72;
 }
 
+/* ─── Símbolo de aeropuerto ────────────────────────────────────────────────
+ * El marcador es `<img src="/iconos/aeropuerto.svg">` dentro de un disco
+ * claro: el mapa es oscuro y el icono descargado viene negro, así que sin
+ * el disco no se vería. El disco también hace que cualquier imagen que
+ * coloque el operador (de colores, con fondo propio) se lea igual.
+ * Cambiar el dibujo = reemplazar `public/iconos/aeropuerto.svg`.
+ * ------------------------------------------------------------------------- */
+
+.aerorf-airport-icon {
+  align-items: center;
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(30, 41, 59, 0.6);
+  border-radius: 9999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  padding: 4px;
+}
+
+.aerorf-airport-icon img {
+  display: block;
+  height: 72%;
+  pointer-events: none;
+  width: 72%;
+}
+
 .aerorf-airport-tip {
   background: var(--panel);
   border: 1px solid var(--panel-alto);

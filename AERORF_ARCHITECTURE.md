@@ -263,6 +263,23 @@ es `SAAR`. Eso se verificó contra la fuente.
 `tools/build_airports.py` informa los códigos que pidió y no encontró, para que
 un vacío nunca sea silencioso.
 
+**La capa dibuja además la lista del operador (0.30.30).** El composable
+`frontend/src/composables/useAirport.js` contiene los 116 sitios que él cargó
+(0.30.30: aeropuertos, EAVA/ACC, CCTE, aeroclubs). No es generado, así que
+`tests/airports.spec.js` le aplica las mismas salvaguardas que el archivo
+publicado — identificadores únicos y coordenadas en rango — porque un dato mal
+copiado se ve igual que uno válido. La unión se calcula una sola vez al cargar
+el módulo: un sitio a ≤ 2 km de un aeropuerto publicado se dibuja **una vez**
+con ese aeropuerto (el popup lista todos los que caen ahí), y los sitios sin
+aeropuerto cerca quedan como círculo, marcados «Sitio de la lista del
+operador». Tampoco se persisten, por las mismas razones de arriba.
+
+El símbolo de aeropuerto es una imagen — `frontend/public/iconos/aeropuerto.svg`,
+con `fm.svg`/`tprs.svg`/`otro.svg` para las fuentes de punto — y el código sólo
+nombra la ruta: cambiar el dibujo es reemplazar el archivo, sin tocar código.
+Los originales vienen de Font Awesome Free 6.7.2 (CC BY 4.0) y su procedencia
+está en `public/iconos/LEEME.txt`.
+
 ### 3.10 Errores: ninguna entrada del operador devuelve 500
 
 `app/api/errors.py` registra tres handlers (`install_error_handlers`,

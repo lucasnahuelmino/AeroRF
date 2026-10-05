@@ -72,8 +72,11 @@ cantidad de objetos. El bloqueo impide editar lo que contiene.
 **Vuelos.** Búsqueda en OpenSky, lista de seguimiento de hasta 5 aeronaves,
 grabación de trayectorias y reproducción.
 
-**Aeropuertos.** 67 aeródromos de 8 países, con filtro por país y distancia
-desde un aeropuerto a cualquier punto del mapa.
+**Aeropuertos.** Lo publicado (105 aeródromos de 8 países) sumado a los
+sitios de su propia lista —EAVA, CCTE, aeroclubs—, con filtro por país y
+distancia desde un aeropuerto a cualquier punto del mapa. Los aeropuertos
+se dibujan con un avión: para cambiar el dibujo basta con reemplazar
+`frontend/public/iconos/aeropuerto.svg` (mismo nombre, ver `LEEME.txt`).
 
 **Expediente.** Vincular los objetos del mapa a un expediente en curso.
 
@@ -255,9 +258,10 @@ medida, y AeroRF no lo guarda.
 
 **¿Dónde queda lo que dibujo?**
 Todo objeto del mapa se guarda en la base de datos, con su historial. Los
-aeropuertos **no**: son datos de referencia publicados, y se redibujan desde un
-archivo en cada arranque. Por eso no puede editarlos ni borrarlos, y es
-intencional: un punto de referencia no es una medición suya.
+aeropuertos y los sitios de su lista **no**: son datos de referencia —
+publicados y su propia lista — y se redibujan desde los archivos en cada
+arranque. Por eso no puede editarlos ni borrarlos, y es intencional: un
+punto de referencia no es una medición suya.
 
 **¿Y si borro algo por error?**
 AeroRF guarda una copia de la base de datos en la carpeta `respaldos`, dentro de

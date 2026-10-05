@@ -5914,3 +5914,40 @@ propósito y tiene que terminar abierto con el id del objeto nuevo — **roja
 antes** (`selectedId: null → 7`), verde después.
 
 **466 frontend (34 archivos) · build ✓ · backend sin cambios.**
+## 0.30.30 — La capa de aeropuertos dibuja la lista del operador, con icono descargable
+
+El composable `useAirport` que cargó el operador (116 sitios: aeropuertos,
+EAVA/ACC, CCTE, aeroclubs) es ahora lo que la capa de referencia
+visualiza en el mapa, **sumado** a lo publicado — nada de lo que ya estaba
+se pierde:
+
+- Un sitio que cae a ≤ 2 km de un aeropuerto publicado se dibuja **una vez**,
+  con ese aeropuerto, y el popup lista todos los que caen ahí (SAAV lleva
+  «SANTA FE» y «EAVA SAUCE VIEJO»). Los números de la coincidencia: 76 de
+  116 emparejan; el emparejado más lejano está a 1937 m y el sitio suelto
+  más cercano a 4679 m — el umbral cae en una zona sin datos.
+- Los 40 sitios sin aeropuerto cerca se dibujan como círculo ámbar, con su
+  grupo y su etiqueta; el popup dice «Sitio de la lista del operador, no
+  medido por AeroRF»: procedencia visible, sin inventar códigos que la
+  lista no tiene.
+- El símbolo de aeropuerto es ahora el icono de
+  `public/iconos/aeropuerto.svg` sobre un disco claro (clase nueva
+  `.aerorf-airport-icon`): el mapa es oscuro y el SVG descargado viene
+  negro. Las familias mayor/menor se distinguen por el tamaño del icono
+  (26/18 px), ya no por el color del círculo; los helipuertos siguen en
+  círculo pizarra.
+- Cuatro iconos descargados de Font Awesome Free 6.7.2 (CC BY 4.0) y
+  dejados en `public/iconos/` con `LEEME.txt` de procedencia:
+  `aeropuerto.svg` y, para el item siguiente, `fm.svg`, `tprs.svg`,
+  `otro.svg`. Cambiar un dibujo es reemplazar el archivo, mismo nombre —
+  el código sólo nombra la ruta.
+- El composable vive en `src/composables/useAirport.js` con la lista del
+  operador textual, y su guard en `airports.spec.js` le aplica las mismas
+  salvaguardas que al archivo publicado: identificadores únicos y
+  coordenadas en rango.
+
+Pruebas: 4 nuevas en `airports.spec.js` — **rojas antes** (el sitio CCTE
+CABA no se dibujaba y el marcador no tenía `options.icon`), 4 adaptadas
+con la intención escrita en el test (unión publicado+lista, filtro por
+país y contador, familias por tamaño). **470 frontend (34 archivos) ·
+build ✓ · backend sin cambios.**

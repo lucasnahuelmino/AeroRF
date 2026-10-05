@@ -801,6 +801,22 @@ la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
   arrancando cerrado a propósito): **roja antes** (`selectedId: null →
   7`), verde después.
 
+- **La capa de aeropuertos dibuja su lista, con avión descargable** en
+  0.30.30 — `src/composables/useAirport.js` guarda los 116 sitios que
+  cargó el operador y `map/airports.js` dibuja la **unión**: lo publicado
+  más los sitios sueltos de su lista. Un sitio a ≤ 2 km de un aeropuerto
+  publicado se dibuja una sola vez con ese aeropuerto y el popup lista
+  todos los que caen ahí (SAAV lleva «SANTA FE» y «EAVA SAUCE VIEJO»);
+  los 40 sin aeropuerto cerca quedan como círculo ámbar con su grupo,
+  marcados «Sitio de la lista del operador». El símbolo de aeropuerto es
+  `public/iconos/aeropuerto.svg` sobre un disco claro (los SVG descargados
+  vienen negros y el mapa es oscuro), 4 iconos de Font Awesome Free 6.7.2
+  (CC BY 4.0) con `LEEME.txt`: cambiar un dibujo es reemplazar el
+  archivo. Pruebas nuevas en `airports.spec.js` (CCTE CABA ausente,
+  marcador sin `options.icon`): **rojas antes**; 4 adaptadas con la
+  intención escrita en cada una. **470 frontend, build ✓, backend sin
+  cambios**; verificado en vivo en 5199 con la capa encendida.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.
