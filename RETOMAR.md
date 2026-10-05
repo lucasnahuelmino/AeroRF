@@ -793,6 +793,14 @@ la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
   test escrita en el test. De paso: los placeholders con sintaxis v2 (sin
   `text-`, muertos desde siempre) ahora se pintan.
 
+- **El círculo se selecciona solo** en 0.30.29 — al terminar de dibujar,
+  `handleToolComplete` deja el objeto nuevo **seleccionado** y abre el
+  inspector si estaba cerrado: se dibuja para detallar, y antes el panel
+  seguía diciendo «seleccione un objeto» con el círculo recién puesto.
+  Prueba en `drawing-flow.spec.js` con el harness existente (inspector
+  arrancando cerrado a propósito): **roja antes** (`selectedId: null →
+  7`), verde después.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.

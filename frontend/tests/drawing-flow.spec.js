@@ -427,6 +427,65 @@ describe('the shell wires the clicks the way the flow needs', () => {
     map.createObject = realCreate
     w.unmount()
   })
+
+  it('deja el circulo recién creado seleccionado y con el inspector abierto', async () => {
+    // El operador dibuja un círculo para detallar de qué se trata. Si el
+    // objeto no queda seleccionado y el inspector cerrado, tiene que buscarlo
+    // a mano en la lista antes de poder escribir una sola palabra sobre él.
+    //
+    // El inspector arranca cerrado a propósito, para que la apertura sea
+    // parte de lo que esta prueba mide; el valor se lee al crear el store,
+    // así que se restituye apenas quedó capturado.
+    localStorage.setItem('aerorf:inspector-open', '0')
+
+    const { mount, flushPromises } = await import('@vue/test-utils')
+    const { createRouter, createMemoryHistory } = await import('vue-router')
+    const { default: GisShell } = await import('@/views/GisShell.vue')
+    const { useSystemStore } = await import('@/stores/system')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const map = useMapStore()
+    const system = useSystemStore()
+    localStorage.removeItem('aerorf:inspector-open')
+    expect(system.inspectorOpen, 'el inspector debería arrancar cerrado').toBe(false)
+
+    map.createObject = (payload) =>
+      Promise.resolve({ id: 7, ...payload, latlng: null, latlngs: [] })
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div />' } }],
+    })
+    await router.push('/')
+    await router.isReady()
+
+    const w = mount(GisShell, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+
+    const engine = map.engine
+    expect(engine, 'el shell no adjunto el motor al store').toBeTruthy()
+
+    map.setTool(TOOLS.CIRCLE)
+    await flushPromises()
+
+    engine.map.fire('click', { latlng: CENTRE })
+    await flushPromises()
+    engine.map.fire('mousemove', { latlng: FURTHER })
+    engine.map.fire('click', { latlng: FURTHER })
+    await flushPromises()
+
+    expect(
+      map.selectedId,
+      'el circulo recién creado debe quedar seleccionado',
+    ).toBe(7)
+    expect(
+      system.inspectorOpen,
+      'el inspector debe abrirse: ahi es donde se detalla el objeto',
+    ).toBe(true)
+
+    w.unmount()
+  })
 })
 
 describe('measuring from a point to the cursor', () => {

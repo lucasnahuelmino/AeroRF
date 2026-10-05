@@ -776,11 +776,18 @@ async function handleToolComplete(payload) {
     measurement: { name: 'Medición' },
   }
 
-  await mapStore.createObject({
+  const creado = await mapStore.createObject({
     ...defaults[payload.type],
     ...payload,
   })
   systemStore.setPanel('tools')
+  // El objeto recién dibujado queda seleccionado y el inspector abierto:
+  // se dibuja para detallar, y sin esto al operador le toca buscar el
+  // objeto a mano en la lista antes de poder escribir una sola palabra.
+  if (creado) {
+    mapStore.select(creado.id)
+    if (!systemStore.inspectorOpen) systemStore.toggleInspector()
+  }
 }
 
 function saveMeasurement() {

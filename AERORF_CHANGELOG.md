@@ -5899,3 +5899,18 @@ mitad, y ahora está:
   adaptado está escrita en el propio test.
 
 **465 frontend (34 archivos) · 705 Python · 675 paridad · 36 geo · build ✓.**
+## 0.30.29 — El círculo recién dibujado se selecciona solo
+
+Dibujar un círculo servía para que existiera: el objeto aparecía en el mapa y el
+inspector seguía diciendo «seleccione un objeto», así que detallarlo pedía
+buscarlo a mano en la lista. Ahora `handleToolComplete` deja el objeto recién
+creado **seleccionado** y abre el inspector si estaba cerrado — el mismo gesto
+que ya hacía el clic en una aeronave. Se dibuja para escribir sobre lo que se
+dibujó.
+
+Prueba en `drawing-flow.spec.js` con el harness existente (monta el shell, dos
+clics reales, `createObject` interceptado): el inspector arranca **cerrado** a
+propósito y tiene que terminar abierto con el id del objeto nuevo — **roja
+antes** (`selectedId: null → 7`), verde después.
+
+**466 frontend (34 archivos) · build ✓ · backend sin cambios.**
