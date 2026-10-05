@@ -1,24 +1,24 @@
 <template>
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-    <h3 class="text-lg font-semibold mb-4 text-slate-100">{{ title }}</h3>
+  <div class="bg-panel border border-borde rounded-2xl p-6">
+    <h3 class="text-lg font-semibold mb-4 text-texto">{{ title }}</h3>
     <form @submit.prevent="handleSubmit" class="space-y-4">
       <div>
-        <label class="block text-sm text-slate-400 mb-2">Frecuencia (MHz)</label>
+        <label class="block text-sm text-texto-tenue mb-2">Frecuencia (MHz)</label>
         <input
           v-model.number="formData.freq_mhz"
           type="number"
           step="0.001"
           placeholder="Ej: 119.0"
           required
-          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+          class="w-full px-3 py-2 bg-panel-hondo border border-borde rounded-lg text-texto placeholder:text-texto-invisible focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
         />
       </div>
 
       <div>
-        <label class="block text-sm text-slate-400 mb-2">Tipo de Señal</label>
+        <label class="block text-sm text-texto-tenue mb-2">Tipo de Señal</label>
         <select
           v-model="formData.signal_type"
-          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          class="w-full px-3 py-2 bg-panel-hondo border border-borde rounded-lg text-texto focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
           <option value="UNKNOWN">Desconocido</option>
           <option value="FM">FM</option>
@@ -32,23 +32,23 @@
       </div>
 
       <div>
-        <label class="block text-sm text-slate-400 mb-2">Potencia (dBm, opcional)</label>
+        <label class="block text-sm text-texto-tenue mb-2">Potencia (dBm, opcional)</label>
         <input
           v-model.number="formData.power_dbm"
           type="number"
           step="0.1"
           placeholder="Ej: 30"
-          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+          class="w-full px-3 py-2 bg-panel-hondo border border-borde rounded-lg text-texto placeholder:text-texto-invisible focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
         />
       </div>
 
       <div>
-        <label class="block text-sm text-slate-400 mb-2">Descripción (opcional)</label>
+        <label class="block text-sm text-texto-tenue mb-2">Descripción (opcional)</label>
         <input
           v-model="formData.label"
           type="text"
           placeholder="Ej: FM Radio Local"
-          class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          class="w-full px-3 py-2 bg-panel-hondo border border-borde rounded-lg text-texto placeholder:text-texto-invisible focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
@@ -63,7 +63,7 @@
           v-if="showClear"
           @click="resetForm"
           type="button"
-          class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-200"
+          class="px-4 py-2 bg-panel-alto hover:bg-on-ink-wash rounded-lg transition-colors text-texto"
         >
           Limpiar
         </button>

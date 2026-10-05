@@ -778,6 +778,21 @@ la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
   `tests/test_correlacion_temporal.py`: **10 rojas antes + 1 control
   verde**, rojas también por revertida (11 con el pin).
 
+- **Plantillas semánticas, sin mentir** en 0.30.28 — el puente de 0.30.0
+  murió: **652 reemplazos en 22 plantillas**, `slate-N` → nombre
+  semántico (`bg-panel`, `text-texto-medio`, `border-borde`…), con reglas
+  de rol donde la misma clase cumplía papeles distintos — los 12 inputs a
+  `panel-hondo` («campos, zonas hundidas»), las cajas claras dentro de
+  tarjetas a `on-ink-wash` (si no, invisibles sobre `panel-alto`), los
+  divisores de 1px a `borde` y los fondos de diálogo translúcidos a dos
+  tokens nuevos `--velo`/`--velo-suave`. Las 28 reglas del puente
+  borradas de `styles.css`; los 20 nombres semánticos viven una sola vez
+  en `tailwind.config.js`, cada uno `var(--token)`. Guarda nueva
+  `tests/sin_slate.spec.js` (cero `slate-N` en el fuente; roja antes con
+  652) y `tokens.spec`/`theme.spec` adaptados, con la intención de cada
+  test escrita en el test. De paso: los placeholders con sintaxis v2 (sin
+  `text-`, muertos desde siempre) ahora se pintan.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.
@@ -940,10 +955,6 @@ con su commit propio:
 
 ### Las que ya venían
 
-- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
-  de 0.30.0. Decidido por vos. Es lo que hace que los nombres dejen de mentir:
-  `bg-slate-900` ahora es azul, y un desarrollador que lo escriba mañana obtiene
-  `--panel` sin saber por qué. Es el cambio más grande que queda y va solo.
 - **Tipografías: decidido, no implementado.** Vos elegiste adoptar las de
   `rni-app-4.0` (Space Grotesk, IBM Plex Sans, IBM Plex Mono) **y subir el
   peldaño**: IBM Plex Sans no tiene mayúsculas tan esbeltas como las del panel de

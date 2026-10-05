@@ -2,7 +2,7 @@
   <div class="p-2 space-y-3">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <h3 class="text-xs font-semibold uppercase tracking-widest text-slate-300">Capas</h3>
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">Capas</h3>
       <div class="flex gap-1">
         <button class="gis-mini-btn" title="Mostrar todas" @click="setAll(true)">👁</button>
         <button class="gis-mini-btn" title="Ocultar todas" @click="setAll(false)">🚫</button>
@@ -10,8 +10,8 @@
     </div>
 
     <!-- Basemap -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
-      <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-slate-500">Mapa base</h4>
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2.5">
+      <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue">Mapa base</h4>
       <div class="grid grid-cols-2 gap-1">
         <button
           v-for="base in basemaps"
@@ -30,7 +30,7 @@
       <div
         v-for="layer in orderedLayers"
         :key="layer.id"
-        class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5"
+        class="rounded-lg border border-borde bg-on-ink-wash p-2.5"
       >
         <div class="mb-1.5 flex items-center gap-1.5">
           <button
@@ -42,11 +42,11 @@
           </button>
           <span
             class="min-w-0 flex-1 truncate text-[11px]"
-            :class="layer.visible ? 'text-slate-200' : 'text-slate-500'"
+            :class="layer.visible ? 'text-texto' : 'text-texto-tenue'"
           >
             {{ layer.name }}
           </span>
-          <span class="flex-none font-mono text-[10px] text-slate-500">
+          <span class="flex-none font-mono text-[10px] text-texto-tenue">
             {{ layer.object_count }}
           </span>
           <button
@@ -68,7 +68,7 @@
             class="h-1 flex-1 accent-blue-500"
             @input="onOpacity(layer.key, $event)"
           />
-          <span class="w-8 flex-none text-right font-mono text-[10px] text-slate-500">
+          <span class="w-8 flex-none text-right font-mono text-[10px] text-texto-tenue">
             {{ Math.round(layer.opacity * 100) }}%
           </span>
         </div>
@@ -76,25 +76,25 @@
     </section>
 
     <!-- Provenance legend (spec §58) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
-      <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-slate-500">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2.5">
+      <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue">
         Procedencia de los datos
       </h4>
       <ul class="space-y-1 text-[10px]">
         <li v-for="(label, key) in provenanceLabels" :key="key" class="flex items-center gap-1.5">
           <i class="h-2 w-2 rounded-full" :style="{ background: provenanceColor(key) }" />
-          <span class="text-slate-400">{{ label }}</span>
+          <span class="text-texto-tenue">{{ label }}</span>
         </li>
       </ul>
-      <p class="mt-1.5 text-[9px] leading-snug text-slate-600">
+      <p class="mt-1.5 text-[9px] leading-snug text-texto-invisible">
         AeroRF distingue siempre el origen de cada dato. Un valor sin fuente
         verificable se muestra como «dato no disponible».
       </p>
     </section>
 
     <!-- Export (spec §46) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
-      <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-slate-500">Exportar</h4>
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2.5">
+      <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue">Exportar</h4>
       <div class="grid grid-cols-3 gap-1">
         <a
           v-for="format in exportFormats"
@@ -106,7 +106,7 @@
           {{ format.label }}
         </a>
       </div>
-      <label class="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500">
+      <label class="mt-2 flex items-center gap-1.5 text-[10px] text-texto-tenue">
         <input
           v-model="includeHistory"
           type="checkbox"

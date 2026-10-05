@@ -20,14 +20,14 @@
         />
         <div
           v-else
-          class="grid place-items-center rounded-lg border border-dashed border-slate-800 bg-[var(--fondo)] p-10 text-center"
+          class="grid place-items-center rounded-lg border border-dashed border-borde bg-[var(--fondo)] p-10 text-center"
         >
           <div>
             <div class="mb-2 text-2xl opacity-30">∿</div>
-            <p class="text-sm text-slate-400">
+            <p class="text-sm text-texto-tenue">
               Todavía no hay ninguna medición cargada.
             </p>
-            <p class="mt-1 text-xs text-slate-600">
+            <p class="mt-1 text-xs text-texto-invisible">
               Use el panel de la derecha para elegir un archivo o pegar datos.
             </p>
           </div>
@@ -47,11 +47,11 @@
                 <span class="font-mono text-amber-200">
                   {{ peak.freq.toFixed(3) }} MHz
                 </span>
-                <span class="text-slate-500">{{ peak.band }}</span>
-                <span class="font-mono text-slate-300">{{ peak.db }} dB</span>
+                <span class="text-texto-tenue">{{ peak.band }}</span>
+                <span class="font-mono text-texto-medio">{{ peak.db }} dB</span>
               </li>
             </ul>
-            <p class="mt-2.5 text-[10px] leading-snug text-slate-600">
+            <p class="mt-2.5 text-[10px] leading-snug text-texto-invisible">
               Un pico dentro de una banda aeronáutica no prueba que exista
               interferencia: hay que comparar con la fuente conocida antes de
               sostener algo.
@@ -66,12 +66,12 @@
           <h2 class="card-title">Cargar medición</h2>
 
           <label
-            class="mb-2 flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-slate-700 px-3 py-4 text-center transition-colors hover:border-sky-600 hover:bg-slate-900/50"
+            class="mb-2 flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-borde-fuerte px-3 py-4 text-center transition-colors hover:border-sky-600 hover:bg-panel-hondo"
           >
-            <span class="text-xs text-slate-400">
+            <span class="text-xs text-texto-tenue">
               Elegir archivo CSV o TXT
             </span>
-            <span class="text-[10px] text-slate-600">
+            <span class="text-[10px] text-texto-invisible">
               Dos columnas: frecuencia en MHz y nivel en dB
             </span>
             <input
@@ -86,7 +86,7 @@
             v-model="pasted"
             rows="7"
             placeholder="…o pegue aquí las columnas, una por línea:&#10;100.000, -45&#10;108.700, -38&#10;121.500, -60"
-            class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 font-mono text-[11px] text-slate-200 outline-none placeholder:text-slate-600 focus:border-sky-600"
+            class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1.5 font-mono text-[11px] text-texto outline-none placeholder:text-texto-invisible focus:border-sky-600"
           />
 
           <div class="mt-2 flex gap-1.5">
@@ -98,7 +98,7 @@
             </button>
             <button
               v-if="points.length"
-              class="rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-800"
+              class="rounded border border-borde-fuerte px-2 py-1.5 text-xs text-texto-tenue hover:bg-panel-alto"
               title="Descartar la medición"
               @click="clear"
             >
@@ -109,7 +109,7 @@
           <p v-if="error" class="mt-2 text-[11px] text-rose-300">
             {{ error }}
           </p>
-          <p v-else-if="note" class="mt-2 text-[11px] text-slate-500">
+          <p v-else-if="note" class="mt-2 text-[11px] text-texto-tenue">
             {{ note }}
           </p>
         </div>
@@ -126,8 +126,8 @@
               :key="band.label"
               class="flex items-baseline justify-between gap-2 text-[11px]"
             >
-              <span class="text-slate-300">{{ band.label }}</span>
-              <span class="font-mono text-slate-500">
+              <span class="text-texto-medio">{{ band.label }}</span>
+              <span class="font-mono text-texto-tenue">
                 {{ band.from }}–{{ band.to }} MHz
               </span>
             </li>

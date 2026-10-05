@@ -5869,3 +5869,33 @@ real.
 | Frontend | 460 (33 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
 | Disclaimers que prometían temporal sin medirlo | 2 | **0** |
+## 0.30.28 — Las plantillas dejan de mentir: `slate-N` → nombres semánticos
+
+El puente de 0.30.0 cumplió su promesa temporal con el costo que declaraba en su
+propio comentario: unas 640 utilidades `slate-N` reescritas por CSS para que
+`bg-slate-900` pintara `--panel` — la clase mentía y cualquier uso nuevo podía
+quedar gris sin que nadie lo notara. El ítem «migrar las plantillas» era la otra
+mitad, y ahora está:
+
+- **652 reemplazos en 22 plantillas**: cada `slate-N` pasó a su nombre
+  semántico (`bg-panel`, `text-texto-medio`, `border-borde`…). Tres reglas de
+  rol donde la misma clase cumplía papeles distintos: los 12 inputs a
+  `bg-panel-hondo` («campos, zonas hundidas»), las cajas claras dentro de
+  tarjetas a `bg-on-ink-wash` (si no, sobre `panel-alto` se volvían invisibles)
+  y los divisores de 1px a `bg-borde`. Los fondos de diálogo translúcidos
+  conservaron su transparencia con dos tokens nuevos, `--velo` (75%) y
+  `--velo-suave` (45%), en el patrón `color-mix` de los `on-ink`. Los
+  placeholders muertos (sintaxis v2, sin `text-`, nunca generados) ahora son
+  `placeholder:text-texto-invisible` y se pintan.
+- **El puente se borró**: las 28 reglas de `styles.css` desaparecieron y en su
+  lugar quedó una cabecera en español que explica de dónde sale el color. Los
+  20 nombres semánticos viven una sola vez, en `tailwind.config.js`, cada uno
+  `var(--token)` — la clase y el token dicen lo mismo.
+- **Guardas**: nueva `sin_slate.spec.js` (cero `slate-N` en el fuente; roja
+  antes con 652), `tokens.spec` adaptado (las 14 utilidades semánticas
+  resuelven a token, el bundle no contiene ni una regla `slate-\d`, ningún
+  ring amarra a `--signal`) y `theme.spec` con el espejo dado vuelta
+  (`slate === 0` y más de 20 usos semánticos). La intención de cada test
+  adaptado está escrita en el propio test.
+
+**465 frontend (34 archivos) · 705 Python · 675 paridad · 36 geo · build ✓.**

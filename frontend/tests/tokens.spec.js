@@ -109,6 +109,9 @@ const TOKENS_AERORF = [
   '--texto', '--texto-medio', '--texto-tenue', '--texto-invisible',
   '--borde', '--borde-fuerte',
   '--trazo', '--trazo-medido', '--trazo-observado', '--aviso', '--seleccion',
+  // El velo y su versión suave: los fondos de diálogo translúcidos que la
+  // migración de plantillas (0.30.28) sacó de las opacidades sueltas.
+  '--velo', '--velo-suave',
 ]
 
 let css
@@ -170,43 +173,50 @@ describe('the tokens have to reach the browser', () => {
   })
 })
 
-describe('the bridge puts the templates onto the palette', () => {
+describe('las utilidades semánticas ponen a las plantillas sobre la paleta', () => {
   /**
-   * Every colour utility a template actually uses has to be remapped.
+   * Cada utilidad semántica que una plantilla usa tiene que resolver a un token.
    *
-   * This is the guard that makes the bridge safe to leave in place. Without it a
-   * `bg-slate-700` added tomorrow would come out Tailwind's grey and nobody would
-   * notice until someone looked at the screen.
+   * Es la continuación del guardia del puente (0.30.0), que existía para que
+   * un `bg-slate-700` nuevo no cayera en el gris de Tailwind sin que nadie lo
+   * notara. Con las plantillas migradas el peligro es el mismo con otro nombre:
+   * una utilidad sin regla propia es una ausencia, no un error — el elemento
+   * se pinta con lo que Tailwind tenga a mano.
    */
   const UTILIDADES = [
-    'bg-slate-900', 'bg-slate-950', 'text-slate-100', 'text-slate-200',
-    'text-slate-300', 'text-slate-400', 'text-slate-500', 'text-slate-600',
-    'border-slate-700', 'border-slate-800', 'border-slate-600',
+    'bg-panel', 'bg-panel-alto', 'bg-panel-hondo', 'bg-on-ink-wash',
+    'bg-velo', 'bg-velo-suave',
+    'text-texto', 'text-texto-medio', 'text-texto-tenue', 'text-texto-invisible',
+    'text-ink',
+    'border-borde', 'border-borde-fuerte',
   ]
 
-  it.each(UTILIDADES)('%s resuelve a un token, no al gris de Tailwind', (utilidad) => {
+  it.each(UTILIDADES)('%s resuelve a un token, no a un valor escrito a mano', (utilidad) => {
     const regla = ruleFor(css, `.${utilidad}`)
-    expect(regla, `${utilidad} no tiene regla propia: cae en el gris de Tailwind`).toBeTruthy()
+    expect(regla, `${utilidad} no tiene regla propia: no se pinta como la familia`).toBeTruthy()
     expect(regla, `${utilidad} deberia apuntar a un token`).toMatch(/var\(--/)
   })
 
-  it('the bridge wins over the utilities Tailwind generated', () => {
-    // Same specificity, so position in the file is what decides. If a future
-    // refactor moved this block above `@tailwind utilities`, every rule would be
-    // correct and every one of them would lose.
-    const primera = css.indexOf('.bg-slate-900{')
-    const ultima = css.lastIndexOf('.bg-slate-900{')
-    expect(primera, 'no se encontro la utilidad de Tailwind').toBeGreaterThan(-1)
-    expect(ultima, 'solo hay una regla: la de Tailwind, no el puente').toBeGreaterThan(primera)
-    expect(css.slice(ultima, ultima + 60)).toMatch(/var\(--/)
+  it('el puente slate no sobrevivió: ni una regla con esa escala', () => {
+    // Antes había dos reglas por clase (la de Tailwind y la del puente) y
+    // ganaba la del final por posición en el archivo. Ahora cada utilidad
+    // semántica nace una sola vez, desde el color del config, y la escala
+    // que mentía no queda ni en el CSS construido.
+    expect(css, 'el puente sigue en el bundle').not.toMatch(/slate-\d/)
   })
 
-  it('the focus ring uses the token that is readable on ink, not --signal', () => {
-    // Measured in the family project: `--signal` on `--ink` gives 2.52:1, below
-    // the 3:1 minimum WCAG asks of a graphical element. `--signal-on-ink` gives
-    // 6.15:1. AeroRF's dark surfaces are everywhere, so this is the difference
-    // between a visible focus ring and an invisible one.
-    expect(css).toMatch(/\.ring-slate-700\{[^}]*--signal-on-ink/)
+  it('el anillo de foco no amarra al token ilegible (2.52:1 sobre --ink)', () => {
+    // Medido en el proyecto hermano: `--signal` sobre `--ink` da 2.52:1,
+    // por debajo de los 3:1 que pide WCAG para un elemento gráfico;
+    // `--signal-on-ink` da 6.15:1. El puente cubría el anillo por eso.
+    // Con el puente borrado esa regla muerta ya no existe (los focos reales
+    // de las plantillas son `focus:ring-blue-500`), así que lo que queda por
+    // garantizar es la contra: ningún ring del bundle puede quedar amarrado
+    // al token que no se lee.
+    expect(
+      css,
+      'un ring quedó amarrado a --signal: no se lee sobre --ink',
+    ).not.toMatch(/--tw-ring-color:\s*var\(--signal\)/)
   })
 
   it('there is exactly one token block, so no name can be defined twice', () => {

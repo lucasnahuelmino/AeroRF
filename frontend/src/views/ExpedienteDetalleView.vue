@@ -3,33 +3,33 @@
     <div class="flex items-center gap-4 mb-6">
       <button
         @click="$router.back()"
-        class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+        class="px-3 py-1 bg-panel-alto hover:bg-on-ink-wash rounded transition-colors"
       >
         ← Volver
       </button>
       <h1 class="page-doc-title">Expediente {{ expediente?.numero_expediente }}</h1>
     </div>
 
-    <div v-if="!expediente" class="text-center text-slate-400 py-12">Cargando...</div>
+    <div v-if="!expediente" class="text-center text-texto-tenue py-12">Cargando...</div>
     <div v-else class="space-y-6">
       <!-- Info básica -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <div class="bg-panel-alto border border-borde-fuerte rounded-lg p-6">
           <h2 class="text-lg font-semibold mb-4">Información General</h2>
           <div class="space-y-2 text-sm">
-            <div><span class="text-slate-400">Número:</span> {{ expediente.numero_expediente }}</div>
-            <div><span class="text-slate-400">Frecuencia:</span> <span class="font-mono text-sky-600">{{ expediente.freq_mhz }} MHz</span></div>
-            <div><span class="text-slate-400">Aeropuerto:</span> {{ expediente.aeropuerto }}</div>
-            <div><span class="text-slate-400">Estado:</span> <span :class="statusClass(expediente.estado)">{{ expediente.estado }}</span></div>
-            <div><span class="text-slate-400">Severidad:</span> {{ expediente.severidad }}</div>
+            <div><span class="text-texto-tenue">Número:</span> {{ expediente.numero_expediente }}</div>
+            <div><span class="text-texto-tenue">Frecuencia:</span> <span class="font-mono text-sky-600">{{ expediente.freq_mhz }} MHz</span></div>
+            <div><span class="text-texto-tenue">Aeropuerto:</span> {{ expediente.aeropuerto }}</div>
+            <div><span class="text-texto-tenue">Estado:</span> <span :class="statusClass(expediente.estado)">{{ expediente.estado }}</span></div>
+            <div><span class="text-texto-tenue">Severidad:</span> {{ expediente.severidad }}</div>
           </div>
         </div>
 
-        <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <div class="bg-panel-alto border border-borde-fuerte rounded-lg p-6">
           <h2 class="text-lg font-semibold mb-4">Coordenadas</h2>
           <div class="space-y-2 text-sm">
-            <div><span class="text-slate-400">Latitud:</span> {{ expediente.lat }}</div>
-            <div><span class="text-slate-400">Longitud:</span> {{ expediente.lon }}</div>
+            <div><span class="text-texto-tenue">Latitud:</span> {{ expediente.lat }}</div>
+            <div><span class="text-texto-tenue">Longitud:</span> {{ expediente.lon }}</div>
             <button class="mt-4 px-3 py-1 bg-sky-600 hover:bg-blue-600 rounded text-sm transition-colors">
               📍 Ver en mapa
             </button>
@@ -38,7 +38,7 @@
       </div>
 
       <!-- Cálculos RF -->
-      <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
+      <div class="bg-panel-alto border border-borde-fuerte rounded-lg p-6">
         <h2 class="text-lg font-semibold mb-4">🧮 Análisis RF</h2>
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
@@ -47,20 +47,20 @@
               type="number"
               placeholder="Frecuencia (MHz)"
               step="0.001"
-              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+              class="px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
             />
             <input
               v-model="rfForm.tolerance_khz"
               type="number"
               placeholder="Tolerancia (kHz)"
               step="0.1"
-              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+              class="px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
             />
           </div>
           <button
             @click="calculateRF"
             :disabled="rfStore.loading"
-            class="px-4 py-2 bg-sky-600 hover:bg-blue-600 disabled:bg-slate-600 rounded-lg font-semibold transition-colors"
+            class="px-4 py-2 bg-sky-600 hover:bg-blue-600 disabled:bg-panel-hondo rounded-lg font-semibold transition-colors"
           >
             {{ rfStore.loading ? 'Calculando...' : 'Calcular' }}
           </button>
@@ -72,10 +72,10 @@
               <div
                 v-for="(result, idx) in rfStore.results"
                 :key="idx"
-                class="p-3 bg-slate-700 rounded text-sm"
+                class="p-3 bg-on-ink-wash rounded text-sm"
               >
                 <div class="font-mono text-sky-600">{{ result.formula }}</div>
-                <div class="text-slate-400">Tipo: <span class="text-white">{{ result.tipo }}</span> | Error: <span class="text-warning">{{ result.error_khz }} kHz</span></div>
+                <div class="text-texto-tenue">Tipo: <span class="text-white">{{ result.tipo }}</span> | Error: <span class="text-warning">{{ result.error_khz }} kHz</span></div>
                 <div class="text-right font-semibold text-success">Score: {{ result.score }}%</div>
               </div>
             </div>
@@ -83,21 +83,21 @@
 
           <!-- P0-11: lo guardado de verdad, que viene de la base y no del
                cálculo en memoria. Antes este `GET` siempre devolvía vacío. -->
-          <div v-if="guardados.length > 0" class="mt-4 pt-4 border-t border-slate-700">
+          <div v-if="guardados.length > 0" class="mt-4 pt-4 border-t border-borde-fuerte">
             <h3 class="font-semibold mb-2">Guardados en este expediente:</h3>
             <div class="space-y-2 max-h-64 overflow-y-auto">
               <div
                 v-for="ev in guardados"
                 :key="ev.id"
-                class="p-3 bg-slate-700 rounded text-sm"
+                class="p-3 bg-on-ink-wash rounded text-sm"
               >
                 <div class="font-mono text-sky-600">{{ ev.formula }}</div>
-                <div class="text-slate-400">Tipo: <span class="text-white">{{ ev.tipo_producto }}</span> | Error: <span class="text-warning">{{ ev.error_khz }} kHz</span></div>
+                <div class="text-texto-tenue">Tipo: <span class="text-white">{{ ev.tipo_producto }}</span> | Error: <span class="text-warning">{{ ev.error_khz }} kHz</span></div>
                 <div class="text-right font-semibold text-success">Score: {{ ev.score_probabilidad }}%</div>
               </div>
             </div>
           </div>
-          <p v-else-if="guardadosCargado" class="mt-4 text-sm text-slate-500">
+          <p v-else-if="guardadosCargado" class="mt-4 text-sm text-texto-tenue">
             Todavía no se guardó ningún resultado en este expediente. Desde la
             Calculadora RF, eligiendo este expediente como destino, queda acá.
           </p>
@@ -105,12 +105,12 @@
       </div>
 
       <!-- Observaciones -->
-      <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
+      <div class="bg-panel-alto border border-borde-fuerte rounded-lg p-6">
         <h2 class="text-lg font-semibold mb-4">Observaciones</h2>
         <textarea
           v-model="expediente.observaciones"
           rows="4"
-          class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+          class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
         ></textarea>
         <button
           @click="updateExpediente"
@@ -162,7 +162,7 @@ const statusClass = (status) => {
     abierto: 'text-blue-300',
     investigacion: 'text-yellow-300',
     resuelto: 'text-green-300',
-    cerrado: 'text-slate-300',
+    cerrado: 'text-texto-medio',
   }
   return classes[status] || classes.abierto
 }

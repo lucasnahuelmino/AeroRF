@@ -76,14 +76,23 @@ describe('one palette everywhere', () => {
   it('actually uses the current palette', () => {
     // The mirror of the check above: a file that had every token replaced by
     // deletion would pass. The theme has to be present, not merely absent.
+    //
+    // Con la migración de plantillas (0.30.28) el espejo se dio vuelta para
+    // slate: la escala vieja no sólo no debe faltar, no debe estar. La mitad
+    // «presente» ahora la garantizan los nombres semánticos.
     let slate = 0
     let sky = 0
+    let semantico = 0
     for (const file of files) {
       const text = readFileSync(file, 'utf8')
-      slate += (text.match(/(?:text|bg|border)-slate-\d+/g) || []).length
+      slate += (text.match(/slate-\d+/g) || []).length
       sky += (text.match(/(?:text|bg|border)-sky-\d+/g) || []).length
+      semantico += (text.match(
+        /(?:bg|text|border)-(?:fondo|panel|panel-alto|panel-hondo|texto|texto-medio|texto-tenue|texto-invisible|borde|borde-fuerte|on-ink|on-ink-soft|on-ink-faint|on-ink-wash|velo|velo-suave|ink|signal|signal-on-ink)\b/g,
+      ) || []).length
     }
-    expect(slate, 'nada usa la paleta slate').toBeGreaterThan(20)
+    expect(slate, 'una plantilla volvió a la escala slate (era gris o mentira)').toBe(0)
+    expect(semantico, 'nada usa los nombres semánticos de la familia').toBeGreaterThan(20)
     expect(sky, 'nada usa el acento sky').toBeGreaterThan(2)
   })
 })
@@ -110,9 +119,12 @@ describe('the built CSS generates what the templates ask for', () => {
     // the element renders with no border and no warning.
     const built = load()
     // Utility names as they appear in class attributes: plain, no variant.
+    // La lista siguió la migración de plantillas (0.30.28): lo que antes era
+    // la escala slate ya se llama por el token al que resuelve.
     const USED = [
-      'border-slate-700', 'border-slate-800', 'bg-slate-900', 'bg-slate-950',
-      'text-slate-300', 'text-slate-400', 'text-slate-500', 'text-slate-600',
+      'border-borde', 'border-borde-fuerte', 'bg-panel', 'bg-panel-alto',
+      'bg-panel-hondo', 'bg-on-ink-wash', 'bg-velo', 'bg-velo-suave',
+      'text-texto-medio', 'text-texto-tenue', 'text-texto-invisible',
       'text-sky-400', 'bg-sky-700', 'text-amber-300', 'text-emerald-400',
       'border-rose-700', 'bg-amber-950', 'text-rose-300',
     ]

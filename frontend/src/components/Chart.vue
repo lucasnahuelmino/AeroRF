@@ -1,6 +1,6 @@
 <template>
-  <div class="rounded-lg border border-slate-800 bg-[var(--fondo)] p-4">
-    <h3 v-if="title" class="mb-3 text-sm font-semibold text-slate-200">
+  <div class="rounded-lg border border-borde bg-[var(--fondo)] p-4">
+    <h3 v-if="title" class="mb-3 text-sm font-semibold text-texto">
       {{ title }}
     </h3>
 
@@ -14,10 +14,10 @@
       class="grid place-items-center gap-2"
       :style="{ height: `${height}px` }"
     >
-      <div class="h-1 w-40 overflow-hidden rounded-full bg-slate-800">
+      <div class="h-1 w-40 overflow-hidden rounded-full bg-panel-alto">
         <div class="h-full w-1/3 animate-pulse rounded-full bg-sky-600" />
       </div>
-      <span class="text-[10px] text-slate-600">Cargando el motor de gráficos…</span>
+      <span class="text-[10px] text-texto-invisible">Cargando el motor de gráficos…</span>
     </div>
 
     <div
@@ -27,9 +27,9 @@
     >
       <div>
         <p class="text-xs text-amber-300">No se pudo cargar el motor de gráficos.</p>
-        <p class="mt-1 text-[10px] text-slate-600">{{ error }}</p>
+        <p class="mt-1 text-[10px] text-texto-invisible">{{ error }}</p>
         <button
-          class="mt-2 rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-800"
+          class="mt-2 rounded border border-borde-fuerte px-2 py-1 text-[10px] text-texto-medio hover:bg-panel-alto"
           @click="draw"
         >
           Reintentar
@@ -39,7 +39,7 @@
 
     <div
       v-else-if="!data || data.length === 0"
-      class="grid place-items-center text-xs text-slate-500"
+      class="grid place-items-center text-xs text-texto-tenue"
       :style="{ height: `${height}px` }"
     >
       Sin datos para graficar.

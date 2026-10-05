@@ -251,74 +251,21 @@ svg {
   flex: 0 0 auto;
 }
 
-/* ═══ Compatibility: `slate-*` → the institutional palette ═══════════════════
+/* ═══ Los colores de la interfaz: una sola fuente ══════════════════════════
  *
- * What this is
- * ────────────
- * The templates carry **642** `slate-N` utilities and **194** more of other
- * Tailwind colours. That is over eight hundred references, and none of them goes
- * through a token: `bg-slate-900` was Tailwind's grey-blue, written into a
- * template by name.
+ * No hay puente: las plantillas nombran el color que quieren (`bg-panel`,
+ * `text-texto-medio`, `border-borde`) y la regla que Tailwind genera apunta
+ * al token de `tokens.css`. Los nombres semánticos se definen una sola vez,
+ * en `tailwind.config.js`; el valor, en los tokens. Este archivo no define
+ * colores propios: los toma.
  *
- * Rewriting all of them to semantic names is the right end state and it is
- * still to do. Doing it in the same pass as the palette change would have meant
- * eight hundred edits with no way to tell a deliberate change from a typo, on the
- * same day the whole interface changes colour.
- *
- * So this block bridges it instead: about thirty rules that make every one of
- * those utilities resolve to the new palette, so the application changes
- * appearance without a single template edit. `bg-slate-900` becomes `--panel`.
- *
- * How to read this honestly
- * ─────────────────────────
- * **The class names now lie.** `bg-slate-900` is blue. That is a real cost: a
- * developer who writes `bg-slate-900` tomorrow gets `--panel` and will not know
- * why, and the stock Tailwind name carries no information about the institutional
- * palette. This is a bridge, not a design.
- *
- * It is written this way — appended after `@tailwind utilities`, same
- * specificity, later in the file — rather than by redefining Tailwind's `slate`
- * palette, for two reasons that matter more than tidiness:
- *
- *   - Redefining `slate` would make `slate` genuinely be the new ramp, and that
- *     is a bigger lie: the ramp is semantic (`--ink`, `--signal`, `--borde`), not
- *     a 50→900 scale, so eleven steps would have to be invented from nothing.
- *   - A named block can be deleted. When the templates are migrated, this section
- *     goes with it, and nothing else has to know it existed.
- *
- * `tests/layout.spec.js` asserts every colour utility used in a template is
- * remapped here, so a new `slate-700` cannot appear and quietly stay grey.
+ * Hubo un puente (0.30.0–0.30.27): unas treinta reglas que reescribían la
+ * escala `slate` de Tailwind para que las ~640 utilidades ya escritas en
+ * las plantillas pintaran con la paleta institucional. Pintaba bien, pero
+ * mentía — la clase decía una escala y resolvía a otro color — y cualquier
+ * uso nuevo podía quedar gris sin aviso. En 0.30.28 se migraron las
+ * plantillas a nombres semánticos y este bloque se borró.
  */
-
-/* Surfaces, darkest to lightest. */
-.bg-slate-900 { background-color: var(--panel); }
-.bg-slate-950 { background-color: var(--panel-hondo); }
-.bg-slate-950\/60 { background-color: var(--on-ink-wash); }
-.bg-slate-900\/60 { background-color: var(--on-ink-wash); }
-.bg-slate-800\/60 { background-color: var(--on-ink-wash); }
-
-/* Text. Four steps, and the two lightest are not used for text on purpose. */
-.text-slate-100 { color: var(--texto); }
-.text-slate-200 { color: var(--texto); }
-.text-slate-300 { color: var(--texto-medio); }
-.text-slate-400 { color: var(--texto-tenue); }
-.text-slate-500 { color: var(--texto-tenue); }
-.text-slate-600 { color: var(--texto-invisible); }
-
-/* Borders and separators. */
-.border-slate-700 { border-color: var(--borde-fuerte); }
-.border-slate-800 { border-color: var(--borde); }
-.border-b-slate-800 { border-bottom-color: var(--borde); }
-.border-t-slate-800 { border-top-color: var(--borde); }
-.divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: var(--borde); }
-
-/* Inputs. */
-.border-slate-600 { border-color: var(--borde-fuerte); }
-.placeholder\:text-slate-500::placeholder { color: var(--texto-invisible); }
-
-/* Rings: the focus outline has to be visible on `--ink`, so it uses
-   `--signal-on-ink` and not `--signal`. See `tokens.css`. */
-.ring-slate-700 { --tw-ring-color: var(--signal-on-ink); }
 
 /* ─── Tables ─────────────────────────────────────────────────────────────── */
 

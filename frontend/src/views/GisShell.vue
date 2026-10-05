@@ -147,23 +147,23 @@
           <!-- Distance readout while measuring -->
           <div
             v-if="measure.active && measure.segment_count > 0"
-            class="pointer-events-auto absolute top-3 left-3 rounded-lg border border-amber-500/40 bg-slate-950/95 px-3 py-2 text-xs shadow-xl"
+            class="pointer-events-auto absolute top-3 left-3 rounded-lg border border-amber-500/40 bg-panel-hondo px-3 py-2 text-xs shadow-xl"
           >
             <div class="mb-1 text-[10px] uppercase tracking-widest text-amber-400">
               Medición
             </div>
             <div class="font-mono text-amber-200 text-sm">{{ measure.total_label }}</div>
-            <div class="mt-0.5 text-[10px] text-slate-500">
+            <div class="mt-0.5 text-[10px] text-texto-tenue">
               {{ measure.points.length }} puntos · {{ measure.segment_count }} tramos
             </div>
-            <div v-if="measure.area_note" class="text-[10px] text-slate-500">
+            <div v-if="measure.area_note" class="text-[10px] text-texto-tenue">
               Área ≈ {{ measure.area_note.toFixed(2) }} km²
             </div>
             <ul v-if="measure.segments.length" class="mt-1.5 space-y-0.5">
               <li
                 v-for="seg in measure.segments"
                 :key="seg.index"
-                class="font-mono text-[10px] text-slate-400"
+                class="font-mono text-[10px] text-texto-tenue"
               >
                 {{ String.fromCharCode(65 + seg.index) }}→{{ String.fromCharCode(66 + seg.index) }}
                 {{ seg.label }} · {{ seg.bearing.toFixed(0) }}°
@@ -179,7 +179,7 @@
           <!-- Draft preview readout -->
           <div
             v-if="draftPreview"
-            class="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 rounded-lg border border-blue-500/40 bg-slate-950/95 px-3 py-2 text-xs shadow-xl"
+            class="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 rounded-lg border border-blue-500/40 bg-panel-hondo px-3 py-2 text-xs shadow-xl"
           >
             <div class="text-[10px] uppercase tracking-widest text-blue-400 mb-1">
               {{ draftPreview.label }}
@@ -194,12 +194,12 @@
           <!-- Object quick actions -->
           <div
             v-if="mapStore.selected"
-            class="pointer-events-auto absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/95 px-2 py-1.5 shadow-xl"
+            class="pointer-events-auto absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg border border-borde-fuerte bg-panel-hondo px-2 py-1.5 shadow-xl"
           >
-            <span class="text-[11px] text-slate-300 max-w-[16rem] truncate">
+            <span class="text-[11px] text-texto-medio max-w-[16rem] truncate">
               {{ mapStore.selected.name || typeName(mapStore.selected.type) }}
             </span>
-            <span class="w-px h-4 bg-slate-700" />
+            <span class="w-px h-4 bg-borde" />
             <button
               class="gis-mini-btn"
               title="Medir desde este objeto hasta el cursor"
@@ -218,9 +218,9 @@
           <!-- Loading -->
           <div
             v-if="mapStore.loading"
-            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/40"
+            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-velo-suave"
           >
-            <div class="rounded-lg bg-slate-950/95 px-4 py-2 text-sm text-slate-300 shadow-xl">
+            <div class="rounded-lg bg-panel-hondo px-4 py-2 text-sm text-texto-medio shadow-xl">
               Cargando objetos…
             </div>
           </div>
@@ -286,14 +286,14 @@
     <!-- Help -->
     <div
       v-if="showHelp"
-      class="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-950/80 p-6"
+      class="fixed inset-0 z-[1300] flex items-center justify-center bg-velo p-6"
       @click.self="showHelp = false"
     >
-      <div class="max-w-2xl rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <h2 class="mb-3 text-lg font-semibold text-slate-100">AeroRF — ayuda rápida</h2>
-        <div class="grid gap-4 text-sm text-slate-300 md:grid-cols-2">
+      <div class="max-w-2xl rounded-xl border border-borde-fuerte bg-panel p-6 shadow-2xl">
+        <h2 class="mb-3 text-lg font-semibold text-texto">AeroRF — ayuda rápida</h2>
+        <div class="grid gap-4 text-sm text-texto-medio md:grid-cols-2">
           <div>
-            <h3 class="mb-1 font-semibold text-slate-200">Atajos</h3>
+            <h3 class="mb-1 font-semibold text-texto">Atajos</h3>
             <ul class="space-y-1 text-xs">
               <li><kbd>ESC</kbd> — cancelar la herramienta activa</li>
               <li><kbd>Enter</kbd> — confirmar el dibujo en curso</li>
@@ -302,7 +302,7 @@
             </ul>
           </div>
           <div>
-            <h3 class="mb-1 font-semibold text-slate-200">Capas de datos</h3>
+            <h3 class="mb-1 font-semibold text-texto">Capas de datos</h3>
             <ul class="space-y-1 text-xs">
               <li><b>Histórico</b> — track del vuelo en OpenSky</li>
               <li><b>En vivo</b> — vector de estado actual</li>

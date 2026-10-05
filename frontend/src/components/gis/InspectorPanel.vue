@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="flex flex-0 items-center justify-between border-b border-slate-800 px-3 py-2">
-      <h2 class="text-xs font-semibold uppercase tracking-widest text-slate-300">Inspector</h2>
+    <header class="flex flex-0 items-center justify-between border-b border-borde px-3 py-2">
+      <h2 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">Inspector</h2>
       <button
         v-if="object || aircraft"
         class="gis-mini-btn"
@@ -19,7 +19,7 @@
         store that nothing displayed, so the panel kept saying "select an object"
         while the operator had just clicked an aeroplane.
       -->
-      <div v-if="!object && !aircraft" class="p-4 text-center text-xs text-slate-500">
+      <div v-if="!object && !aircraft" class="p-4 text-center text-xs text-texto-tenue">
         <div class="mb-2 text-2xl opacity-40">◎</div>
         Seleccione un objeto o una aeronave en el mapa.
       </div>
@@ -37,22 +37,22 @@
         it — the map was not drawn at all, which is how it showed up.
       -->
       <template v-else-if="!object && aircraft">
-        <section class="border-b border-slate-800 p-2.5">
+        <section class="border-b border-borde p-2.5">
           <div class="mb-2 flex items-start gap-2">
             <span class="mt-0.5 text-base leading-none text-sky-400">✈</span>
             <div class="min-w-0 flex-1">
-              <div class="truncate text-[13px] font-semibold text-slate-100">
+              <div class="truncate text-[13px] font-semibold text-texto">
                 {{ aircraft.callsign || aircraft.icao24 }}
               </div>
-              <div class="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+              <div class="font-mono text-[10px] uppercase tracking-wider text-texto-tenue">
                 {{ aircraft.icao24 }} · {{ aircraft.origin_country || 'origen desconocido' }}
               </div>
             </div>
           </div>
 
           <!-- Provenance first: it says where every number below came from. -->
-          <p class="mb-2 rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-400">
-            <span class="text-slate-500">Procedencia:</span>
+          <p class="mb-2 rounded border border-borde bg-on-ink-wash px-2 py-1 text-[10px] text-texto-tenue">
+            <span class="text-texto-tenue">Procedencia:</span>
             <span :class="aircraftIsLive ? 'text-emerald-300' : 'text-amber-300'">
               {{ aircraftIsLive ? 'posición en vivo' : 'última posición conocida' }}
             </span>
@@ -65,29 +65,29 @@
           </p>
 
           <dl class="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-            <dt class="text-slate-500">Altitud</dt>
-            <dd class="text-right font-mono text-slate-200">
+            <dt class="text-texto-tenue">Altitud</dt>
+            <dd class="text-right font-mono text-texto">
               {{ aircraft.altitude != null ? fmt(aircraft.altitude, ' m') : '—' }}
             </dd>
-            <dt class="text-slate-500">Velocidad</dt>
-            <dd class="text-right font-mono text-slate-200">
+            <dt class="text-texto-tenue">Velocidad</dt>
+            <dd class="text-right font-mono text-texto">
               {{ aircraft.velocity != null ? fmt(aircraft.velocity, ' m/s') : '—' }}
             </dd>
-            <dt class="text-slate-500">Rumbo</dt>
-            <dd class="text-right font-mono text-slate-200">
+            <dt class="text-texto-tenue">Rumbo</dt>
+            <dd class="text-right font-mono text-texto">
               {{ aircraft.heading != null ? fmt(aircraft.heading, '°') : '—' }}
             </dd>
-            <dt class="text-slate-500">En tierra</dt>
-            <dd class="text-right text-slate-200">{{ aircraft.on_ground ? 'Sí' : 'No' }}</dd>
-            <dt class="text-slate-500">Posición</dt>
-            <dd class="text-right font-mono text-slate-200">
+            <dt class="text-texto-tenue">En tierra</dt>
+            <dd class="text-right text-texto">{{ aircraft.on_ground ? 'Sí' : 'No' }}</dd>
+            <dt class="text-texto-tenue">Posición</dt>
+            <dd class="text-right font-mono text-texto">
               <template v-if="aircraft.latitude != null">
                 {{ aircraft.latitude.toFixed(4) }}, {{ aircraft.longitude.toFixed(4) }}
               </template>
               <template v-else>—</template>
             </dd>
-            <dt class="text-slate-500">Visto</dt>
-            <dd class="text-right font-mono text-slate-200">
+            <dt class="text-texto-tenue">Visto</dt>
+            <dd class="text-right font-mono text-texto">
               {{ aircraft.time_position ? fmtTime(aircraft.time_position) : '—' }}
             </dd>
           </dl>
@@ -96,23 +96,23 @@
         <!-- The trajectory, which is what the aeroplane was clicked for. -->
         <section
           v-if="trajectory"
-          class="border-b border-slate-800 p-2.5"
+          class="border-b border-borde p-2.5"
         >
-          <h3 class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          <h3 class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-texto-tenue">
             Trayectoria
           </h3>
           <dl class="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-            <dt class="text-slate-500">Puntos</dt>
-            <dd class="text-right font-mono text-slate-200">{{ trajectoryPoints }}</dd>
-            <dt class="text-slate-500">Procedencia</dt>
-            <dd class="text-right text-slate-200">{{ trajectoryProvenance }}</dd>
-            <dt class="text-slate-500">Longitud</dt>
-            <dd class="text-right font-mono text-slate-200">{{ trajectoryLength }}</dd>
+            <dt class="text-texto-tenue">Puntos</dt>
+            <dd class="text-right font-mono text-texto">{{ trajectoryPoints }}</dd>
+            <dt class="text-texto-tenue">Procedencia</dt>
+            <dd class="text-right text-texto">{{ trajectoryProvenance }}</dd>
+            <dt class="text-texto-tenue">Longitud</dt>
+            <dd class="text-right font-mono text-texto">{{ trajectoryLength }}</dd>
           </dl>
           <p
             v-for="note in provenanceNotes"
             :key="note.text"
-            class="mt-1 text-[10px] leading-snug text-slate-500"
+            class="mt-1 text-[10px] leading-snug text-texto-tenue"
           >
             {{ note.text }}
           </p>
@@ -122,8 +122,8 @@
           Distances to RF objects. The header says what this is and is not:
           a geometric proximity, never a cause.
         -->
-        <section v-if="distances.length" class="border-b border-slate-800 p-2.5">
-          <h3 class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+        <section v-if="distances.length" class="border-b border-borde p-2.5">
+          <h3 class="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-texto-tenue">
             Objetos RF cercanos
           </h3>
           <ul class="space-y-1">
@@ -139,10 +139,10 @@
               >
                 {{ row.name }}
               </button>
-              <span class="flex-none font-mono text-slate-400">{{ fmt(row.distance_km, ' km') }}</span>
+              <span class="flex-none font-mono text-texto-tenue">{{ fmt(row.distance_km, ' km') }}</span>
             </li>
           </ul>
-          <p class="mt-2 text-[10px] leading-snug text-slate-500">
+          <p class="mt-2 text-[10px] leading-snug text-texto-tenue">
             Proximidad geométrica a un radio de {{ distancesRadius }}. No implica causalidad: que un
             objeto esté cerca no dice que haya interferido con esta aeronave.
           </p>
@@ -157,7 +157,7 @@
 
       <template v-else>
         <!-- Identity -->
-        <section class="border-b border-slate-800 p-2.5">
+        <section class="border-b border-borde p-2.5">
           <div class="mb-2 flex items-start gap-2">
             <span
               class="mt-1 h-3 w-3 flex-none rounded-full"
@@ -166,24 +166,24 @@
             <div class="min-w-0 flex-1">
               <input
                 v-model="nameDraft"
-                class="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-slate-100 hover:border-slate-700 focus:border-blue-600 focus:bg-slate-950 focus:outline-none"
+                class="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-texto hover:border-borde-fuerte focus:border-blue-600 focus:bg-panel-hondo focus:outline-none"
                 :disabled="locked"
                 @change="saveField('name', nameDraft)"
               />
-              <div class="px-1 text-[10px] uppercase tracking-wide text-slate-500">
+              <div class="px-1 text-[10px] uppercase tracking-wide text-texto-tenue">
                 {{ typeName(object.type) }} · ID {{ object.id }}
               </div>
             </div>
           </div>
 
           <!-- Status (spec §15) -->
-          <label class="mb-1 block text-[10px] uppercase tracking-widest text-slate-500">
+          <label class="mb-1 block text-[10px] uppercase tracking-widest text-texto-tenue">
             Estado
           </label>
           <div class="mb-2 grid grid-cols-2 gap-1">
             <select
               v-model="statusDraft"
-              class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100"
+              class="rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-xs text-texto"
               :disabled="locked"
               @change="saveStatus"
             >
@@ -212,39 +212,39 @@
         </section>
 
         <!-- General properties (spec §9) -->
-        <section class="border-b border-slate-800 p-2.5">
-          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+        <section class="border-b border-borde p-2.5">
+          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-texto-tenue">
             Propiedades generales
           </h3>
           <dl class="space-y-1 text-[11px]">
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Descripción</dt>
-              <dd class="min-w-0 flex-1 text-right text-slate-300">
+              <dt class="text-texto-tenue">Descripción</dt>
+              <dd class="min-w-0 flex-1 text-right text-texto-medio">
                 <input
                   v-model="descriptionDraft"
-                  class="w-full rounded border border-transparent bg-transparent px-1 text-right text-[11px] text-slate-300 hover:border-slate-700 focus:border-blue-600 focus:bg-slate-950 focus:outline-none"
+                  class="w-full rounded border border-transparent bg-transparent px-1 text-right text-[11px] text-texto-medio hover:border-borde-fuerte focus:border-blue-600 focus:bg-panel-hondo focus:outline-none"
                   :disabled="locked"
                   @change="saveField('description', descriptionDraft)"
                 />
               </dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Capa</dt>
-              <dd class="text-slate-300">{{ object.properties?.layer_name || object.layer || '—' }}</dd>
+              <dt class="text-texto-tenue">Capa</dt>
+              <dd class="text-texto-medio">{{ object.properties?.layer_name || object.layer || '—' }}</dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Visible</dt>
-              <dd class="text-slate-300">{{ object.visible ? 'Sí' : 'No' }}</dd>
+              <dt class="text-texto-tenue">Visible</dt>
+              <dd class="text-texto-medio">{{ object.visible ? 'Sí' : 'No' }}</dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Procedencia</dt>
-              <dd class="text-right text-slate-300">
+              <dt class="text-texto-tenue">Procedencia</dt>
+              <dd class="text-right text-texto-medio">
                 {{ provenanceLabel(object.provenance) }}
               </dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Expediente</dt>
-              <dd class="text-slate-300">
+              <dt class="text-texto-tenue">Expediente</dt>
+              <dd class="text-texto-medio">
                 {{ object.properties?.expediente || '—' }}
                 <button
                   v-if="!object.expediente_id"
@@ -256,41 +256,41 @@
               </dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Creado</dt>
-              <dd class="text-slate-300">{{ formatDate(object.created_at) }}</dd>
+              <dt class="text-texto-tenue">Creado</dt>
+              <dd class="text-texto-medio">{{ formatDate(object.created_at) }}</dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-slate-500">Modificado</dt>
-              <dd class="text-slate-300">{{ formatDate(object.updated_at) }}</dd>
+              <dt class="text-texto-tenue">Modificado</dt>
+              <dd class="text-texto-medio">{{ formatDate(object.updated_at) }}</dd>
             </div>
           </dl>
         </section>
 
         <!-- Geometry -->
-        <section v-if="hasGeometry" class="border-b border-slate-800 p-2.5">
-          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+        <section v-if="hasGeometry" class="border-b border-borde p-2.5">
+          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-texto-tenue">
             Geometría
           </h3>
           <div v-if="isPoint" class="space-y-1.5">
             <div class="grid grid-cols-2 gap-1.5">
               <label class="block">
-                <span class="mb-0.5 block text-[10px] text-slate-500">Latitud</span>
+                <span class="mb-0.5 block text-[10px] text-texto-tenue">Latitud</span>
                 <input
                   v-model.number="latDraft"
                   type="number"
                   step="0.000001"
-                  class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+                  class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
                   :disabled="locked"
                   @change="savePosition"
                 />
               </label>
               <label class="block">
-                <span class="mb-0.5 block text-[10px] text-slate-500">Longitud</span>
+                <span class="mb-0.5 block text-[10px] text-texto-tenue">Longitud</span>
                 <input
                   v-model.number="lonDraft"
                   type="number"
                   step="0.000001"
-                  class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+                  class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
                   :disabled="locked"
                   @change="savePosition"
                 />
@@ -309,20 +309,20 @@
                 type="number"
                 min="0.01"
                 step="0.5"
-                class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+                class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
                 :disabled="locked"
                 @change="saveRadius"
               />
               <select
                 v-model="radiusUnitDraft"
-                class="rounded border border-slate-700 bg-slate-950 px-1 py-1 text-[11px] text-slate-100"
+                class="rounded border border-borde-fuerte bg-panel-hondo px-1 py-1 text-[11px] text-texto"
                 :disabled="locked"
                 @change="saveRadius"
               >
                 <option v-for="u in units" :key="u" :value="u">{{ u.toUpperCase() }}</option>
               </select>
             </div>
-            <p class="rounded bg-slate-950/60 px-2 py-1 font-mono text-[11px] text-emerald-300">
+            <p class="rounded bg-on-ink-wash px-2 py-1 font-mono text-[11px] text-emerald-300">
               {{ radiusValue }} {{ radiusUnitDraft.toUpperCase() }}
               = {{ radiusKm }} km
             </p>
@@ -332,20 +332,20 @@
           <div v-if="object.azimuth !== null && object.azimuth !== undefined" class="mt-1 space-y-1.5">
             <div class="grid grid-cols-2 gap-1.5">
               <label class="block">
-                <span class="mb-0.5 block text-[10px] text-slate-500">Azimut (°)</span>
+                <span class="mb-0.5 block text-[10px] text-texto-tenue">Azimut (°)</span>
                 <input
                   v-model.number="azimuthDraft"
                   type="number"
                   min="0"
                   max="360"
                   step="1"
-                  class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+                  class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
                   :disabled="locked"
                   @change="saveRadial"
                 />
               </label>
               <label class="block">
-                <span class="mb-0.5 block text-[10px] text-slate-500">
+                <span class="mb-0.5 block text-[10px] text-texto-tenue">
                   Longitud ({{ lengthUnitDraft.toUpperCase() }})
                 </span>
                 <input
@@ -353,13 +353,13 @@
                   type="number"
                   min="0.01"
                   step="0.5"
-                  class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+                  class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
                   :disabled="locked"
                   @change="saveRadial"
                 />
               </label>
             </div>
-            <p v-if="object.radial" class="rounded bg-slate-950/60 px-2 py-1 font-mono text-[11px] text-purple-300">
+            <p v-if="object.radial" class="rounded bg-on-ink-wash px-2 py-1 font-mono text-[11px] text-purple-300">
               {{ object.radial.azimuth.toFixed(1) }}° ·
               {{ object.radial.length_nm.toFixed(2) }} NM ·
               {{ object.radial.length_km.toFixed(2) }} km
@@ -369,28 +369,28 @@
           <!-- Line metrics (spec §12, §13) -->
           <dl v-if="object.metrics?.total_length_nm != null" class="mt-1.5 space-y-1 text-[11px]">
             <div class="flex justify-between">
-              <dt class="text-slate-500">Longitud total</dt>
-              <dd class="font-mono text-slate-300">
+              <dt class="text-texto-tenue">Longitud total</dt>
+              <dd class="font-mono text-texto-medio">
                 {{ object.metrics.total_length_km.toFixed(3) }} km /
                 {{ object.metrics.total_length_nm.toFixed(3) }} NM
               </dd>
             </div>
             <div class="flex justify-between">
-              <dt class="text-slate-500">Puntos</dt>
-              <dd class="font-mono text-slate-300">{{ object.metrics.point_count }}</dd>
+              <dt class="text-texto-tenue">Puntos</dt>
+              <dd class="font-mono text-texto-medio">{{ object.metrics.point_count }}</dd>
             </div>
           </dl>
         </section>
 
         <!-- Type-specific payload -->
-        <section v-if="typePayload" class="border-b border-slate-800 p-2.5">
-          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+        <section v-if="typePayload" class="border-b border-borde p-2.5">
+          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-texto-tenue">
             {{ typePayload.title }}
           </h3>
           <div class="space-y-1.5">
             <div v-for="row in typePayload.rows" :key="row.key" class="flex justify-between gap-2 text-[11px]">
-              <span class="text-slate-500">{{ row.label }}</span>
-              <span class="font-mono text-slate-300">
+              <span class="text-texto-tenue">{{ row.label }}</span>
+              <span class="font-mono text-texto-medio">
                 {{ row.value ?? 'dato no disponible' }}
               </span>
             </div>
@@ -404,15 +404,15 @@
             {{ openTypeEditor ? 'Cerrar editor' : 'Editar atributos' }}
           </button>
 
-          <div v-if="openTypeEditor && typePayload.editable" class="mt-2 space-y-1.5 rounded border border-slate-800 bg-slate-950/50 p-2">
+          <div v-if="openTypeEditor && typePayload.editable" class="mt-2 space-y-1.5 rounded border border-borde bg-panel-hondo p-2">
             <label v-for="field in typePayload.fields" :key="field.key" class="block">
-              <span class="mb-0.5 block text-[10px] text-slate-500">{{ field.label }}</span>
+              <span class="mb-0.5 block text-[10px] text-texto-tenue">{{ field.label }}</span>
               <component
                 :is="field.options ? 'select' : 'input'"
                 v-model="typeDraft[field.key]"
                 :type="field.type || 'text'"
                 :step="field.step"
-                class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-[11px] text-texto"
               >
                 <option v-if="field.options" v-for="opt in field.options" :key="opt" :value="opt">
                   {{ opt }}
@@ -426,14 +426,14 @@
         </section>
 
         <!-- Distances to this object (spec §30) -->
-        <section v-if="object.latitude != null" class="border-b border-slate-800 p-2.5">
+        <section v-if="object.latitude != null" class="border-b border-borde p-2.5">
           <div class="mb-2 flex items-center justify-between">
-            <h3 class="text-[10px] uppercase tracking-widest text-slate-500">
+            <h3 class="text-[10px] uppercase tracking-widest text-texto-tenue">
               Distancia desde el cursor
             </h3>
             <button class="gis-mini-btn" @click="measureFromCursor">Medir</button>
           </div>
-          <p v-if="distanceFromCursor === null" class="text-[11px] text-slate-500">
+          <p v-if="distanceFromCursor === null" class="text-[11px] text-texto-tenue">
             Mueva el cursor sobre el mapa.
           </p>
           <p v-else class="font-mono text-[11px] text-cyan-300">
@@ -442,21 +442,21 @@
         </section>
 
         <!-- Notes (spec §14, §42) -->
-        <section class="border-b border-slate-800 p-2.5">
-          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+        <section class="border-b border-borde p-2.5">
+          <h3 class="mb-2 text-[10px] uppercase tracking-widest text-texto-tenue">
             Notas (append-only)
           </h3>
           <div class="mb-2 space-y-1.5">
-            <p v-if="!notes.length" class="text-[11px] italic text-slate-500">
+            <p v-if="!notes.length" class="text-[11px] italic text-texto-tenue">
               Sin notas. Las notas se conservan para siempre y nunca se sobrescriben.
             </p>
             <div
               v-for="note in notes"
               :key="note.id"
-              class="rounded border border-slate-800 bg-slate-950/60 p-1.5"
+              class="rounded border border-borde bg-on-ink-wash p-1.5"
             >
-              <div class="text-[11px] text-slate-200">{{ note.text }}</div>
-              <div class="mt-0.5 text-[9px] text-slate-600">
+              <div class="text-[11px] text-texto">{{ note.text }}</div>
+              <div class="mt-0.5 text-[9px] text-texto-invisible">
                 {{ formatDate(note.timestamp) }}<span v-if="note.user"> · {{ note.user }}</span>
               </div>
             </div>
@@ -465,7 +465,7 @@
             <input
               v-model="noteDraft"
               placeholder="Nueva nota…"
-              class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+              class="min-w-0 flex-1 rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-[11px] text-texto"
               @keyup.enter="addNote"
             />
             <button class="gis-mini-btn" :disabled="!noteDraft.trim()" @click="addNote">+</button>
@@ -475,7 +475,7 @@
         <!-- History (spec §41) -->
         <section class="p-2">
           <div class="mb-2 flex items-center justify-between">
-            <h3 class="text-[10px] uppercase tracking-widest text-slate-500">
+            <h3 class="text-[10px] uppercase tracking-widest text-texto-tenue">
               Historial ({{ history.length }})
             </h3>
             <button
@@ -490,23 +490,23 @@
             <li
               v-for="row in visibleHistory"
               :key="row.id"
-              class="rounded border border-slate-800/60 bg-slate-950/40 p-1.5 text-[10px]"
+              class="rounded border border-borde bg-panel-hondo p-1.5 text-[10px]"
             >
               <div class="flex justify-between gap-2">
-                <span class="font-semibold text-slate-300">{{ row.field }}</span>
-                <span class="text-slate-600">{{ formatDate(row.changed_at) }}</span>
+                <span class="font-semibold text-texto-medio">{{ row.field }}</span>
+                <span class="text-texto-invisible">{{ formatDate(row.changed_at) }}</span>
               </div>
-              <div class="font-mono text-slate-500">
+              <div class="font-mono text-texto-tenue">
                 <span class="text-rose-400/80 line-through">{{ row.old_value ?? '—' }}</span>
                 <span class="mx-1">→</span>
                 <span class="text-emerald-400/90">{{ row.new_value ?? '—' }}</span>
               </div>
-              <div v-if="row.comment" class="mt-0.5 text-slate-600 italic">
+              <div v-if="row.comment" class="mt-0.5 text-texto-invisible italic">
                 {{ row.comment }}
               </div>
             </li>
           </ol>
-          <p v-else class="text-[11px] italic text-slate-500">Sin cambios registrados.</p>
+          <p v-else class="text-[11px] italic text-texto-tenue">Sin cambios registrados.</p>
         </section>
       </template>
     </div>

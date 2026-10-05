@@ -24,30 +24,30 @@
       was noise. What is left is the detail an operator needs and the one
       warning that actually needs a sentence: OpenSky is not configured.
     -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-4">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-texto-medio">
         Estado del sistema
       </h2>
       <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt class="text-[10px] uppercase tracking-widest text-slate-500">Backend</dt>
-          <dd class="mt-0.5 text-sm text-slate-200">{{ systemStore.backendStatus }}</dd>
+          <dt class="text-[10px] uppercase tracking-widest text-texto-tenue">Backend</dt>
+          <dd class="mt-0.5 text-sm text-texto">{{ systemStore.backendStatus }}</dd>
         </div>
         <div>
-          <dt class="text-[10px] uppercase tracking-widest text-slate-500">Base de datos</dt>
-          <dd class="mt-0.5 text-sm text-slate-200">
+          <dt class="text-[10px] uppercase tracking-widest text-texto-tenue">Base de datos</dt>
+          <dd class="mt-0.5 text-sm text-texto">
             {{ systemStore.dbConnected ? `${systemStore.dbStatus.tables.length} tablas` : 'no disponible' }}
           </dd>
         </div>
         <div>
-          <dt class="text-[10px] uppercase tracking-widest text-slate-500">OpenSky Network</dt>
-          <dd class="mt-0.5 text-sm text-slate-200">
+          <dt class="text-[10px] uppercase tracking-widest text-texto-tenue">OpenSky Network</dt>
+          <dd class="mt-0.5 text-sm text-texto">
             {{ flightsStore.openskyConfigured ? 'configurado' : 'sin configurar' }}
           </dd>
         </div>
         <div>
-          <dt class="text-[10px] uppercase tracking-widest text-slate-500">Objetos por capa</dt>
-          <dd class="mt-0.5 text-sm text-slate-200">{{ mapStore.layers.length }} capas</dd>
+          <dt class="text-[10px] uppercase tracking-widest text-texto-tenue">Objetos por capa</dt>
+          <dd class="mt-0.5 text-sm text-texto">{{ mapStore.layers.length }} capas</dd>
         </div>
       </dl>
       <p
@@ -63,8 +63,8 @@
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <!-- Object census by type -->
-      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+      <section class="rounded-lg border border-borde bg-on-ink-wash p-4">
+        <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-texto-medio">
           Objetos por tipo
         </h2>
         <DataTable
@@ -75,15 +75,15 @@
           ]"
           :rows="objectRows"
         />
-        <p v-else class="text-sm text-slate-500">
+        <p v-else class="text-sm text-texto-tenue">
           Sin objetos. Cree el primero desde el mapa.
         </p>
       </section>
 
       <!-- Expedientes -->
-      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+      <section class="rounded-lg border border-borde bg-on-ink-wash p-4">
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-semibold uppercase tracking-widest text-slate-300">
+          <h2 class="text-sm font-semibold uppercase tracking-widest text-texto-medio">
             Expedientes recientes
           </h2>
           <router-link to="/expedientes" class="text-xs text-blue-400 hover:text-blue-300">
@@ -100,31 +100,31 @@
           ]"
           :rows="expedienteRows"
         />
-        <p v-else class="text-sm text-slate-500">Sin expedientes.</p>
+        <p v-else class="text-sm text-texto-tenue">Sin expedientes.</p>
       </section>
     </div>
 
     <!-- RF summary -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-4">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-texto-medio">
         Resumen del dominio RF
       </h2>
       <div class="grid gap-3 md:grid-cols-4">
-        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
-          <div class="text-[10px] uppercase tracking-wide text-slate-500">Fuentes</div>
+        <div class="rounded border border-borde bg-on-ink-wash p-3">
+          <div class="text-[10px] uppercase tracking-wide text-texto-tenue">Fuentes</div>
           <div class="text-lg font-semibold text-orange-300">{{ rfSummary?.sources_total ?? 0 }}</div>
         </div>
-        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
-          <div class="text-[10px] uppercase tracking-wide text-slate-500">Eventos</div>
+        <div class="rounded border border-borde bg-on-ink-wash p-3">
+          <div class="text-[10px] uppercase tracking-wide text-texto-tenue">Eventos</div>
           <div class="text-lg font-semibold text-red-300">{{ rfSummary?.events_total ?? 0 }}</div>
         </div>
-        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
-          <div class="text-[10px] uppercase tracking-wide text-slate-500">Antenas</div>
+        <div class="rounded border border-borde bg-on-ink-wash p-3">
+          <div class="text-[10px] uppercase tracking-wide text-texto-tenue">Antenas</div>
           <div class="text-lg font-semibold text-emerald-300">{{ rfSummary?.antennas_total ?? 0 }}</div>
         </div>
-        <div class="rounded border border-slate-800 bg-slate-950/60 p-3">
-          <div class="text-[10px] uppercase tracking-wide text-slate-500">Banda de eventos</div>
-          <div class="text-sm text-slate-300">
+        <div class="rounded border border-borde bg-on-ink-wash p-3">
+          <div class="text-[10px] uppercase tracking-wide text-texto-tenue">Banda de eventos</div>
+          <div class="text-sm text-texto-medio">
             <template v-if="rfSummary?.event_frequencies?.count">
               {{ rfSummary.event_frequencies.min_mhz }}–{{ rfSummary.event_frequencies.max_mhz }} MHz
             </template>
@@ -135,8 +135,8 @@
     </section>
 
     <!-- Recording sessions -->
-    <section v-if="flightsStore.sessions.length" class="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-300">
+    <section v-if="flightsStore.sessions.length" class="rounded-lg border border-borde bg-on-ink-wash p-4">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-widest text-texto-medio">
         Sesiones de grabación
       </h2>
       <DataTable
