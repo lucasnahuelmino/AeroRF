@@ -67,7 +67,7 @@ def _bad_request(exc: svc.MapServiceError) -> HTTPException:
 
 
 def _not_found(object_id: int) -> HTTPException:
-    return HTTPException(status_code=404, detail=f"Object {object_id} not found")
+    return HTTPException(status_code=404, detail=f"No existe el objeto {object_id}.")
 
 
 def _to_leaflet(obj: MapObject) -> dict:
@@ -467,7 +467,7 @@ def duplicate_map_object(
             user=payload.user,
         )
     except svc.MapServiceError as exc:
-        if "not found" in str(exc):
+        if "no existe" in str(exc):
             raise _not_found(object_id)
         raise _bad_request(exc)
     return _to_leaflet(obj)
@@ -493,7 +493,7 @@ def add_note(
     try:
         return svc.add_note(db, object_id, payload.text, user=payload.user)
     except svc.MapServiceError as exc:
-        if "not found" in str(exc):
+        if "no existe" in str(exc):
             raise _not_found(object_id)
         raise _bad_request(exc)
 
@@ -524,7 +524,7 @@ def add_annotation(
             author=payload.author, category=payload.category,
         )
     except svc.MapServiceError as exc:
-        if "not found" in str(exc):
+        if "no existe" in str(exc):
             raise _not_found(object_id)
         raise _bad_request(exc)
 

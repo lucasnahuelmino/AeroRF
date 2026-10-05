@@ -115,6 +115,9 @@ def set_log_level(level: str = "INFO"):
     """Change the log level at runtime (diagnostics only)."""
     level = level.upper()
     if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
-        raise HTTPException(400, "Invalid log level")
+        raise HTTPException(
+            400,
+            "Nivel de registro inválido. Use DEBUG, INFO, WARNING, ERROR o CRITICAL.",
+        )
     setup_logging(level=level, force=True)
     return {"log_level": level}

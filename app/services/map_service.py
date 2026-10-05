@@ -198,7 +198,8 @@ def validate_type(object_type: str) -> str:
     t = (object_type or "").strip().lower()
     if t not in OBJECT_TYPES:
         raise MapServiceError(
-            f"Unknown object type {object_type!r}. Valid types: {', '.join(OBJECT_TYPES)}"
+            f"Tipo de objeto desconocido: {object_type}. "
+            f"Tipos válidos: {', '.join(OBJECT_TYPES)}"
         )
     return t
 
@@ -209,7 +210,8 @@ def validate_status(status: Optional[str]) -> Optional[str]:
     s = str(status).strip()
     if s not in OBJECT_STATES:
         raise MapServiceError(
-            f"Unknown status {status!r}. Valid states: {', '.join(OBJECT_STATES)}"
+            f"Estado desconocido: {status}. "
+            f"Estados válidos: {', '.join(OBJECT_STATES)}"
         )
     return s
 
@@ -270,7 +272,7 @@ def create_object(
     if latitude is not None and longitude is not None:
         if not valid_latlon(latitude, longitude):
             raise MapServiceError(
-                f"Invalid WGS84 coordinate: lat={latitude}, lon={longitude}"
+                f"Coordenada WGS84 inválida: lat={latitude}, lon={longitude}"
             )
 
     # Normalise units once, at the edge, so the database only ever holds
@@ -600,14 +602,14 @@ def update_object(
     """Apply a partial update, recording every changed field in history."""
     obj = get_object(db, object_id)
     if obj is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
 
     before = _snapshot(obj)
     unknown = set(patch) - MUTABLE_FIELDS
     if unknown:
         raise MapServiceError(
-            f"Unknown field(s): {', '.join(sorted(unknown))}. "
-            f"Editable: {', '.join(sorted(MUTABLE_FIELDS))}"
+            f"Campo(s) desconocido(s): {', '.join(sorted(unknown))}. "
+            f"Editables: {', '.join(sorted(MUTABLE_FIELDS))}"
         )
 
     require_unlocked(obj, patch)
@@ -656,7 +658,7 @@ def update_object(
             lon = value if field == "longitude" else obj.longitude
             if lat is not None and lon is not None and not valid_latlon(lat, lon):
                 raise MapServiceError(
-                    f"Invalid WGS84 coordinate: lat={lat}, lon={lon}"
+                    f"Coordenada WGS84 inválida: lat={lat}, lon={lon}"
                 )
         setattr(obj, field, value)
 
@@ -701,7 +703,7 @@ def move_object(
 ) -> MapObject:
     """Reposition an object (drag on the map)."""
     if not valid_latlon(latitude, longitude):
-        raise MapServiceError(f"Invalid WGS84 coordinate: {latitude}, {longitude}")
+        raise MapServiceError(f"Coordenada WGS84 inválida: {latitude}, {longitude}")
     return update_object(
         db, object_id,
         {"latitude": latitude, "longitude": longitude},
@@ -720,7 +722,7 @@ def duplicate_object(
     """Copy an object, optionally offset so both are visible (spec §8)."""
     src = get_object(db, object_id)
     if src is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
 
     new_props = dict(src.properties or {})
     # Copy vertex-level shapes so the duplicate is independent.
@@ -897,9 +899,9 @@ def add_note(
 ) -> ObjectNote:
     """Append a note. There is no update path, by design."""
     if not (text or "").strip():
-        raise MapServiceError("A note cannot be empty.")
+        raise MapServiceError("La nota no puede quedar vacía.")
     if _find_by_id(db, object_id) is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
 
     note = ObjectNote(object_id=object_id, text=text.strip(), user=user)
     db.add(note)
@@ -962,7 +964,7 @@ def add_annotation(
 ) -> Annotation:
     obj = _find_by_id(db, object_id)
     if obj is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
     ann = Annotation(
         object_id=object_id,
         text=(text or "").strip(),

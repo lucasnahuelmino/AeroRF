@@ -493,7 +493,7 @@ async def _receive(websocket: WebSocket, sub: FlightSubscription) -> None:
                 await sub.send({"type": "pong"})
             else:
                 await sub.send(
-                    {"type": "error", "message": f"Unknown action: {action!r}"}
+                    {"type": "error", "message": f"Acción desconocida: {action}"}
                 )
     except (WebSocketDisconnect, RuntimeError):
         sub.alive = False

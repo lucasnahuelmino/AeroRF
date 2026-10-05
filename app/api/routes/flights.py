@@ -175,8 +175,8 @@ async def live(
         if len(codes) > get_settings().max_tracked_aircraft:
             raise HTTPException(
                 400,
-                f"At most {get_settings().max_tracked_aircraft} aircraft "
-                f"per query.",
+                f"Consulte como máximo {get_settings().max_tracked_aircraft} "
+                f"aeronaves por petición.",
             )
 
     try:
@@ -184,7 +184,8 @@ async def live(
             parts = [float(p) for p in bbox.split(",")]
             if len(parts) != 4:
                 raise HTTPException(
-                    400, "bbox must be 'lat_min,lon_min,lat_max,lon_max'"
+                    400,
+                    "`bbox` debe ser 'lat_min,lon_min,lat_max,lon_max'.",
                 )
             return await service.get_states_in_box(*parts)
         return await service.get_states(icao24=codes)
@@ -274,9 +275,10 @@ async def flights_of_aircraft(
 
     code = str(icao24).strip().lower()
     if not fsvc.valid_icao24(code):
-        raise HTTPException(
-            422, f"Invalid ICAO24 {icao24!r}: expected 6 hex characters."
-        )
+        # El mismo ayudante que las cuatro rutas de flight_service: una
+        # sola copia del mensaje, en español, que dice además qué hacer
+        # cuando se escribió un callsign en el campo de ICAO24.
+        raise HTTPException(422, fsvc._explicar_icao24_invalido(str(icao24)))
 
     now = int(datetime.now(timezone.utc).timestamp())
     if begin is None and end is None:
@@ -293,9 +295,9 @@ async def flights_of_aircraft(
             begin = end - days * 86400
     begin, end = int(begin), int(end)
     if end <= begin:
-        raise HTTPException(400, "`end` must be greater than `begin`")
+        raise HTTPException(400, "`end` debe ser mayor que `begin`.")
     if begin > now + 300:
-        raise HTTPException(400, "OpenSky does not accept future timestamps.")
+        raise HTTPException(400, "OpenSky no acepta marcas de tiempo futuras.")
 
     # Cover the whole range with consecutive windows, oldest first so they come
     # out in order, each at most as wide as the endpoint accepts.
@@ -504,7 +506,9 @@ def start_session(session_id: int, db: Session = Depends(get_db)):
     """
     session = db.query(FlightSession).filter(FlightSession.id == session_id).first()
     if session is None:
-        raise HTTPException(404, f"Session {session_id} not found")
+        raise HTTPException(
+            404, f"No existe la sesión de vuelo {session_id}."
+        )
     if session.status == fsvc.SESSION_RECORDING:
         return {"id": session.id, "status": session.status, "already_recording": True}
     session.status = fsvc.SESSION_RECORDING
@@ -541,10 +545,12 @@ def delete_session(session_id: int, db: Session = Depends(get_db)):
     """Delete a session and its positions."""
     session = db.query(FlightSession).filter(FlightSession.id == session_id).first()
     if session is None:
-        raise HTTPException(404, f"Session {session_id} not found")
+        raise HTTPException(
+            404, f"No existe la sesión de vuelo {session_id}."
+        )
     if session.status == fsvc.SESSION_RECORDING:
         raise HTTPException(
-            400, "Stop the session before deleting it."
+            400, "Detenga la sesión antes de borrarla."
         )
     db.delete(session)
     db.commit()
@@ -761,9 +767,9 @@ def _resolve(begin: Optional[int], end: Optional[int], hours: int) -> tuple[int,
     begin = begin if begin is not None else now - hours * 3600
     end = end if end is not None else begin + hours * 3600
     if end <= begin:
-        raise HTTPException(400, "`end` must be greater than `begin`")
+        raise HTTPException(400, "`end` debe ser mayor que `begin`.")
     if end > now + 300:
         raise HTTPException(
-            400, "OpenSky does not accept future timestamps."
+            400, "OpenSky no acepta marcas de tiempo futuras."
         )
     return int(begin), int(end)

@@ -627,10 +627,6 @@ código estaba bien; el instrumento no.
 - **`toolbar.spec.js` falló una vez al cargar** (441/453, 12 sin correr);
   sola 12/12 y la corrida siguiente 453/453. Mismo síntoma que el flake ya
   registrado; **sin repro y sin atribución posible**.
-- **Inglés en `expedientes.py`**: «Expediente not found» y «Expediente …
-  already exists». Los del endpoint nuevo sí están en español.
-- **Los 422 de FastAPI siguen en inglés**; la vista los traduce antes de
-  mostrarlos, pero el JSON crudo sigue con «Field required».
 
 ---
 
@@ -640,8 +636,9 @@ código estaba bien; el instrumento no.
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
 `test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
-0.30.21 y P0-01 + P0-03 en 0.30.22; de la fase 2, F2-01 a F2-08
-(0.30.10–0.30.18, con sus entradas más abajo).**
+0.30.21, P0-01 + P0-03 en 0.30.22 y los últimos textos en inglés en
+0.30.23; de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18, con sus
+entradas más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -701,6 +698,25 @@ código estaba bien; el instrumento no.
   revienta— queda más fuerte), y el log de «adoptado como versión 1»
   ahora dice «llevado a la versión {VERSION}». 7 guardas, **6 rojas**
   antes, repetidas **por revertida**.
+
+- **Los últimos textos en inglés del backend** en 0.30.23 — la cola
+  los anotó uno por uno (ws, el aviso de arranque, `expedientes.py`,
+  «future timestamps», correlación, mapa) y el barrido encontró unas
+  40 frases en 12 archivos: la misma falta once veces, así que se cierra
+  **como un solo ítem**. El aviso de arranque además **mentía** («flight
+  features disabled»: en modo anónimo el tráfico en vivo sí funciona y
+  lo que se cae es el historial — ahora lo dice así y nombra
+  `OPENSKY_ALLOW_ANONYMOUS`). La ruta de ICAO24 tenía una **quinta
+  copia** del mensaje que el guardia de `test_error_icao24` no miraba
+  (escanea `flight_service.py`); ahora pasa por el mismo ayudante. En
+  `map` los tres matchers `if "not found" in str(exc)` cambiaron junto
+  con el servicio, **después del grep**: la frase vivía en
+  `map_service`. 49 guardas — 12 en vivo y 37 portero de código —,
+  **49 rojas** antes y **49 rojas por revertida**; colateral: 2 pins
+  adaptados en `test_map_objects` (misma intención, otro idioma). Fuera
+  de alcance, con la razón escrita: `geo.require_latlon` (nadie lo
+  llama), el `except → 500 str(exc)` de `rf_expediente` (otra clase de
+  defecto), texto de httpx/SQLite/OpenSky y los logs por petición.
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
@@ -844,9 +860,6 @@ con su commit propio:
   que era justo lo que el comentario del código quería evitar. O se agrega el
   manejo, o se quita el frame — **decisión del operador**, porque cambia cómo
   se ve el mapa.
-- **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
-- **El aviso de arranque dice «flight features disabled»** cuando en modo
-  anónimo las de vuelo sí funcionan.
 - **`GET /expedientes` corta en 10 y nadie pagina** — los cinco llamadores van
   sin parámetro y la pantalla de expedientes muestra a lo sumo 10 sin decirlo.
 - **`toolbar.spec.js` flaky, tres veces.** Una al cargar en corrida completa
@@ -892,8 +905,6 @@ con su commit propio:
   ningún archivo versionado. Hay que generar una clave nueva en OpenSky y
   reemplazar la vieja; eso requiere entrar a la cuenta, así que no se puede hacer
   desde acá.
-- **Un mensaje en inglés en una ruta:** «OpenSky does not accept future
-  timestamps.», en las líneas 298 y 767 de `app/api/routes/flights.py`.
 - **`npm run lint` no funciona**: no hay configuración de ESLint en el
   repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
   falso. La comprobación real es el build.

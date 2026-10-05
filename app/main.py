@@ -69,10 +69,14 @@ async def lifespan(app: FastAPI):
         opensky="configured" if settings.has_opensky_credentials else "not configured",
     )
     if not settings.has_opensky_credentials:
+        # «Flight features disabled» era falso: en modo anónimo el
+        # tráfico en vivo sí funciona (OpenSky lo sirve sin cuenta); lo
+        # que se cae sin credenciales es el historial de vuelos.
         log.warning(
             "app.opensky_missing",
-            "OpenSky credentials absent — flight features disabled, "
-            "map and RF features unaffected. See .env.example.",
+            "Credenciales de OpenSky ausentes: el historial de vuelos "
+            "quedará deshabilitado y el tráfico en vivo dependerá de "
+            "OPENSKY_ALLOW_ANONYMOUS. Ver .env.example.",
         )
     yield
     log.info("app.shutdown", "shutting down")

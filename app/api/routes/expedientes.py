@@ -77,7 +77,7 @@ def create_expediente(
     - aeropuerto: Airport identifier
     - And other case details
     """
-    # Check if numero_expediente already exists
+    # ¿Ya existe ese número de expediente?
     existing = db.query(Expediente).filter(
         Expediente.numero_expediente == expediente.numero_expediente
     ).first()
@@ -85,7 +85,7 @@ def create_expediente(
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Expediente {expediente.numero_expediente} already exists"
+            detail=f"Ya existe un expediente con el número {expediente.numero_expediente}."
         )
     
     db_expediente = Expediente(**expediente.dict())
@@ -104,7 +104,7 @@ def get_expediente(id: int, db: Session = Depends(get_db)):
     expediente = db.query(Expediente).filter(Expediente.id == id).first()
     
     if not expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
+        raise HTTPException(status_code=404, detail=f"No existe el expediente {id}.")
     
     return expediente
 
@@ -121,7 +121,7 @@ def update_expediente(
     db_expediente = db.query(Expediente).filter(Expediente.id == id).first()
     
     if not db_expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
+        raise HTTPException(status_code=404, detail=f"No existe el expediente {id}.")
     
     # Update only provided fields
     for field, value in expediente.dict(exclude_unset=True).items():
@@ -184,7 +184,7 @@ def get_mediciones(id: int, db: Session = Depends(get_db)):
     expediente = db.query(Expediente).filter(Expediente.id == id).first()
     
     if not expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
+        raise HTTPException(status_code=404, detail=f"No existe el expediente {id}.")
     
     return db.query(Medicion).filter(Medicion.expediente_id == id).all()
 
@@ -197,7 +197,7 @@ def get_eventos_rf(id: int, db: Session = Depends(get_db)):
     expediente = db.query(Expediente).filter(Expediente.id == id).first()
     
     if not expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
+        raise HTTPException(status_code=404, detail=f"No existe el expediente {id}.")
     
     return db.query(EventoRF).filter(EventoRF.expediente_id == id).order_by(
         desc(EventoRF.score_probabilidad)

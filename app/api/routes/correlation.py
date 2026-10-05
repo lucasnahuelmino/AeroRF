@@ -81,10 +81,10 @@ async def rf_aircraft(
 
     obj = svc.get_object(db, oid)
     if obj is None:
-        raise HTTPException(404, f"Object {object_id} not found")
+        raise HTTPException(404, f"No existe el objeto {object_id}.")
     if obj.latitude is None or obj.longitude is None:
         raise HTTPException(
-            400, f"Object {object_id} has no position, so it cannot be correlated."
+            400, f"El objeto {object_id} no tiene posición, no se puede correlizar."
         )
 
     radii = _radii(body.get("radii_nm"))
@@ -115,10 +115,10 @@ async def correlate_object(
     """Full correlation report for one object, using live states."""
     obj = svc.get_object(db, object_id)
     if obj is None:
-        raise HTTPException(404, f"Object {object_id} not found")
+        raise HTTPException(404, f"No existe el objeto {object_id}.")
     if obj.latitude is None or obj.longitude is None:
         raise HTTPException(
-            400, f"Object {object_id} has no position."
+            400, f"El objeto {object_id} no tiene posición."
         )
 
     service = get_opensky_service()
@@ -208,7 +208,7 @@ def _radii(raw: Any) -> list[float]:
     try:
         values = sorted({float(p) for p in parts})
     except (TypeError, ValueError):
-        raise HTTPException(400, "radii_nm must be a list of numbers")
+        raise HTTPException(400, "radii_nm debe ser una lista de números.")
     return values or list(CORRELATION_RADII_NM)
 
 

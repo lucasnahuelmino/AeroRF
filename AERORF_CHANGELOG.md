@@ -5391,3 +5391,122 @@ corrida limpia inmediata dio **460/460 en 77 s**.
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
 | Versión del esquema | 1 | **2** |
+# 0.30.23 — Los últimos textos en inglés del backend, de una
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/textos-espanol-backend` ·
+**Regla del proyecto: lo que el operador lee está en español**
+
+## Cómo llegó a ser un solo ítem
+
+La cola de RETOMAR los anotó **uno por uno** — `ws.py`, el aviso de
+arranque, `expedientes.py`, «future timestamps», `correlation.py`,
+`map.py` — y el barrido encontró **más de lo mismo** en
+`map_service`, `flight_service`, `opensky_service` y `cache`: unas 40
+frases de una línea repartidas en 12 archivos. Son la misma falta
+once veces: prosa nuestra escrita en inglés donde llega un detalle
+`HTTPException`, un `MapServiceError` o un frame del websocket.
+Traducirlos en tandas de uno habría sido once rondas de rama y
+commit para una sola regla; se cierra **como un ítem**, con una guarda
+que cubre cada frase.
+
+## Qué se tradujo
+
+| Dónde | Qué |
+|---|---|
+| `map.py` | el helper `_not_found` («Object … not found») y los tres matchers `if "not found" in str(exc)` que lo buscaban — cambiados **junto con el servicio**, después de grep: la frase vivía en `map_service` |
+| `correlation.py` | 404 y «has no position…» ×2, «radii_nm must be…» |
+| `expedientes.py` | 4 × «Expediente not found» + «already exists» (y el comentario en inglés que tocaba, por la regla de lo que un commit toca) |
+| `rf_expediente.py` | 2 × «Expediente not found» |
+| `flights.py` | «Invalid ICAO24…», «`end` must be greater…» ×2, «future timestamps» ×2, «Session … not found» ×2, «Stop the session…», «At most … per query», «bbox must be…» |
+| `system.py` | «Invalid log level» |
+| `ws.py` | «Unknown action: …» (el frame `error` al navegador) |
+| `main.py` | el aviso de arranque — **que además era falso** (abajo) |
+| `map_service.py` | tipo/estado/campo desconocidos, «Invalid WGS84» ×3, «A note cannot be empty», «Object … not found» ×4 |
+| `flight_service.py` | «Invalid date/time…» — las rutas las devuelven como 400 vía `_handle` |
+| `opensky_service.py` | timeout, red, token rechazado, límite de créditos (¡estaba **mezclado**: la mitad en inglés y la mitad en español), parámetros, 5xx, HTTP raro, reintento, JSON ilegible |
+| `cache.py` | el mensaje del gate de backoff de F2-07 (429 al operador) |
+
+### El aviso de arranque decía una mentira
+
+> «OpenSky credentials absent — flight features disabled»
+
+Falso: en modo anónimo el **tráfico en vivo sí funciona** (OpenSky
+sirve `/states/all` sin cuenta) y lo que se cae sin credenciales es el
+**historial**. El texto nuevo lo dice así, en español, y nombra
+`OPENSKY_ALLOW_ANONYMOUS`, que es la llave del otro caso.
+
+### El quinto ICAO24
+
+`test_error_icao24` ya existía para un mensaje que estaba **cuatro
+veces** en `flight_service.py`, y fija que las cuatro pasen por
+`_explicar_icao24_invalido`. La ruta `GET /{icao24}/flights` tenía su
+**propia quinta copia**, en inglés, que el guardia no miraba (escanea
+`flight_service.py`). Ahora la ruta usa el mismo ayudante: una sola
+prosa, en español, que además dice «si escribió un callsign, ese campo
+sí funciona».
+
+## Lo que quedó fuera, con la razón
+
+- **`geo.py require_latlon`** — nadie lo llama: es código muerto y su
+  `ValueError` no llega a ninguna respuesta.
+- **`rf_expediente` y su `except Exception → 500 str(exc)`** — otra
+  clase de defecto (el 500 que F2-05 manda que no exista), no prosa:
+  si se arregla, se arregla por el estado, no por el texto.
+- **Lo que escriben httpx, SQLite o el OpenSky arriba de nosotros** —
+  texto de terceros; se traduce donde nace la frase nuestra.
+- **Las líneas de log por petición** — claves de diagnóstico, no prosa
+  de pantalla. El aviso de arranque sí entró: es lo primero que el
+  operador lee al abrir la consola.
+
+## La guarda
+
+`tests/test_textos_espanol_backend.py`, **49 escritas antes de tocar**:
+**12 en vivo** (los endpoints de la cola pedidos de verdad: 404 de mapa,
+expediente y sesión; el 400 del repetido; correlación sin posición y
+radios inválidos; ICAO24, timestamps y `end > begin`; nivel de log) y
+**37 portero de código** — el texto viejo literal no reaparece en su
+archivo, el patrón de `test_error_icao24`. **49 rojas antes** y
+**49 rojas por revertida** (`git stash` de los 13 archivos).
+
+Colateral honesto: **2 pins adaptados** en `test_map_objects` («Unknown
+object type» → «Tipo de objeto desconocido», «Unknown field» →
+«campo(s) desconocido(s)») — el assert sigue midiendo que el mensaje
+**nombre** el problema; cambia el idioma, no la intención.
+
+Y una validación del portero que se corrigió a sí misma: el primer
+ciclo quedó en 48/49 porque el scan encontró «already exists» en un
+**comentario** en inglés sobre la línea que tocaba — traducido, como
+manda la regla.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **600 pasan** (551 + 49 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 28 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (38 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+**En vivo contra el 8010**, los cuatro que la cola nombraba:
+
+```
+GET /map/objects/9999          → {"detail":"No existe el objeto 9999."}
+GET /expedientes/9999          → {"detail":"No existe el expediente 9999."}
+POST /flights/sessions/9999/start → {"detail":"No existe la sesión de vuelo 9999."}
+GET /flights/lvkcc/flights     → 422 «…Si es un nombre de vuelo como LVKCC,
+                                  escríbalo en el campo de callsign…» (¡hasta
+                                  las comillas latinas del ayudante!)
+```
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 551 | **600** (+49) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+| Frases en inglés llegando al operador | ~40 | **0** (guarda de 37 scans) |

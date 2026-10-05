@@ -545,7 +545,7 @@ class OpenSkyService:
                         endpoint=path, pool=pool,
                     )
                     raise OpenSkyError(
-                        f"OpenSky did not respond within "
+                        f"OpenSky no respondió en "
                         f"{self.settings.opensky_timeout_s:.0f}s ({path}).",
                         pool=pool,
                     ) from exc
@@ -555,7 +555,7 @@ class OpenSkyService:
                         endpoint=path, error=type(exc).__name__, pool=pool,
                     )
                     raise OpenSkyError(
-                        f"Could not reach OpenSky ({path}): {exc}", pool=pool
+                        f"No se pudo contactar a OpenSky ({path}): {exc}", pool=pool
                     ) from exc
 
             status = response.status_code
@@ -576,8 +576,8 @@ class OpenSkyService:
                 if attempt == 1:
                     continue
                 raise OpenSkyError(
-                    "OpenSky rejected the access token twice. Check the "
-                    "client credentials in the backend .env.",
+                    "OpenSky rechazó el token de acceso dos veces. Revise "
+                    "las credenciales en el .env del backend.",
                     status=401, pool=pool,
                 )
 
@@ -603,8 +603,8 @@ class OpenSkyService:
                     credits_remaining=remaining,
                 )
                 raise RateLimitedError(
-                    f"OpenSky credit limit reached for /{path}. "
-                    f"Pausing calls for {delay:.0f}s.",
+                    f"OpenSky alcanzó el límite de créditos en /{path}. "
+                    f"Pausa de {delay:.0f}s.",
                     retry_after_s=delay, pool=pool,
                 )
 
@@ -621,8 +621,8 @@ class OpenSkyService:
                     "opensky.bad_request", "400 from OpenSky", endpoint=path, pool=pool
                 )
                 raise OpenSkyError(
-                    f"OpenSky rejected the request parameters ({path}). "
-                    "Check the time window and identifiers.",
+                    f"OpenSky rechazó los parámetros de la petición ({path}). "
+                    "Revise la ventana de tiempo y los identificadores.",
                     status=400, pool=pool,
                 )
 
@@ -632,7 +632,8 @@ class OpenSkyService:
                     endpoint=path, status=status, pool=pool,
                 )
                 raise OpenSkyError(
-                    f"OpenSky server error ({status}) on {path}. Try again shortly.",
+                    f"Error de servidor de OpenSky ({status}) en {path}. "
+                    "Intente de nuevo en un momento.",
                     status=status, pool=pool,
                 )
 
@@ -642,14 +643,14 @@ class OpenSkyService:
                     endpoint=path, status=status, pool=pool,
                 )
                 raise OpenSkyError(
-                    f"OpenSky returned HTTP {status} for {path}.",
+                    f"OpenSky devolvió HTTP {status} para {path}.",
                     status=status, pool=pool,
                 )
 
             self.backoff.clear()
             return _decode(response)
 
-        raise OpenSkyError("OpenSky request failed after retry.", pool=pool)  # pragma: no cover
+        raise OpenSkyError("La petición a OpenSky falló tras el reintento.", pool=pool)  # pragma: no cover
 
     async def _cached(
         self, client: CreditAwareClient, key: str, path: str,
@@ -898,7 +899,7 @@ def _decode(response: httpx.Response) -> Any:
     try:
         return response.json()
     except (json.JSONDecodeError, ValueError) as exc:
-        raise OpenSkyError("OpenSky returned a non-JSON response.") from exc
+        raise OpenSkyError("OpenSky devolvió una respuesta que no es JSON.") from exc
 
 
 # ─── Process-wide singleton ──────────────────────────────────────────────────

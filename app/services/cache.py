@@ -242,8 +242,8 @@ class CreditAwareClient:
                 self.hits += 1
                 return cached, True
             raise RateLimitedError(
-                f"OpenSky rate limit active for the {self.pool} pool; "
-                f"retry in {self.backoff.retry_after_s:.0f}s",
+                f"Límite de peticiones de OpenSky activo para el pool "
+                f"{self.pool}; reintente en {self.backoff.retry_after_s:.0f}s",
                 retry_after_s=self.backoff.retry_after_s,
                 pool=self.pool,
             )

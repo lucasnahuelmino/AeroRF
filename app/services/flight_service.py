@@ -398,7 +398,7 @@ def _window(
             base = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         except ValueError:
             raise FlightServiceError(
-                f"Invalid date {date!r}; expected YYYY-MM-DD."
+                f"Fecha inválida: {date}. Use el formato AAAA-MM-DD."
             )
         if time_hint:
             try:
@@ -406,7 +406,7 @@ def _window(
                 base = base.replace(hour=hh, minute=mm)
             except (ValueError, TypeError):
                 raise FlightServiceError(
-                    f"Invalid time {time_hint!r}; expected HH:MM."
+                    f"Hora inválida: {time_hint}. Use el formato HH:MM."
                 )
         start = base
         end = start + timedelta(hours=window_hours)

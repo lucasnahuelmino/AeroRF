@@ -39,7 +39,9 @@ def calculate_for_expediente(
     # Verify expediente exists
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
     if not expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
+        raise HTTPException(
+            status_code=404, detail=f"No existe el expediente {expediente_id}."
+        )
 
     try:
         # Calculate and store
@@ -86,7 +88,9 @@ def get_candidates(
     """
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
     if not expediente:
-        raise HTTPException(status_code=404, detail="Expediente not found")
+        raise HTTPException(
+            status_code=404, detail=f"No existe el expediente {expediente_id}."
+        )
 
     return rf_service.get_top_candidates(db, expediente_id, limit)
 
