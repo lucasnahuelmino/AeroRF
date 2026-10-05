@@ -1023,11 +1023,13 @@ con su commit propio:
   cuestan nada y no frenan a nadie: **verificar antes de guardar** (un error de
   teclado no puede romper la instalación de todos) y **acotar a loopback**, que
   mientras el servidor escuche en `127.0.0.1` no le quita facilidad a nadie.
-- **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
-  conversación de las últimas sesiones. Está en `.env`, ignorado por git, y en
-  ningún archivo versionado. Hay que generar una clave nueva en OpenSky y
-  reemplazar la vieja; eso requiere entrar a la cuenta, así que no se puede hacer
-  desde acá.
+- **Rotar `OPENSKY_CLIENT_SECRET`.** **Hecho el 2026-10-05.** El operador
+  generó la clave nueva en OpenSky y la pasó por la sesión; se reemplazó
+  el valor en `.env` (ignorado por git, nunca versionado — en el repo
+  sólo está el placeholder vacío de `.env.example`), se reinició el
+  backend 8010 y se pidió un token real al proveedor con la clave nueva:
+  **Bearer, 1800 s**. La clave vieja queda en claro en el historial de
+  conversación de las sesiones anteriores, pero ya no abre nada.
 - **`npm run lint` no funciona**: no hay configuración de ESLint en el
   repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
   falso. La comprobación real es el build.
