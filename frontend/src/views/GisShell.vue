@@ -765,7 +765,13 @@ function handleDraftConfirm() {
 async function handleToolComplete(payload) {
   draftPreview.value = null
   const defaults = {
-    point: { name: `Punto ${new Date().toLocaleTimeString('es-AR')}`, category: 'Referencia' },
+    point: {
+      name: `Punto ${new Date().toLocaleTimeString('es-AR')}`,
+      category: 'Referencia',
+      // La fuente elegida en las opciones viaja como `icon`: sin esto el
+      // backend guarda el valor por defecto y la elección se pierde.
+      icon: mapStore.toolOptions.fuente || 'point',
+    },
     annotation: { name: 'Anotación', category: 'Referencia' },
     circle: { name: 'Círculo' },
     radial: { name: 'Radial' },

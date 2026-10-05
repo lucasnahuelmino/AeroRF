@@ -340,7 +340,12 @@ table thead th {
  * Cambiar el dibujo = reemplazar `public/iconos/aeropuerto.svg`.
  * ------------------------------------------------------------------------- */
 
-.aerorf-airport-icon {
+/* La misma regla viste el icono de la fuente de punto
+ * (`.aerorf-punto-icono`, fm/tprs/otro): mismo disco, mismo dibujo
+ * reemplazable — cambia el archivo y nada más. */
+
+.aerorf-airport-icon,
+.aerorf-punto-icono {
   align-items: center;
   background: rgba(241, 245, 249, 0.9);
   border: 1px solid rgba(30, 41, 59, 0.6);
@@ -351,7 +356,8 @@ table thead th {
   padding: 4px;
 }
 
-.aerorf-airport-icon img {
+.aerorf-airport-icon img,
+.aerorf-punto-icono img {
   display: block;
   height: 72%;
   pointer-events: none;

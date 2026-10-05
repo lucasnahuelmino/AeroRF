@@ -201,6 +201,27 @@
             </button>
           </div>
 
+          <!-- La fuente de un punto (0.30.31): el valor es el campo `icon`
+               y también el nombre del archivo en `public/iconos/`, así que
+               cambiar el dibujo es reemplazar el archivo. Se puede cambiar
+               aquí sin volver a dibujar el punto. -->
+          <template v-if="object.type === 'point'">
+            <label class="mb-1 block text-[10px] uppercase tracking-widest text-texto-tenue">
+              Fuente del punto
+            </label>
+            <select
+              :value="object.icon || 'point'"
+              class="mb-2 w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-xs text-texto"
+              :disabled="locked"
+              @change="saveField('icon', $event.target.value)"
+            >
+              <option value="point">Sin fuente (punto simple)</option>
+              <option value="fm">FM</option>
+              <option value="tprs">TPRS</option>
+              <option value="otro">Otra fuente</option>
+            </select>
+          </template>
+
           <div class="flex flex-wrap gap-1">
             <button class="gis-mini-btn" @click="mapStore.engine?.fitObject(object)">⊙ Centrar</button>
             <button class="gis-mini-btn" @click="mapStore.duplicateObject(object.id)">⧉ Duplicar</button>

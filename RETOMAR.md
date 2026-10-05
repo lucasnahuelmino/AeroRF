@@ -817,6 +817,21 @@ la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
   intención escrita en cada una. **470 frontend, build ✓, backend sin
   cambios**; verificado en vivo en 5199 con la capa encendida.
 
+- **El punto sabe qué fuente es, y el icono lo decide el archivo** en
+  0.30.31 — al armar la herramienta Punto, las opciones ofrecen *Fuente
+  del punto* (Sin fuente, FM, TPRS, Otra fuente) y la elección viaja
+  como campo `icon`, que el backend ya guardaba sin que nadie lo
+  escribiera. `MapEngine` dibuja `public/iconos/<valor>.svg` sobre el
+  disco claro cuando reconoce el valor; cualquier otro —el `point` por
+  defecto— sigue siendo el círculo de siempre. La fuente también se
+  cambia desde el inspector sobre un punto existente, y la creación
+  manual la lleva. **6 rojas antes**, en `stored-shapes`, `components`
+  y `drawing-flow` (detalle del rojo: `setTool` sin toolManager no mueve
+  `activeTool`, lo mueve GisShell — el test del panel lo pone directo,
+  que es el contrato del componente). **476 frontend (34 archivos),
+  build ✓, backend sin cambios**; en vivo en 5199: la sección y sus
+  cuatro opciones en el DOM, cero errores de consola.
+
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
 pendientes»**.

@@ -280,6 +280,18 @@ nombra la ruta: cambiar el dibujo es reemplazar el archivo, sin tocar código.
 Los originales vienen de Font Awesome Free 6.7.2 (CC BY 4.0) y su procedencia
 está en `public/iconos/LEEME.txt`.
 
+**La fuente del punto se elige y se dibuja (0.30.31).** El campo `icon` es de
+los más viejos del backend —guardado y devuelto desde antes de que existiera
+cualquier UI que lo escribiera—; lo que faltaba era la opción y el dibujo. El
+selector *Fuente del punto* de las opciones de la herramienta (al crear el
+punto) y del inspector (sobre un punto existente) escriben `fm`/`tprs`/`otro`
+vía `updateObject`, sin contrato nuevo; `MapEngine` dibuja
+`public/iconos/<valor>.svg` en una rama del mismo `_buildLayer` cuando el
+objeto es un punto y reconoce el valor, y cualquier otro —el `point` por
+defecto, las filas viejas— sigue siendo el círculo de siempre: lo que el
+operador no pidió no cambia de aspecto. El chip del disco claro es la misma
+regla CSS que el avión (`.aerorf-punto-icono`).
+
 ### 3.10 Errores: ninguna entrada del operador devuelve 500
 
 `app/api/errors.py` registra tres handlers (`install_error_handlers`,

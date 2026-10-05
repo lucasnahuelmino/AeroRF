@@ -130,6 +130,20 @@ function centreDot(latlng, color) {
   })
 }
 
+/**
+ * Iconos de las fuentes de punto, servidos desde `public/iconos/`.
+ *
+ * La clave es el valor del campo `icon` del objeto: el nombre del archivo
+ * es el dato, así que cambiar el dibujo es reemplazar el archivo y no se
+ * toca código. `point` —el valor por defecto— no está aquí a propósito:
+ * el punto sin fuente sigue siendo el círculo de siempre.
+ */
+const FUENTES_PUNTO = {
+  fm: '/iconos/fm.svg',
+  tprs: '/iconos/tprs.svg',
+  otro: '/iconos/otro.svg',
+}
+
 export class MapEngine {
   /**
    * @param {object}  options
@@ -566,8 +580,27 @@ export class MapEngine {
     if (shape) return shape
 
     switch (object.geometry_type) {
-      case 'Point':
+      case 'Point': {
+        // Un punto con fuente elegida (FM, TPRS, Otro) se dibuja con su
+        // imagen desde `public/iconos/`, sobre el mismo disco claro que el
+        // avión de aeropuerto: los SVG descargados vienen negros y el mapa
+        // es oscuro. Cualquier otro `icon` —el `point` por defecto, los
+        // valores viejos— sigue siendo el círculo de siempre: lo que el
+        // operador no pidió no cambia de aspecto.
+        const icono = object.type === 'point' ? FUENTES_PUNTO[object.icon] : undefined
+        if (icono) {
+          return L.marker(object.latlng, {
+            bubblingMouseEvents: false,
+            icon: L.divIcon({
+              className: 'aerorf-punto-icono',
+              html: `<img src="${icono}" alt="">`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 12],
+            }),
+          })
+        }
         return L.circleMarker(object.latlng, { ...base, radius: style.radius || 8 })
+      }
 
       case 'LineString':
         return L.polyline(object.latlngs, base)

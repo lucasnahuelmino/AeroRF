@@ -5951,3 +5951,36 @@ CABA no se dibujaba y el marcador no tenía `options.icon`), 4 adaptadas
 con la intención escrita en el test (unión publicado+lista, filtro por
 país y contador, familias por tamaño). **470 frontend (34 archivos) ·
 build ✓ · backend sin cambios.**
+## 0.30.31 - La fuente del punto: FM, TPRS u Otra, con su icono reemplazable
+
+El punto ya no es un círculo anónimo. Al armar la herramienta **Punto**, las
+opciones muestran **Fuente del punto**: Sin fuente (punto simple), FM, TPRS u
+Otra fuente, y la elección viaja como campo `icon` al guardar. El campo no es
+nuevo - el backend lo guarda y lo devuelve desde hace versiones; lo que
+faltaba era escribirlo y dibujarlo:
+
+- `MapEngine` dibuja `public/iconos/<valor>.svg` (clase
+  `.aerorf-punto-icono`, el mismo disco claro que el avión de aeropuerto)
+  cuando el objeto es un punto y su `icon` está entre `fm`/`tprs`/`otro`.
+  Cualquier otro valor -el `point` por defecto, las filas viejas- sigue
+  siendo el círculo de siempre: lo que el operador no pidió no cambia de
+  aspecto.
+- La fuente se elige al crear el punto (opciones de la herramienta) y se
+  cambia después desde el inspector, sobre un punto existente, sin volver
+  a dibujarlo. La creación manual por coordenadas también la lleva.
+- Los tres SVG ya estaban en `public/iconos/` con su `LEEME.txt` desde
+  0.30.30; cambiar un dibujo sigue siendo reemplazar el archivo, mismo
+  nombre, sin tocar código.
+
+Pruebas: 6 nuevas - **rojas antes** - repartidas en
+`stored-shapes.spec.js` (el marcador con `icon: 'fm'` devolvía el
+círculo; y guardas: los tres archivos existen, el `point` por defecto
+sigue siendo círculo), `components.spec.js` (la sección *Fuente del
+punto* sólo con la herramienta activa, y el selector del inspector que
+escribe `icon` con `updateObject`) y `drawing-flow.spec.js` (el payload
+del punto no llevaba la fuente elegida). Detalle del rojo: `setTool`
+sin toolManager no mueve `activeTool` - lo mueve GisShell al reportar la
+herramienta -, así que el test del panel lo pone directo, que es
+justamente el contrato del componente.
+
+**476 frontend (34 archivos) - build V - backend sin cambios.**

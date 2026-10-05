@@ -486,6 +486,48 @@ describe('the shell wires the clicks the way the flow needs', () => {
 
     w.unmount()
   })
+
+  it('le pasa la fuente elegida al crear el punto', async () => {
+    // El operador elige FM/TPRS/Otro en las opciones antes de hacer clic.
+    // Si el payload no lleva el campo, el backend guarda el `icon` por
+    // defecto y la eleccion desaparece sin que nada la contradiga.
+    const { mount, flushPromises } = await import('@vue/test-utils')
+    const { createRouter, createMemoryHistory } = await import('vue-router')
+    const { default: GisShell } = await import('@/views/GisShell.vue')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const map = useMapStore()
+
+    let payload = null
+    map.createObject = (p) => {
+      payload = p
+      return Promise.resolve({ id: 8, ...p, latlng: null, latlngs: [] })
+    }
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div/>' } }],
+    })
+    await router.push('/')
+    await router.isReady()
+
+    const w = mount(GisShell, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+
+    const engine = map.engine
+    map.setTool(TOOLS.POINT)
+    map.setToolOption('fuente', 'fm')
+    await flushPromises()
+
+    engine.map.fire('click', { latlng: CENTRE })
+    await flushPromises()
+
+    expect(payload, 'el punto no se creo').toBeTruthy()
+    expect(payload.icon, 'el payload debe llevar la fuente elegida').toBe('fm')
+
+    w.unmount()
+  })
 })
 
 describe('measuring from a point to the cursor', () => {

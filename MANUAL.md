@@ -107,6 +107,14 @@ de la herramienta activa.
 | **Punto** | Un clic en el mapa. | Un punto. |
 | **Anotación** | Un clic, después escribí el texto. | Una nota geolocalizada. |
 
+**La fuente del punto.** Al elegir **Punto**, las opciones muestran
+**Fuente del punto**: Sin fuente (punto simple), FM, TPRS u Otra fuente. La
+fuente se dibuja con su propio icono en el mapa, y también se cambia después
+desde el inspector, sobre un punto ya dibujado. Los dibujos viven en
+`frontend/public/iconos/` (`fm.svg`, `tprs.svg`, `otro.svg`): para cambiar
+uno, reemplace el archivo conservando el nombre (instrucciones en
+`LEEME.txt`).
+
 ### Herramientas de forma
 
 | Herramienta | Cómo se usa | Qué crea |

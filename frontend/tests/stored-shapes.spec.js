@@ -308,6 +308,55 @@ describe('a stored shape is selectable', () => {
   })
 })
 
+describe('un punto con fuente se dibuja con su icono reemplazable', () => {
+  // La fuente (FM, TPRS, Otro) vive en el campo `icon`, que el backend ya
+  // guarda y devuelve desde hace versiones: no hay contrato nuevo. Lo que
+  // faltaba era dibujarla. El nombre del icono es el valor del campo, así
+  // que cambiar el dibujo es reemplazar el archivo en `public/iconos` sin
+  // tocar código: la ruta no se arma en ninguna otra parte.
+  const STORED_POINT_FM = {
+    id: 14,
+    type: 'point',
+    name: 'Punto FM',
+    geometry_type: 'Point',
+    icon: 'fm',
+    latlng: [-34.6, -58.4],
+    latlngs: null,
+    color: '#38bdf8',
+    weight: 3,
+    opacity: 1,
+    fill_opacity: 0.15,
+    visible: true,
+    layer: 'reference_points',
+    show_label: true,
+    properties: {},
+  }
+
+  it('usa public/iconos/<icon>.svg como marcador, en vez del circulo', () => {
+    const layer = engine.renderObject(STORED_POINT_FM)
+    const html = layer?.options?.icon?.options?.html
+    expect(html, 'el punto con fuente debe ser un marcador de imagen').toBeTruthy()
+    expect(html).toContain('/iconos/fm.svg')
+  })
+
+  it('deja el punto sin fuente como el circulo de siempre', () => {
+    const layer = engine.renderObject({ ...STORED_POINT_FM, id: 15, icon: 'point' })
+    expect(layer?.options?.icon, 'el icono por defecto no cambia').toBeFalsy()
+    expect(typeof layer.getRadius).toBe('function')
+  })
+
+  it('tiene los tres archivos de icono en public/iconos', async () => {
+    const fs = await import('node:fs')
+    const { resolve } = await import('node:path')
+    for (const nombre of ['fm', 'tprs', 'otro']) {
+      expect(
+        fs.existsSync(resolve(`public/iconos/${nombre}.svg`)),
+        `falta public/iconos/${nombre}.svg`,
+      ).toBe(true)
+    }
+  })
+})
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 // The geometry helpers are imported at the top, under the names the module
 // exports: `bearing` is the bearing between two points, and the test needed it
