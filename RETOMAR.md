@@ -636,9 +636,9 @@ código estaba bien; el instrumento no.
 
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
 `test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
-0.30.21, P0-01 + P0-03 en 0.30.22 y los últimos textos en inglés en
-0.30.23; de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18, con sus
-entradas más abajo).**
+0.30.21, P0-01 + P0-03 en 0.30.22, los últimos textos en inglés en
+0.30.23 y el chequeo de capas del smoke en 0.30.24; de la fase 2,
+F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -717,6 +717,16 @@ entradas más abajo).**
   de alcance, con la razón escrita: `geo.require_latlon` (nadie lo
   llama), el `except → 500 str(exc)` de `rf_expediente` (otra clase de
   defecto), texto de httpx/SQLite/OpenSky y los logs por petición.
+
+- **El chequeo de capas del smoke** en 0.30.24 — `smoke_e2e.py` esperaba
+  `count == 15` desde antes de que entraran `lines` y `polygons`
+  (26/09): su único rojo de los 77/78 era expectativa vieja, no
+  regresión, y **fallaba hasta en base limpia**. Los dos literales de la
+  línea (rótulo y valor) pasan a 17, con guarda nueva
+  (`tests/test_smoke_capas.py`, la del valor roja antes) que pisa el
+  número del script con `len(DEFAULT_LAYERS)`: si mañana se agrega una
+  capa, la guarda queda roja hasta que el smoke la diga. **78/78** en
+  base temporal.
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
@@ -866,9 +876,6 @@ con su commit propio:
   (441/453), sola 12/12 y 453/453 después; después 4 pruebas en 3 archivos
   distintos en una corrida que tardó 210 s, con los mismos 3 archivos en verde
   (37/37) y la completa en verde (453/453). **Sin repro.**
-- **`smoke_e2e.py` espera 15 capas y hoy se siembran 17** (`lines` y
-  `polygons`, del 26/09): el chequeo `count == 15` **falla también en base
-  limpia**, o sea que es expectativa vieja del script y no una regresión.
 - **El E2E contra `aerorf.db` deja basura.** La corrida de la verificación de
   F2-01 dejó 3 aviones falsos (`abc001`-`abc003`), 8 objetos en el mapa, una
   fuente enganchada a un expediente y un `EXP-SMOKE-001`. Todo se repuso por la

@@ -70,7 +70,8 @@ s, data = call("GET", f"{BASE}/health")
 check("backend health", s == 200 and data.get("status") == "ok", str(data))
 
 s, layers = call("GET", "/map/layers")
-check("15 default layers", s == 200 and layers.get("count") == 15, str(s))
+# El número lo vigila tests/test_smoke_capas.py contra DEFAULT_LAYERS.
+check("17 default layers", s == 200 and layers.get("count") == 17, str(s))
 
 # ── 4-6. Create, edit, note, change state, history ────────────────────────
 section("4-8. Point: create, edit, notes, status, history")

@@ -5510,3 +5510,80 @@ GET /flights/lvkcc/flights     → 422 «…Si es un nombre de vuelo como LVKCC,
 | geo_parity | 675 | **675** |
 | smoke_e2e (base temporal) | 77/78 | **77/78** |
 | Frases en inglés llegando al operador | ~40 | **0** (guarda de 37 scans) |
+# 0.30.24 — El smoke esperaba 15 capas y se siembran 17
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/smoke-capas-17` ·
+**Clase:** expectativa vieja, no regresión (RETOMAR lo anotó así)
+
+## Qué fallaba
+
+Desde el 26/09, cuando entraron `lines` y `polygons` en
+`DEFAULT_LAYERS` (15 → 17), el chequeo de capas de `smoke_e2e.py`
+reportaba FAIL en **base limpia**:
+
+```
+Failures:
+  - 15 default layers :: 200
+SMOKE_EXIT=1
+```
+
+Ese era el único rojo de los **77/78**: el endpoint contestaba `200`
+con `count = 17`, o sea perfecto — la expectativa del script era la que
+estaba vieja. No era regresión: el smoke nació con 15 y nadie lo
+actualizó cuando la semilla creció.
+
+## El arreglo
+
+Dos números en una línea de `smoke_e2e.py` (el rótulo **y** el valor:
+ambos dicen 15) pasan a **17**, con un comentario que apunta a la
+guarda. El chequeo sigue siendo igual de estricto: en base recién
+creada, los defaults siembrados son exactamente los de
+`DEFAULT_LAYERS`, y `_seed_layers` además **backfillea** los que falten
+en bases viejas (por eso el 8010 real ya servía 17).
+
+## La guarda: que no vuelva a desfasarse
+
+El defecto no fue el número: fue que el código creció y el script no.
+`tests/test_smoke_capas.py` (**3 pruebas, la del valor roja antes**)
+lee el número escrito en `smoke_e2e.py` y lo pisa con
+`len(DEFAULT_LAYERS)`:
+
+- **el chequeo existe y se puede leer** — si alguien reescribe la línea
+  con otra forma, la guarda lo dice en vez de fallar mudo;
+- **el valor son los defaults que se siembran** — la roja de este ítem:
+  *«smoke_e2e espera 15 capas y DEFAULT_LAYERS siembra 17»*;
+- **la etiqueta dice el mismo número que el valor** — el rótulo del
+  informe no puede quedar desfasado del chequeo (los dos decían 15,
+  pero son dos literales independientes).
+
+El smoke es un script HTTP puro, sin imports de `app` — habla con el
+servidor como lo haría el frente — así que no puede comparar contra el
+origen él solo; la guarda vive en la suite de pytest, que corre siempre.
+
+Si alguien agrega una capa por defecto, la guarda queda roja hasta que
+el smoke diga el número nuevo; si se pone roja sin que los defaults se
+hayan tocado, es el smoke el que se movió.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **603 pasan** (600 + 3 nuevas) |
+| `pytest -m integration` (8010) | **7 pasan en 37 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (30 s) |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+
+Rojo por revertida: `git stash` del arreglo en `smoke_e2e.py` → la
+guarda vuelve a decir *«espera 15 … siembra 17»*.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 600 | **603** (+3) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | **77/78** (la capa) | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
