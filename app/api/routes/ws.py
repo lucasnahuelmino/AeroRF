@@ -214,7 +214,7 @@ class Hub:
             if self._task is None or self._task.done():
                 self._task = asyncio.create_task(self._poll_loop())
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         if self._task:
             self._task.cancel()
             self._task = None
@@ -360,9 +360,9 @@ class Hub:
 
         # Record into any open session (spec §24).
         if changed_payloads:
-            await self._record(changed_payloads)
+            self._record(changed_payloads)
 
-    async def _record(self, states: list[dict]) -> None:
+    def _record(self, states: list[dict]) -> None:
         """Append new positions to any active recording session."""
         db = SessionLocal()
         try:

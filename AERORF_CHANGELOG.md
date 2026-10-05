@@ -5661,3 +5661,102 @@ runtime (lo que se lee es `.env`, que no se toca).
 | Frontend | 460 (33 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
 | Variables de `Settings` documentadas en el ejemplo | 26 de 27 | **27 de 27** |
+# 0.30.26 — `async def` sin nada de async: adiós al loop congelado
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p1-async-def` ·
+**Ítem:** P1 de la auditoría («`async def` → `def`; con SQLite hay que
+mirar `check_same_thread` antes; Claude lo marca como no medido»)
+
+## El prerrequisito, cumplido desde antes
+
+`_build_engine` pasa `check_same_thread=False` a **toda** conexión
+sqlite (`database.py`), que es lo que permite que el threadpool de
+FastAPI toque la base desde distintos hilos — con `StaticPool` (los
+tests en memoria) la conexión única se comparte justamente por eso.
+No había que tocar nada: el ítem sólo exigía **mirarlo** antes de
+convertir, y está mirado.
+
+## Qué estaba mal, medido
+
+Un `async def` **sin `await` ni `async with`** es trabajo síncrono
+disfrazado: FastAPI lo corre **sobre el event loop de asyncio**, y
+mientras dura, no giran ni el WebSocket de vuelos ni el sondeo de
+OpenSky ni ninguna otra petición. El barrido con `ast` sobre `app/`
+encontró **9**: los 3 handlers de `rf.py` (mat pura), la dependencia
+`_service_or_503`, los dos manejadores de errores (`_validacion`,
+`_integridad`), `ws.stop`, `ws._record` (escribe sesiones en la base
+en cada tick) y `lifespan` — este último **exento**: `@asynccontextmanager`
+exige que sea async, es elección del framework.
+
+Lo que se congelaba por request en `POST /rf/calculate`, medido en
+esta máquina con el motor real (one-off, 50–200 corridas):
+
+| Candidatas | Mediana | Peor |
+|---|---|---|
+| 12 | 3,98 ms | 44,44 ms |
+| 24 | 18,7 ms | 22,9 ms |
+| 48 | **75,2 ms** | **115,9 ms** |
+
+O sea: con una planilla de 48 candidatas, **~75–116 ms de loop
+parado por cada consulta de interferencias** — el feed en vivo se
+congelaba y ni se enteraba el operador. `harmonics` (0,014 ms) y
+`validate` (0,044 ms) eran cosméticos, pero entran al mismo invariante.
+
+## El arreglo
+
+Las 8 funciones pasan de `async def` a **`def`** (FastAPI las manda al
+threadpool y el loop sigue girando), con sus dos únicos call sites
+actualizados: `service = await _service_or_503()` y
+`await self._record(...)` pierden el `await` (esperar algo que no es
+corrutina sería `TypeError`). `ws.stop` no tenía llamadores.
+
+Los exception handlers síncronos los soporta Starlette de fábrica:
+`starlette._exception_handler` importa `is_async_callable` y
+`run_in_threadpool` justamente para eso, y los 422/400 en vivo salen
+idénticos.
+
+**Lo que queda async, y por qué:** los handlers de vuelos y
+correlación **esperan OpenSky de verdad** — son async legítimos. Sus
+llamadas cortas a la base entre `await` son de milisegundos; moverlas
+al threadpool sería otra pieza, medida primero, no ésta.
+
+## La guarda
+
+`tests/test_async_sin_trabajo_sincrono.py` (**55 pruebas: las de los
+8 rojas antes**) recorre `app/` con `ast` y exige, función por
+función, que cada `async def` contenga `await`, `async with` o
+`async for`, o que esté envuelto en `@asynccontextmanager`. El
+mensaje dice qué hacer: declárala `def`, o anota por qué el framework
+exige async. Un handler nuevo síncrono-en-máscara tendrá su prueba
+roja esperando.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **686 pasan** (631 + 55 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 35 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (31 s) |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+
+En vivo contra el 8010 con el código nuevo: `/health` ok;
+`POST /rf/calculate` devuelve el IM3 (2×88.5 − 58 = 119, score 99);
+un body roto cae en `_validacion` síncrono con su 422 en español;
+`GET /flights/live` pasa por `_service_or_503` y contesta 200 con
+tráfico real.
+
+Rojo por revertida: `git stash` de `app/api` → las mismas 8 vuelven a
+la carga.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 631 | **686** (+55) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | 78/78 | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| `async def` sin async real en `app/` | **9** | **1** (`lifespan`, exento) |

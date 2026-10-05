@@ -42,7 +42,7 @@ _engine = RFEngine()          # single shared instance (stateless)
         "interference."
     ),
 )
-async def calculate(req: RFCalculationRequest) -> RFCalculationResponse:
+def calculate(req: RFCalculationRequest) -> RFCalculationResponse:
     """
     **Example request body:**
 
@@ -73,7 +73,7 @@ async def calculate(req: RFCalculationRequest) -> RFCalculationResponse:
     response_model=HarmonicsResponse,
     summary="Harmonic table for a single frequency",
 )
-async def harmonics(
+def harmonics(
     freq_mhz: float,
     max_order: int = Query(default=6, ge=2, le=12, description="Highest harmonic order"),
 ) -> HarmonicsResponse:
@@ -100,7 +100,7 @@ async def harmonics(
     summary="Quick tolerance check",
     description="Check a list of raw frequencies against a target without full ranking.",
 )
-async def validate(
+def validate(
     target_mhz: float,
     frequencies: list[float],
     tolerance_khz: float = 10.0,

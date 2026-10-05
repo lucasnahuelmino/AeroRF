@@ -120,14 +120,14 @@ def detalle_espanol(errors: Iterable[Any]) -> list[dict[str, Any]]:
     return traducidos
 
 
-async def _validacion(request: Request, exc: Any) -> JSONResponse:
+def _validacion(request: Request, exc: Any) -> JSONResponse:
     """422 con el `msg` traducido, sea del middleware o del handler."""
     return JSONResponse(
         status_code=422, content={"detail": detalle_espanol(exc.errors())}
     )
 
 
-async def _integridad(request: Request, exc: IntegrityError) -> JSONResponse:
+def _integridad(request: Request, exc: IntegrityError) -> JSONResponse:
     """La entrada pasó Pydantic y la frenó SQLite: 400, no 500.
 
     Red de seguridad para cualquier FK o columna NOT NULL que no tenga

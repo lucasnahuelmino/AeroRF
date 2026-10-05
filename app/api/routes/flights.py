@@ -85,7 +85,7 @@ def _handle(exc: Exception) -> HTTPException:
     return HTTPException(status_code=500, detail=str(exc))  # pragma: no cover
 
 
-async def _service_or_503():
+def _service_or_503():
     """Return the service, or explain that credentials are required.
 
     OpenSky serves ``/states/all`` anonymously, so live traffic works
@@ -168,7 +168,7 @@ async def live(
     ),
 ):
     """Current state vectors, for tracked aircraft or a bounding box."""
-    service = await _service_or_503()
+    service = _service_or_503()
     codes = None
     if icao24:
         codes = [c.strip().lower() for c in icao24.split(",") if c.strip()]

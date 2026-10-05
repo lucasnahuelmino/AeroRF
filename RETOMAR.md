@@ -637,9 +637,10 @@ código estaba bien; el instrumento no.
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
 `test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
 0.30.21, P0-01 + P0-03 en 0.30.22, los últimos textos en inglés en
-0.30.23, el chequeo de capas del smoke en 0.30.24 y `.env.example`
-documentado en 0.30.25; de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18,
-con sus entradas más abajo).**
+0.30.23, el chequeo de capas del smoke en 0.30.24, `.env.example`
+documentado en 0.30.25 y los `async def` sin nada de async en 0.30.26;
+de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más
+abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -739,6 +740,24 @@ con sus entradas más abajo).**
   ejemplo; un settings nuevo tendrá su prueba roja esperando. Exclusiones
   razonadas en el guardia: `max_tracked_aircraft` es default plano de la
   spec (ponerlo en el ejemplo mentiría) y `VITE_PORT` lo lee el frente.
+
+- **`async def` sin nada de async** en 0.30.26 — el P1 que Claude dejó
+  «no medido». Medido: `POST /rf/calculate` congelaba el event loop
+  **~4 ms con 12 candidatas y ~75–116 ms con 48** (el motor es
+  combinatorio) — durante esos ms no giraban ni el WebSocket ni el
+  sondeo. El prerrequisito de SQLite ya estaba cumplido y quedó
+  fijado: `check_same_thread=False` en toda conexión (`database.py`).
+  El barrido con `ast` sobre `app/` encontró **9** `async def` sin
+  `await`/`async with`/`async for`; **8 pasan a `def`** (los 3 de
+  `rf.py`, `_service_or_503`, los dos manejadores de errores —
+  Starlette los soporta vía `run_in_threadpool`, verificado en el
+  origen — y `ws.stop`/`ws._record` con sus dos únicos call sites) y
+  `lifespan` queda exento por `@asynccontextmanager`. Los handlers de
+  vuelos/correlación siguen async **de verdad** (esperan OpenSky);
+  mover sus llamaditas de base al threadpool sería otra pieza, medida
+  primero. Guarda `tests/test_async_sin_trabajo_sincrono.py` (55
+  pruebas, las de los 8 rojas antes) que barre `app/` función por
+  función: cualquier async en máscara nuevo tendrá su roja esperando.
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
@@ -895,8 +914,6 @@ con su commit propio:
   `eventos_rf` en 0), pero desde ahora **se corre contra una base temporal**:
   `DATABASE_URL` descartable en un puerto aparte. La prueba de ese método dio
   **77 de 78**, con la única falla del chequeo de capas de arriba.
-- **P1, `async def` → `def`** — con SQLite hay que mirar `check_same_thread`
-  antes; Claude lo marca como no medido.
 - **P1, correlación temporal** — subiría de prioridad. Compara el evento con las
   posiciones *actuales* y la documentación dice «espacial y temporal»; eso
   correlaciona un evento de hace tres días con tráfico de hoy. Primero corregir
