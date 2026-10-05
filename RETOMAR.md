@@ -637,8 +637,9 @@ código estaba bien; el instrumento no.
 **Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
 `test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
 0.30.21, P0-01 + P0-03 en 0.30.22, los últimos textos en inglés en
-0.30.23 y el chequeo de capas del smoke en 0.30.24; de la fase 2,
-F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más abajo).**
+0.30.23, el chequeo de capas del smoke en 0.30.24 y `.env.example`
+documentado en 0.30.25; de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18,
+con sus entradas más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -727,6 +728,17 @@ F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más abajo).**
   número del script con `len(DEFAULT_LAYERS)`: si mañana se agrega una
   capa, la guarda queda roja hasta que el smoke la diga. **78/78** en
   base temporal.
+
+- **`.env.example` documenta `CACHE_TTL_TRACKS_LIVE_S`** en 0.30.25 —
+  la omisión del 0.30.2 que la auditoría había anotado (el caché de 30 s
+  de `fresh=true` existía en `config.py` y no estaba en el ejemplo). La
+  línea entró con comentario en español y en el orden de `config.py`.
+  La guarda es **por campo** (`tests/test_env_example_documentado.py`,
+  la de la variable roja antes): recorre `Settings` y exige que cada
+  campo con `default_factory` — la señal de «lee env» — esté en el
+  ejemplo; un settings nuevo tendrá su prueba roja esperando. Exclusiones
+  razonadas en el guardia: `max_tracked_aircraft` es default plano de la
+  spec (ponerlo en el ejemplo mentiría) y `VITE_PORT` lo lee el frente.
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones

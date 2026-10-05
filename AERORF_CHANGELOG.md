@@ -5587,3 +5587,77 @@ guarda vuelve a decir *«espera 15 … siembra 17»*.
 | smoke_e2e (base temporal) | **77/78** (la capa) | **78/78** |
 | Frontend | 460 (33 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
+# 0.30.25 — `.env.example` por fin documenta el TTL de tracks en vivo
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/env-example-ttl-vivo` ·
+**Clase:** documentación de configuración (omisión del 0.30.2, anotada
+por la auditoría)
+
+## Qué faltaba
+
+`CACHE_TTL_TRACKS_LIVE_S` nació en 0.30.2 — el caché corto (30 s) que
+usa la ruta `fresh=true` cuando se sigue a una aeronave en el aire,
+para que el sondeo de 10 s no sea contestado con los bytes de 300 s —
+y **quedó sin documentar en `.env.example`**: quien copiaba el ejemplo
+para armar su `.env` no se enteraba de que existía. La auditoría lo
+dejó escrito como «omisión del 0.30.2».
+
+## La variable, y el archivo
+
+La línea entra con su comentario **en español**, entre
+`CACHE_TTL_TRACKS_S` y `CACHE_TTL_FLIGHTS_S` (el mismo orden que
+`config.py`), explicando lo que hace: es el mismo caché acortado, gasta
+créditos de más sólo mientras alguien sigue un vuelo que está volando.
+
+Y como tocar `.env.example` obliga a que lo tocado hable español
+(precédente: el bloque de `ALLOWED_HOSTS` que P0-07 agregó en su
+momento), el resto del archivo queda como está — traducirlo entero es
+otro ítem, no éste.
+
+## La guarda: por campo, no por la lista concreta
+
+El defecto no fue el número: fue que el settings creció y el ejemplo
+no. `tests/test_env_example_documentado.py` (**28 pruebas: la de la
+variable roja antes, 27 de control verdes**) recorre `Settings` y exige
+que **cada campo con `default_factory`** — en este dataclass, esa es
+la señal de «lee la variable de entorno» — esté escrito en
+`.env.example`. Si mañana aparece un settings nuevo, hay una prueba
+roja nueva esperando a que el ejemplo lo diga.
+
+Dos exclusiones documentadas en el propio guardia:
+
+- **`max_tracked_aircraft` no es una omisión**: es default plano
+  («hard cap from the spec, not configurable»); una línea en el
+  ejemplo **mentiría**, porque no se leería nunca.
+- **`VITE_PORT` está en el ejemplo y no en `Settings`**: lo lee el
+  frente y `start.bat`. La comparación va de `Settings` al ejemplo, no
+  al revés.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **631 pasan** (603 + 28 nuevas) |
+| `pytest -m integration` (8010) | **7 pasan en 36 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (29 s) |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+
+Rojo por revertida: `git stash` de la línea del ejemplo → *«Settings
+lee `cache_ttl_tracks_live_s` de la variable de entorno y .env.example
+no la documenta»*.
+
+Sin cambio de comportamiento: `.env.example` no lo lee nadie en
+runtime (lo que se lee es `.env`, que no se toca).
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 603 | **631** (+28) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | 78/78 | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| Variables de `Settings` documentadas en el ejemplo | 26 de 27 | **27 de 27** |
