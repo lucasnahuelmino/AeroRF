@@ -215,6 +215,7 @@ TEXTOS_VIEJOS = [
     ("app/services/map_service.py", "Object {object_id} not found"),
     ("app/services/flight_service.py", "Invalid date {date!r}"),
     ("app/services/flight_service.py", "Invalid time {time_hint!r}"),
+    ("app/services/flight_service.py", "has no position, so it cannot be correlated"),
     ("app/services/opensky_service.py", "OpenSky did not respond within"),
     ("app/services/opensky_service.py", "Could not reach OpenSky"),
     ("app/services/opensky_service.py", "rejected the access token twice"),

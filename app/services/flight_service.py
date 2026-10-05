@@ -29,6 +29,11 @@ from typing import Any, Iterable, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.correlacion import (
+    CORRELACION_VENTANA_TEMPORAL_S,
+    DISCLAIMER,
+    delta_t_s,
+)
 from app.core.geo import haversine_m, path_summary
 from app.core.logging import flight_log, opensky_log
 from app.core.time import utcnow
@@ -1144,28 +1149,47 @@ def correlate_event(
     radii_nm: Iterable[float] = (5, 10, 20, 50),
     live_states: Optional[list[dict]] = None,
 ) -> dict:
-    """Aircraft near an RF event, by distance band.
+    """Aeronaves cerca de un evento RF, por bandas de distancia.
 
-    This reports **spatial and temporal proximity only**. It never
-    asserts that an aircraft caused an event: causation cannot be
-    established from ADS-B position data plus an RF measurement, and the
-    response says so explicitly.
+    Reporta proximidad espacial y, cuando el evento tiene
+    ``observed_at``, la comparación temporal contra esa fecha con la
+    ventana ``CORRELACION_VENTANA_TEMPORAL_S``; nunca afirma que una
+    aeronave causó un evento — de ADS-B más una medición RF no sale
+    causalidad — y la respuesta lo dice en su disclaimer.
     """
     obj = db.query(MapObject).filter(MapObject.id == event_object_id).first()
     if obj is None or obj.latitude is None or obj.longitude is None:
         raise FlightServiceError(
-            f"Object {event_object_id} has no position, so it cannot be correlated."
+            f"El objeto {event_object_id} no tiene posición, no se puede correlizar."
         )
+
+    ventana = (
+        CORRELACION_VENTANA_TEMPORAL_S if obj.observed_at is not None else None
+    )
+    radio_max_m = to_metres(max(radii_nm), "nm") if radii_nm else None
+
+    # Pase único: posición dentro del radio máximo + delta contra
+    # observed_at. (estado, delta, distancia) — la banda sólo compara.
+    parejas: list[tuple[dict, Optional[int], float]] = []
+    fuera_de_ventana: Optional[int] = 0 if ventana is not None else None
+    for state in live_states or []:
+        lat, lon = state.get("latitude"), state.get("longitude")
+        if lat is None or lon is None:
+            continue
+        distance = haversine_m(obj.latitude, obj.longitude, lat, lon)
+        if radio_max_m is None or distance > radio_max_m:
+            continue
+        delta = delta_t_s(obj.observed_at, state)
+        if ventana is None or (delta is not None and abs(delta) <= ventana):
+            parejas.append((state, delta, distance))
+        elif fuera_de_ventana is not None:
+            fuera_de_ventana += 1
 
     bands: list[dict] = []
     for radius_nm in sorted(radii_nm):
         radius_m = to_metres(radius_nm, "nm")
         matches = []
-        for state in live_states or []:
-            lat, lon = state.get("latitude"), state.get("longitude")
-            if lat is None or lon is None:
-                continue
-            distance = haversine_m(obj.latitude, obj.longitude, lat, lon)
+        for state, delta, distance in parejas:
             if distance <= radius_m:
                 matches.append(
                     {
@@ -1179,6 +1203,7 @@ def correlate_event(
                         "heading": state.get("heading"),
                         "timestamp": state.get("time_position"),
                         "timestamp_utc": _utc(state.get("time_position")),
+                        "delta_t_s": delta,
                     }
                 )
         matches.sort(key=lambda m: m["distance_m"])
@@ -1194,12 +1219,16 @@ def correlate_event(
         "object_id": event_object_id,
         "object_type": obj.type,
         "center": {"latitude": obj.latitude, "longitude": obj.longitude},
+        "comparacion": (
+            "espacial_y_temporal" if ventana is not None else "espacial"
+        ),
+        "observado_en": (
+            obj.observed_at.isoformat() if obj.observed_at is not None else None
+        ),
+        "ventana_temporal_s": ventana,
+        "fuera_de_ventana": fuera_de_ventana,
         "bands": bands,
         "nearest": nearest,
-        "disclaimer": (
-            "Correlación espacial y temporal únicamente. La cercanía entre una "
-            "aeronave y un evento RF NO implica causalidad: ADS-B no registra "
-            "emisiones y la posición del avión no identifica la fuente de un evento."
-        ),
+        "disclaimer": DISCLAIMER,
         "provenance": "calculated",
     }

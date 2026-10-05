@@ -39,10 +39,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.correlacion import caja_alrededor
+from app.core.units import to_metres
 from app.database.database import get_db
 from app.models.flight import FlightSession
 from app.models.schemas_gis import FlightSessionCreate
 from app.services import flight_service as fsvc
+from app.services import map_service as msvc
 from app.services.cache import RateLimitedError
 from app.services.opensky_service import (
     MAX_FLIGHTS_AIRCRAFT_WINDOW_S,
@@ -620,10 +623,12 @@ async def correlate(
     radii_nm: Optional[str] = Query(None, description="e.g. 5,10,20,50"),
     db: Session = Depends(get_db),
 ):
-    """Aircraft near an RF event, by distance band.
+    """Aeronaves cerca de un evento RF, por bandas de distancia.
 
-    Reports spatial and temporal proximity only, and says explicitly
-    that proximity does not imply causation.
+    Reporta proximidad espacial y — cuando el evento tiene
+    `observed_at` — la comparación temporal contra esa fecha con la
+    ventana `CORRELACION_VENTANA_TEMPORAL_S`; dice explícitamente que
+    la cercanía no implica causalidad.
     """
     radii = (
         [float(r) for r in radii_nm.split(",") if r.strip()]
@@ -631,14 +636,27 @@ async def correlate(
         else (5, 10, 20, 50)
     )
 
+    # La caja del radio máximo alrededor del objeto en vez del estado
+    # global: se pide sólo lo que puede correlizar (sin objeto válido no
+    # se gasta la llamada — `correlate_event` hará su propio reclamo).
+    obj = msvc.get_object(db, object_id)
     live_states: list[dict] = []
     service = get_opensky_service()
-    if service.configured:
+    if (
+        service.configured
+        and obj is not None
+        and obj.latitude is not None
+        and obj.longitude is not None
+        and radii
+    ):
         try:
-            live_states = (await service.get_states()).get("states") or []
+            caja = caja_alrededor(
+                obj.latitude, obj.longitude, to_metres(max(radii), "nm")
+            )
+            live_states = (await service.get_states_in_box(*caja)).get("states") or []
         except Exception:
-            # Correlation still works with whatever the caller supplies;
-            # an empty aircraft list is reported, not hidden.
+            # Si OpenSky falla, la correlación se reporta con la lista
+            # vacía: se anuncia, no se esconde.
             live_states = []
 
     try:

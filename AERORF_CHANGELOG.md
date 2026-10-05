@@ -5760,3 +5760,112 @@ la carga.
 | Frontend | 460 (33 archivos) | **460** (33) |
 | geo_parity | 675 | **675** |
 | `async def` sin async real en `app/` | **9** | **1** (`lifespan`, exento) |
+# 0.30.27 — Correlación: la temporal de verdad, y la caja en vez del mundo
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p1-correlacion-temporal` ·
+**Ítem:** P1 de la auditoría («Compara el evento con las posiciones
+*actuales* y la documentación dice «espacial y temporal»; eso correlaciona
+un evento de hace tres días con tráfico de hoy. Primero corregir la
+redacción, después comparar con `observed_at`. Y `get_states()` global en
+vez de `get_states_in_box` quema créditos»)
+
+## El defecto
+
+Los dos payload de correlación (`routes/correlation.py` y
+`services/flight_service.py`) anunciaban **«Correlación espacial y
+temporal únicamente»** mientras comparaban el evento con las posiciones
+**actuales** del cielo: un evento de hace tres días declaraba
+contemporáneas a las aeronaves de hoy. Y las tres rutas que traían
+estados a mano pedían `get_states()` **global** — todo el cielo para
+correlizar una caja.
+
+## Arreglado en el orden de la cola
+
+**1. La redacción.** Cada respuesta ahora **declara cómo compara**:
+`comparacion` (`espacial_y_temporal` cuando hay `observed_at`,
+`espacial` cuando no), `observado_en`, `ventana_temporal_s` y
+`fuera_de_ventana`. El disclaimer del objeto explica la comparación que
+hace; la vista por aeronave (`/correlation/aircraft/{icao24}`), que sólo
+lista cercanía, tiene **su propio disclaimer declarado espacial** — que
+es lo que dicen el MANUAL §215, la Ficha Técnica y el propio GisShell,
+coincidiendo por fin con los hechos.
+
+**2. `observed_at`.** Cuando el objeto tiene fecha de observación, cada
+estado se compara con `delta_t_s` = `last_contact − observed_at`; sólo
+cuenta dentro de la ventana de **600 s**
+(`CORRELACION_VENTANA_TEMPORAL_S`, en `app/core/correlacion.py`). Lo que
+queda dentro del radio pero fuera de la ventana se **reporta** en
+`fuera_de_ventana`, no se esconde. Un estado sin hora no prueba nada y
+no cuenta. Sin `observed_at` no hay nada que comparar y la respuesta se
+declara `espacial`. El flujo en vivo no cambia (evento recién observado
+→ deltas de segundos → todo cuenta); el de historia usa el `states` que
+el cuerpo ya permitía mandar — que ahora es el camino honesto: estados
+del momento del evento, deltas ≈ 0. En la ruta de vuelos,
+`correlate_event` aplica la misma regla.
+
+**3. La caja en vez del mundo.** Las tres rutas (`rf-aircraft`,
+`object/{id}`, `flights/correlate`) piden ahora
+`get_states_in_box(*caja_alrededor(...))` con el radio máximo pedido
+alrededor del objeto. La caja de 50 nm mide ~4 sq-deg: **tramo de 1
+crédito** de `estimate_states_credits` (área ≤ 25 sq-deg), con respuesta
+de decenas en vez de miles de estados. Además el handler de vuelos ya no
+gasta la llamada si el objeto no existe o no tiene posición (antes
+traía el cielo para que `correlate_event` rechazara después).
+
+## Lo que queda dicho y no estaba dicho
+
+- **Hallazgo anotado:** `estimate_states_credits` modela la rama `None`
+  como «serial-only» (1 crédito) — el caso **global no está modelado**
+  en el repo, así que este commit no afirma cuánto ahorra en créditos el
+  cambio; afirma lo verificable: la caja cae en el tramo de 1 crédito y
+  se deja de pedir el estado global. Va como pendiente aparte.
+- **Contrato:** los campos nuevos son **aditivos**; `client.js` pasa los
+  datos sin esquema, así que no requiere cambio (y no se tocó).
+  `FlightPanel` pinta el disclaimer nuevo tal cual, sin editar Vue.
+- El mensaje «Object … has no position» de `flights/correlate` era
+  inglés y **llegaba al cliente** (400 vía `_handle`): traducido, y el
+  portero de textos ganó el pin
+  `("app/services/flight_service.py", "has no position…")` — que estaba
+  rojo antes (la cadena vivía en el archivo) y verde después.
+- `app/core/correlacion.py` es el **único** dueño de ventana, delta,
+  caja y los dos disclaimer: la duplicación entre la ruta y el servicio
+  quedó afuera.
+
+## La guarda
+
+`tests/test_correlacion_temporal.py` — **11 pruebas: 10 rojas antes y
+una de control verde** (`test_control_bandas_sigue_contando_lo_espacial`:
+las bandas siguen contando lo espacial). Cubren el caso de la auditoría
+(evento de 3 días → 0 contemporáneas + `fuera_de_ventana`), el flujo en
+vivo (evento de 30 s → cuenta, con su `delta_t_s`), el objeto sin fecha
+(`comparacion: espacial`), el estado sin hora (no cuenta), los dos
+disclaimer y las tres rutas pidiendo caja (la caja se valida por
+propiedades: centrada, simétrica, cubre el radio, área ≤ 25 sq-deg — no
+se copia la fórmula de implementación). **Rojo por revertida:**
+`git stash push -- app` → las mismas 11 (10 + el pin del portero).
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **698 pasan** (686 + 11 + 1 pin) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 29 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (33 s) |
+| `npm test` (frontend) | **33 de 33 archivos** |
+
+En vivo contra el 8010 con el código nuevo: `/health` ok y las suites
+de integración ejercitan las tres rutas de correlación con el servicio
+real.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 686 | **698** (+11 temporal +1 pin) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | 78/78 | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| Disclaimers que prometían temporal sin medirlo | 2 | **0** |

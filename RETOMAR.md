@@ -638,9 +638,9 @@ código estaba bien; el instrumento no.
 `test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
 0.30.21, P0-01 + P0-03 en 0.30.22, los últimos textos en inglés en
 0.30.23, el chequeo de capas del smoke en 0.30.24, `.env.example`
-documentado en 0.30.25 y los `async def` sin nada de async en 0.30.26;
-de la fase 2, F2-01 a F2-08 (0.30.10–0.30.18, con sus entradas más
-abajo).**
+documentado en 0.30.25, los `async def` sin nada de async en 0.30.26 y
+la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
+(0.30.10–0.30.18, con sus entradas más abajo).**
 
 - **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
   vinculados contesta **409** con los ids en el detalle, en español, y
@@ -758,6 +758,25 @@ abajo).**
   primero. Guarda `tests/test_async_sin_trabajo_sincrono.py` (55
   pruebas, las de los 8 rojas antes) que barre `app/` función por
   función: cualquier async en máscara nuevo tendrá su roja esperando.
+
+- **Correlación temporal de verdad** en 0.30.27 — el último P1 de la cola,
+  con su orden respetado. (1) *Redacción:* los dos payload anunciaban
+  «espacial y temporal» comparando con las posiciones de **hoy**; ahora
+  cada respuesta **declara** `comparacion`, `observado_en`,
+  `ventana_temporal_s` y `fuera_de_ventana`, y la vista por aeronave se
+  declara `espacial` — como ya decían MANUAL y GisShell. (2) *La
+  comparación:* con `observed_at`, cada coincidencia lleva `delta_t_s` y
+  sólo cuenta dentro de la ventana de 600 s (`app/core/correlacion.py`,
+  único dueño de la regla para las dos rutas); lo que queda en el radio
+  fuera de la ventana se **reporta**, no se esconde; sin fecha la
+  respuesta se declara espacial y el control de las bandas nunca se
+  tocó. (3) *Créditos:* las tres rutas piden la **caja** del radio
+  máximo alrededor del objeto — ~4 sq-deg, tramo de 1 crédito — en vez
+  del estado global, y la de vuelos no gasta la llamada con objeto
+  inválido. Traducido de paso el 400 en inglés que `flights/correlate`
+  mandaba al cliente, con su pin nuevo en el portero. Guarda
+  `tests/test_correlacion_temporal.py`: **10 rojas antes + 1 control
+  verde**, rojas también por revertida (11 con el pin).
 
 Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
 falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
@@ -914,11 +933,10 @@ con su commit propio:
   `eventos_rf` en 0), pero desde ahora **se corre contra una base temporal**:
   `DATABASE_URL` descartable en un puerto aparte. La prueba de ese método dio
   **77 de 78**, con la única falla del chequeo de capas de arriba.
-- **P1, correlación temporal** — subiría de prioridad. Compara el evento con las
-  posiciones *actuales* y la documentación dice «espacial y temporal»; eso
-  correlaciona un evento de hace tres días con tráfico de hoy. Primero corregir
-  la redacción, después comparar con `observed_at`. Y `get_states()` global en
-  vez de `get_states_in_box` **quema créditos de OpenSky** en cada correlación.
+- **Pendiente menor (0.30.27):** `estimate_states_credits` no modela el
+  caso **global** — la rama `None` es la de lo serial —, así que por ahora
+  sólo se afirma que la caja de 50 nm cae en su tramo de 1 crédito, no
+  cuánto ahorra la caja frente a pedir el cielo entero.
 
 ### Las que ya venían
 

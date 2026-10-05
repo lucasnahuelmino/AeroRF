@@ -1,17 +1,20 @@
 """
 api/routes/correlation.py
 ────────────────────────
-Spatial correlation between RF objects and aircraft (spec §35).
+Correlación espacial entre objetos RF y aeronaves (spec §35).
 
-    POST /api/v1/correlation/rf-aircraft   aircraft near an RF object
-    GET  /api/v1/correlation/aircraft/{icao24}  RF objects near an aircraft
-    GET  /api/v1/correlation/object/{id}        full correlation report
+    POST /api/v1/correlation/rf-aircraft   aeronaves cerca de un objeto RF
+    GET  /api/v1/correlation/aircraft/{icao24}  objetos RF cerca de una aeronave
+    GET  /api/v1/correlation/object/{id}        informe completo
 
-A note that governs every response here: the system reports **spatial and
-temporal proximity only**. ADS-B carries no emission data, and the
-geographic distance between an aircraft and a recorded RF event says
-nothing about which one caused the other. Every response carries that
-disclaimer in its payload so it travels with the data into any export.
+Una nota gobierna cada respuesta de acá: cuando el evento tiene fecha
+de observación (``observed_at``), la comparación es espacial **y
+temporal contra esa fecha** — cada coincidencia declara su
+``delta_t_s`` y sólo cuenta dentro de la ventana —; sin fecha, es
+espacial y la respuesta lo declara. ADS-B no lleva datos de emisión, y
+la distancia geográfica entre una aeronave y un evento RF registrado no
+dice nada sobre cuál causó el otro. Cada respuesta lleva ese disclaimer
+en su payload para que viaje con los datos hacia cualquier export.
 """
 
 from __future__ import annotations
@@ -21,6 +24,13 @@ from typing import Any, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.correlacion import (
+    CORRELACION_VENTANA_TEMPORAL_S,
+    DISCLAIMER,
+    DISCLAIMER_AERONAVE,
+    caja_alrededor,
+    delta_t_s,
+)
 from app.core.geo import haversine_m, initial_bearing
 from app.core.units import normalise_unit, to_metres
 from app.database.database import get_db
@@ -40,14 +50,6 @@ from app.services.opensky_service import (
 )
 
 router = APIRouter(prefix="/correlation", tags=["Correlation"])
-
-DISCLAIMER = (
-    "Correlación espacial y temporal únicamente. La cercanía entre una "
-    "aeronave y un evento RF NO implica causalidad. ADS-B no registra "
-    "emisiones electromagnéticas, la posición del avión no identifica la "
-    "fuente de un evento, y un evento de intermodulación puede originarse a "
-    "kilómetros de la aeronave observada."
-)
 
 RF_TYPES = (TYPE_RF_EVENT, TYPE_RF_SOURCE, TYPE_ANTENNA, TYPE_REFERENCE)
 
@@ -99,7 +101,13 @@ async def rf_aircraft(
                 "para correlizar contra datos ya obtenidos.",
             )
         try:
-            states = (await service.get_states()).get("states") or []
+            # La caja del radio máximo alrededor del objeto, no el estado
+            # global: se pide sólo lo que puede correlizar (y la caja de
+            # 50 nm sigue en el tramo de 1 crédito).
+            caja = caja_alrededor(
+                obj.latitude, obj.longitude, to_metres(radii[-1], "nm")
+            )
+            states = (await service.get_states_in_box(*caja)).get("states") or []
         except (OpenSkyNotConfigured, OpenSkyError) as exc:
             raise HTTPException(502, str(exc))
 
@@ -121,17 +129,22 @@ async def correlate_object(
             400, f"El objeto {object_id} no tiene posición."
         )
 
+    radios = _radii(radii_nm)
     service = get_opensky_service()
     if not service.configured:
         raise HTTPException(
             503, "OpenSky no está configurado; no hay datos de aeronaves."
         )
     try:
-        states = (await service.get_states()).get("states") or []
+        # La caja del radio máximo alrededor del objeto, no el estado global.
+        caja = caja_alrededor(
+            obj.latitude, obj.longitude, to_metres(radios[-1], "nm")
+        )
+        states = (await service.get_states_in_box(*caja)).get("states") or []
     except (OpenSkyNotConfigured, OpenSkyError) as exc:
         raise HTTPException(502, str(exc))
 
-    return _correlate(obj, states, _radii(radii_nm))
+    return _correlate(obj, states, radios)
 
 
 @router.get("/aircraft/{icao24}")
@@ -189,7 +202,7 @@ async def correlate_aircraft(
             }
             for row in rows
         ],
-        "disclaimer": DISCLAIMER,
+        "disclaimer": DISCLAIMER_AERONAVE,
         "provenance": "calculated",
     }
 
@@ -213,16 +226,42 @@ def _radii(raw: Any) -> list[float]:
 
 
 def _correlate(obj: MapObject, states: list[dict], radii: list[float]) -> dict:
-    """Shared banded-distance computation."""
+    """Bandas de distancia + comparación temporal contra ``observed_at``.
+
+    Si el objeto tiene fecha de observación, sólo se cuentan los estados
+    dentro de la ventana ``CORRELACION_VENTANA_TEMPORAL_S`` de ella; los
+    que caen dentro del radio pero fuera de la ventana se reportan en
+    ``fuera_de_ventana`` y no se cuentan. Sin fecha no hay nada que
+    comparar: se corrige lo espacial y la respuesta se declara
+    ``espacial``.
+    """
+    ventana = (
+        CORRELACION_VENTANA_TEMPORAL_S if obj.observed_at is not None else None
+    )
+    radio_max_m = to_metres(max(radii), "nm")
+
+    # Pase único: posición dentro de todo el radio pedido + delta contra
+    # observed_at. (estado, delta, distancia) — la banda sólo compara.
+    parejas: list[tuple[dict, Optional[int], float]] = []
+    fuera_de_ventana: Optional[int] = 0 if ventana is not None else None
+    for state in states:
+        lat, lon = state.get("latitude"), state.get("longitude")
+        if lat is None or lon is None:
+            continue
+        distance = haversine_m(obj.latitude, obj.longitude, lat, lon)
+        if distance > radio_max_m:
+            continue
+        delta = delta_t_s(obj.observed_at, state)
+        if ventana is None or (delta is not None and abs(delta) <= ventana):
+            parejas.append((state, delta, distance))
+        elif fuera_de_ventana is not None:
+            fuera_de_ventana += 1
+
     bands: list[dict] = []
     for radius_nm in radii:
         radius_m = to_metres(radius_nm, "nm")
         matches: list[dict] = []
-        for state in states:
-            lat, lon = state.get("latitude"), state.get("longitude")
-            if lat is None or lon is None:
-                continue
-            distance = haversine_m(obj.latitude, obj.longitude, lat, lon)
+        for state, delta, distance in parejas:
             if distance <= radius_m:
                 matches.append(
                     {
@@ -233,7 +272,10 @@ def _correlate(obj: MapObject, states: list[dict], radii: list[float]) -> dict:
                         "distance_nm": distance / 1852.0,
                         "bearing_from_object": round(
                             initial_bearing(
-                                obj.latitude, obj.longitude, lat, lon
+                                obj.latitude,
+                                obj.longitude,
+                                state.get("latitude"),
+                                state.get("longitude"),
                             ),
                             1,
                         ),
@@ -243,6 +285,7 @@ def _correlate(obj: MapObject, states: list[dict], radii: list[float]) -> dict:
                         "on_ground": state.get("on_ground"),
                         "timestamp": state.get("time_position"),
                         "aircraft_updated_at": state.get("last_contact"),
+                        "delta_t_s": delta,
                     }
                 )
         matches.sort(key=lambda m: m["distance_m"])
@@ -263,6 +306,14 @@ def _correlate(obj: MapObject, states: list[dict], radii: list[float]) -> dict:
             "latitude": obj.latitude,
             "longitude": obj.longitude,
         },
+        "comparacion": (
+            "espacial_y_temporal" if ventana is not None else "espacial"
+        ),
+        "observado_en": (
+            obj.observed_at.isoformat() if obj.observed_at is not None else None
+        ),
+        "ventana_temporal_s": ventana,
+        "fuera_de_ventana": fuera_de_ventana,
         "bands": bands,
         "nearest": nearest,
         "aircraft_considered": len(states),
