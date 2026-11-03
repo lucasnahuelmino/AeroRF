@@ -607,12 +607,8 @@ describe('GisShell boots', () => {
     // The tool palette and the side-panel tab strip must be present. The
     // panels themselves sit behind tabs, so only one is mounted at a time.
     //
-    // The full names live in each tab's `title` and `aria-label`, because the
-    // visible label is abbreviated: the five full names need 312px and the
-    // sidebar has 215, and `flex: 1 1 0` shrank them until Expediente fell off
-    // the strip entirely. Asserted on the accessible name so a rename of the
-    // abbreviation cannot quietly take a section with it.
-    for (const label of ['Herramientas', 'Capas', 'Vuelos', 'Aeropuertos', 'Expediente']) {
+    // Full names remain accessible while the visible labels stay compact.
+    for (const label of ['Herramientas', 'Capas', 'Objetos', 'Vuelos', 'Aeropuertos']) {
       const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === `Panel ${label}`)
       expect(tab, `falta la pestana ${label}`).toBeTruthy()
       expect(tab.attributes('aria-label'), `${label} sin nombre accesible`).toBe(`Panel ${label}`)

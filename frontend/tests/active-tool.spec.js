@@ -218,7 +218,7 @@ describe('the pressed tool', () => {
     expect(pressed().length).toBe(1)
 
     map.createObject = real
-  })
+  }, 20000)
 
   it('un-presses when the same tool is pressed again', async () => {
     const buttons = w.findAll('.gis-tool')

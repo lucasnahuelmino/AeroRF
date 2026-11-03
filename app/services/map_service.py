@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import delete, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Query, Session, selectinload
 
 from app.core.geo import (
     circle_points,
@@ -496,20 +496,21 @@ def get_object(db: Session, object_id: int) -> Optional[MapObject]:
     )
 
 
-def list_objects(
+def _filtered_objects_query(
     db: Session,
     types: Optional[Iterable[str]] = None,
     layer_id: Optional[int] = None,
     layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
     expediente_id: Optional[int] = None,
     status: Optional[str] = None,
     visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
     bbox: Optional[tuple[float, float, float, float]] = None,
     search: Optional[str] = None,
-    limit: int = 1000,
-    offset: int = 0,
-) -> list[MapObject]:
-    """Filtered listing used by the map's initial load and the inspector."""
+) -> Query[MapObject]:
+    """Build the shared filter query for object lists and counts."""
     q = db.query(MapObject).options(
         selectinload(MapObject.layer),
         selectinload(MapObject.rf_source),
@@ -525,12 +526,20 @@ def list_objects(
         q = q.filter(MapObject.layer_id == layer_id)
     if layer_key:
         q = q.join(Layer, MapObject.layer_id == Layer.id).filter(Layer.key == layer_key)
+    if layer_missing is True:
+        q = q.filter(MapObject.layer_id.is_(None))
+    elif layer_missing is False:
+        q = q.filter(MapObject.layer_id.isnot(None))
     if expediente_id is not None:
         q = q.filter(MapObject.expediente_id == expediente_id)
     if status:
         q = q.filter(MapObject.status == validate_status(status))
     if visible is not None:
         q = q.filter(MapObject.visible == visible)
+    if category:
+        q = q.filter(MapObject.category == category)
+    if source:
+        q = q.filter(MapObject.source == source)
 
     if bbox is not None:
         lat_min, lon_min, lat_max, lon_max = bbox
@@ -545,17 +554,90 @@ def list_objects(
 
     if search:
         pattern = f"%{search.strip()}%"
-        q = q.filter(
-            or_(
-                MapObject.name.ilike(pattern),
-                MapObject.description.ilike(pattern),
-                MapObject.category.ilike(pattern),
-                MapObject.label.ilike(pattern),
-            )
+        term = search.strip()
+        numeric_id = int(term) if term.isdecimal() else None
+        text_match = or_(
+            MapObject.name.ilike(pattern),
+            MapObject.description.ilike(pattern),
+            MapObject.category.ilike(pattern),
+            MapObject.label.ilike(pattern),
         )
+        if numeric_id is not None and _is_storable_id(numeric_id):
+            q = q.filter(or_(MapObject.id == numeric_id, text_match))
+        else:
+            q = q.filter(text_match)
 
-    q = q.order_by(MapObject.z_index, MapObject.id)
-    return q.limit(max(1, min(limit, 5000))).offset(max(0, offset)).all()
+    return q
+
+
+def list_objects(
+    db: Session,
+    types: Optional[Iterable[str]] = None,
+    layer_id: Optional[int] = None,
+    layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
+    expediente_id: Optional[int] = None,
+    status: Optional[str] = None,
+    visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    search: Optional[str] = None,
+    limit: int = 1000,
+    offset: int = 0,
+) -> list[MapObject]:
+    """Filtered listing used by the map and object administrator."""
+    return (
+        _filtered_objects_query(
+            db,
+            types=types,
+            layer_id=layer_id,
+            layer_key=layer_key,
+            layer_missing=layer_missing,
+            expediente_id=expediente_id,
+            status=status,
+            visible=visible,
+            category=category,
+            source=source,
+            bbox=bbox,
+            search=search,
+        )
+        .order_by(MapObject.z_index, MapObject.id)
+        .limit(max(1, min(limit, 5000)))
+        .offset(max(0, offset))
+        .all()
+    )
+
+
+def count_objects(
+    db: Session,
+    types: Optional[Iterable[str]] = None,
+    layer_id: Optional[int] = None,
+    layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
+    expediente_id: Optional[int] = None,
+    status: Optional[str] = None,
+    visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    search: Optional[str] = None,
+) -> int:
+    """Count all objects matching the same filters as ``list_objects``."""
+    return _filtered_objects_query(
+        db,
+        types=types,
+        layer_id=layer_id,
+        layer_key=layer_key,
+        layer_missing=layer_missing,
+        expediente_id=expediente_id,
+        status=status,
+        visible=visible,
+        category=category,
+        source=source,
+        bbox=bbox,
+        search=search,
+    ).order_by(None).count()
 
 
 # ─── Update (spec §8, §40) ───────────────────────────────────────────────────

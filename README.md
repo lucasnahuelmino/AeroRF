@@ -4,9 +4,9 @@
 
 AeroRF es una herramienta de investigación geográfica para el estudio de
 interferencias en las bandas de comunicaciones aeronáuticas. Permite medir
-distancias y áreas de protección, documentar hallazgos en expedientes y
-correlacionar espacialmente fuentes de interferencia con el tráfico aéreo
-real, dejando en cada caso constancia de **de dónde viene cada dato**.
+distancias y áreas de protección, administrar objetos GIS, correlacionar
+fuentes de interferencia con tráfico aéreo real y conservar **la procedencia
+de cada dato**.
 
 Desarrollado para la **Dirección Nacional de Control y Fiscalización
 (ENACOM)**.
@@ -31,8 +31,7 @@ lo insinúa: cada informe de correlación lleva la advertencia explícita.
 **Todo dato declara su procedencia.** Cada punto, cada tramo de trayectoria y
 cada valor guardado indica si es observado, histórico, en vivo, calculado o
 introducido por el operador. Es la diferencia entre una medición y una
-suposición, y en un expediente de la medida es lo único que hace defendible el
-documento.
+suposición, y es lo que hace defendible un análisis.
 
 ---
 
@@ -96,18 +95,23 @@ procesos con las variables ya configuradas.
 
 ---
 
-## Las tres secciones
+## Pilares de trabajo
 
 La barra superior está presente en **todas** las secciones, así que siempre se
 sabe dónde se está y siempre se puede ir a otro lugar.
 
-| Sección | Para qué es |
+| Pilar | Para qué es |
 |---|---|
 | **Mapa** | La herramienta principal. Todo el trabajo geográfico ocurre acá. |
-| **Expedientes** | Casos de investigación. Cada expediente agrupa objetos, notas e historial. |
-| **Calculadora RF** | Frecuencias, armónicos e intermodulación. Motor de cálculo, sin mapa. |
+| **Objetos GIS** | Administrar, buscar, filtrar, editar, ocultar y eliminar objetos persistentes, también si no se dibujan en el mapa. |
+| **Análisis RF** | Frecuencias, armónicos, intermodulación y análisis espacial aeronáutico. |
 
-El detalle de cada una está en **[MANUAL.md](MANUAL.md)**.
+La calculadora RF sigue disponible como herramienta. La retirada de
+**Expedientes** está pendiente: el código y sus rutas heredadas aún existen, y
+la base local conserva una fila que se debe archivar sin pérdida antes de
+retirar sus endpoints.
+
+El detalle de uso está en **[MANUAL.md](MANUAL.md)**.
 
 ---
 
@@ -121,13 +125,14 @@ soporte nativo de ASGI, y porque la validación con Pydantic cubre los contratos
 de la API. Cambiar de framework habría duplicado la arquitectura y perdido el
 WebSocket.
 
-- **19 tablas** en SQLAlchemy. `map_objects` es la raíz única de todo objeto
+- **19 tablas** declaradas en SQLAlchemy. `map_objects` es la raíz única de todo objeto
   espacial del operador, con tablas satélite 1:1 para fuentes RF, antenas,
   eventos, mediciones y referencias.
 - **Geometría doble**: columnas `Float` de latitud y longitud indexadas, para
   consultas espaciales portables, más una columna JSON `geometry` en GeoJSON.
   Migrar a PostGIS es un `ALTER TABLE`.
-- **86 endpoints** bajo `/api/v1`.
+- Routers API bajo `/api/v1` para GIS, RF, vuelos, correlación, exportación y
+  funciones heredadas. Se evita publicar un conteo no medido de endpoints.
 
 ### Frontend
 
@@ -138,7 +143,8 @@ Vue 3 con Vite, Tailwind, Pinia y Leaflet.
   store empuja al motor, y nunca al revés.
 - **`map/geo.js`** implementa la geodesia sin importar Leaflet, para poder
   probarla en Node y compararla con el backend.
-- **Cuatro stores**: `map`, `flights`, `system`, `expedientes`.
+- Stores de mapa, vuelos y sistema; `expedientes` permanece por compatibilidad
+  heredada hasta su retirada segura.
 
 ### El orden de las coordenadas
 
@@ -154,25 +160,20 @@ forma más común de que un mapa dibuje una cosa y la base guarde otra.
 
 | Suite | Cubre | Comando |
 |---|---|---|
-| Python (336) | Lógica de negocio, geodesia, API, persistencia | `pytest -m "not integration"` |
-| Integración (7) | WebSocket contra el backend real | `pytest -m integration` |
-| Paridad (675) | Geodesia JS contra Python, número a número | `node tests/geo_parity.mjs` |
-| Componentes (78) | Montaje real en jsdom: shell, paneles, motores | `npm test` |
-| Layout (15) | Proporciones del shell, leídas del CSS construido | `npm run test:layout` |
-| Objetos (11) | Traducción de geometría, cierre de anillos | `npm run test:objects` |
-| Aeropuertos (43) | Datos, capa conmutable, medición, lista del operador | `npm run test:airports` |
-| Barra (12) | Botones de herramientas, área de clic | `npm run test:toolbar` |
-| Marca (14) | Cabecera, menú, lockup institucional | `npm run test:brandbar` |
-
-**Total: 343 en Python, 161 en el navegador, 675 de paridad.**
+| Backend | Lógica de negocio, geodesia, API, persistencia | `.\.venv\Scripts\python.exe -m pytest -q -m "not integration"` |
+| Integración | WebSocket contra el backend | `.\.venv\Scripts\python.exe -m pytest -q -m integration` |
+| Frontend | Componentes y flujos en jsdom | `cd frontend; npm test` |
+| Build | Bundle de producción | `cd frontend; npm run build` |
+| Paridad | Geodesia JS contra Python | `node tests/geo_parity.mjs` |
 
 Ninguna prueba por defecto toca la red. OpenSky se ejercita con
 `httpx.MockTransport`, y los contratos están fijados a **capturas reales** de su
 API, no a lo que dice su documentación.
 
-La paridad geodesica merece una nota: `geo_parity.mjs` ejecuta los mismos
-vectores en Node y en Python y compara los resultados como texto. Cualquier
-divergencia de unadecimal fallaría ambos lados.
+En la última ejecución completa del backend: **699 pasaron, 7 fueron
+excluidas** por el marcador de integración. La suite frontend completa pasó:
+**484 pruebas en 35 archivos**. Se ampliaron a 20 segundos los límites de dos
+pruebas sensibles a la carga del entorno.
 
 ---
 
@@ -182,8 +183,11 @@ divergencia de unadecimal fallaría ambos lados.
   atajos de teclado y el flujo de trabajo recomendado.
 - **[AERORF_ARCHITECTURE.md](AERORF_ARCHITECTURE.md)** — decisiones de diseño y
   sus motivos, para quien tenga que mantener el código.
-- **[AERORF_AUDIT.md](AERORF_AUDIT.md)** — qué se encontró al examinar el
-  sistema.
+- **[AERORF_2_AUDIT.md](AERORF_2_AUDIT.md)** — auditoría del checkout actual y
+  estado verificado.
+- **[AERORF_2_IMPLEMENTATION_PLAN.md](AERORF_2_IMPLEMENTATION_PLAN.md)** —
+  etapas, dependencias y estado.
+- **[AERORF_2_CHANGELOG.md](AERORF_2_CHANGELOG.md)** — cambios de esta evolución.
 - **[AERORF_CHANGELOG.md](AERORF_CHANGELOG.md)** — qué cambió y por qué.
 - **[RETOMAR.md](RETOMAR.md)** — estado actual y qué queda pendiente.
 
@@ -194,7 +198,7 @@ divergencia de unadecimal fallaría ambos lados.
 ```
 AeroRF/
 ├── app/
-│   ├── api/routes/     86 endpoints
+│   ├── api/routes/     routers GIS, RF, vuelos y servicios
 │   ├── core/           geodesia, unidades, tiempo, config, logging
 │   ├── models/         19 tablas SQLAlchemy
 │   └── services/       lógica de negocio
@@ -202,7 +206,7 @@ AeroRF/
 │   ├── components/gis/ paneles del shell
 │   ├── map/            MapEngine, dibujo, medición, aeronaves
 │   ├── stores/         estado de Pinia
-│   └── views/          las tres secciones
+│   └── views/          shell GIS y herramientas
 ├── tests/              suite de Python y paridad
 ├── tools/              generadores de datos de referencia
 └── .env.example

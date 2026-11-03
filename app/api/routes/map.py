@@ -79,13 +79,25 @@ def _to_leaflet(obj: MapObject) -> dict:
             "id": obj.id,
             "type": obj.type,
             "name": obj.name,
+            "category": obj.category,
             "geometry": None,
             "geometry_type": None,
             "latlng": None,
             "latlngs": [],
-            "properties": {"id": obj.id, "type": obj.type},
+            "properties": {"id": obj.id, "type": obj.type, "category": obj.category},
+            "layer_id": obj.layer_id,
+            "layer": obj.layer.key if obj.layer else None,
+            "layer_name": obj.layer.name if obj.layer else None,
+            "source": obj.source,
+            "visible": obj.visible,
             "warning": "Objeto sin geometría derivable",
         }
+    payload.update(
+        category=obj.category,
+        layer_id=obj.layer_id,
+        layer_name=obj.layer.name if obj.layer else None,
+        source=obj.source,
+    )
     return payload
 
 
@@ -98,9 +110,12 @@ def list_map_objects(
     ),
     layer_id: Optional[int] = None,
     layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
     expediente_id: Optional[int] = None,
     status: Optional[str] = None,
     visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
     bbox: Optional[str] = Query(
         None, description="lat_min,lon_min,lat_max,lon_max"
     ),
@@ -120,9 +135,12 @@ def list_map_objects(
             types=types,
             layer_id=layer_id,
             layer_key=layer_key,
+            layer_missing=layer_missing,
             expediente_id=expediente_id,
             status=status,
             visible=visible,
+            category=category,
+            source=source,
             bbox=box,
             search=search,
             limit=limit,
@@ -135,7 +153,25 @@ def list_map_objects(
         return gjs.objects_to_feature_collection(objects)
     if format == "raw":
         return [_to_leaflet(o) for o in objects]
-    return {"count": len(objects), "objects": [_to_leaflet(o) for o in objects]}
+    total = svc.count_objects(
+        db,
+        types=types,
+        layer_id=layer_id,
+        layer_key=layer_key,
+        layer_missing=layer_missing,
+        expediente_id=expediente_id,
+        status=status,
+        visible=visible,
+        category=category,
+        source=source,
+        bbox=box,
+        search=search,
+    )
+    return {
+        "count": len(objects),
+        "total": total,
+        "objects": [_to_leaflet(o) for o in objects],
+    }
 
 
 @router.post("/map/objects", status_code=status.HTTP_201_CREATED)

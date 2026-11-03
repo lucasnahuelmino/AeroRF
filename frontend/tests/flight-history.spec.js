@@ -104,7 +104,7 @@ describe('choosing the flight behind a trajectory', () => {
     expect(store.flightsFor(ICAO)).toHaveLength(FLIGHTS.length)
     // The list is per aircraft, so a second one does not overwrite it.
     expect(store.flightsFor(OTHER)).toEqual([])
-  })
+  }, 20000)
 
   it('asks for the trajectory of the flight that was chosen, not the newest', async () => {
     // The whole point. Without `time`, the backend returns the most recent

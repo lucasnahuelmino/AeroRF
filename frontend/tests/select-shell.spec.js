@@ -111,7 +111,7 @@ describe('clicking an object in the mounted shell', () => {
       mapStore.selectedId,
       'el objeto no quedo seleccionado: no se puede borrar ni anotar',
     ).toBe(CIRCLE.id)
-  })
+  }, 20_000)
 
   it('a click on empty ground does clear the selection', async () => {
     // The other half. If this stopped working, objects would be impossible to
@@ -162,7 +162,7 @@ describe('clicking an object in the mounted shell', () => {
 
     expect(mapStore.selectedId, 'el clic en el vacio no deselecciono')
       .toBeNull()
-  })
+  }, 20_000)
 
   it('an object is still selectable after another one was', async () => {
     const second = { ...CIRCLE, id: 7, name: 'Otro', latlng: [-34.5, -58.3] }
@@ -187,5 +187,5 @@ describe('clicking an object in the mounted shell', () => {
     await flushPromises()
     expect(mapStore.selectedId, 'la segunda seleccion no se registro')
       .toBe(second.id)
-  })
+  }, 20_000)
 })

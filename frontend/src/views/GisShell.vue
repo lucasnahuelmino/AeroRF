@@ -86,12 +86,7 @@
         :style="{ width: `${systemStore.sidebarWidth}px` }"
       >
         <nav class="gis-tabs">
-          <!-- Icon over a short label, so all five fit and all five read.
-               Measured before: the strip needed 312px and the sidebar has 215,
-               and because the buttons could shrink they did, so the last one —
-               Expediente — was pushed entirely out of sight. The full name is
-               still on the button as a title and as the accessible name, so
-               abbreviating the visible label costs nothing but width. -->
+          <!-- Icon over a short label, so all five fit and all five read. -->
           <button
             v-for="tab in sideTabs"
             :key="tab.id"
@@ -110,6 +105,7 @@
         <div class="gis-sidebar-body">
           <ToolOptions v-if="systemStore.leftPanel === 'tools'" />
           <LayerPanel v-else-if="systemStore.leftPanel === 'layers'" />
+          <ObjectsPanel v-else-if="systemStore.leftPanel === 'objects'" />
           <FlightPanel v-else-if="systemStore.leftPanel === 'flights'" />
           <AirportPanel
             v-else-if="systemStore.leftPanel === 'airports'"
@@ -123,7 +119,6 @@
             @zoom="zoomToAirports()"
             @measure="armAirportMeasure"
           />
-          <ExpedientePanel v-else-if="systemStore.leftPanel === 'expediente'" />
         </div>
 
         <!-- Drag handle: the map is the point, so the operator decides how
@@ -349,23 +344,21 @@ import { AirportLayer, AIRPORT_LAYER_KEY } from '@/map/airports'
 import { useMapStore, typeName } from '@/stores/map'
 import { useFlightsStore } from '@/stores/flights'
 import { useSystemStore } from '@/stores/system'
-import { useExpedientesStore } from '@/stores/expedientes'
 
 import CoordinateBar from '@/components/gis/CoordinateBar.vue'
 import ContextMenu from '@/components/gis/ContextMenu.vue'
 import FlightPanel from '@/components/gis/FlightPanel.vue'
 import InspectorPanel from '@/components/gis/InspectorPanel.vue'
 import LayerPanel from '@/components/gis/LayerPanel.vue'
+import ObjectsPanel from '@/components/gis/ObjectsPanel.vue'
 import Timeline from '@/components/gis/Timeline.vue'
 import ToolOptions from '@/components/gis/ToolOptions.vue'
-import ExpedientePanel from '@/components/gis/ExpedientePanel.vue'
 import AirportPanel from '@/components/gis/AirportPanel.vue'
 
 const router = useRouter()
 const mapStore = useMapStore()
 const flightsStore = useFlightsStore()
 const systemStore = useSystemStore()
-const expedientesStore = useExpedientesStore()
 
 const mapContainer = ref(null)
 const showHelp = ref(false)
@@ -419,9 +412,9 @@ const tools = computed(() =>
 const sideTabs = [
   { id: 'tools', label: 'Herramientas', short: 'Herram.', icon: '\u270E' },
   { id: 'layers', label: 'Capas', short: 'Capas', icon: '\u25A9' },
+  { id: 'objects', label: 'Objetos', short: 'Objetos', icon: '\u25A3' },
   { id: 'flights', label: 'Vuelos', short: 'Vuelos', icon: '\u2708' },
   { id: 'airports', label: 'Aeropuertos', short: 'Aerop.', icon: '\u2316' },
-  { id: 'expediente', label: 'Expediente', short: 'Exped.', icon: '\u25A3' },
 ]
 
 // ─── Panel resizing ──────────────────────────────────────────────────────────
@@ -532,7 +525,6 @@ onMounted(async () => {
     systemStore.checkBackend(),
     flightsStore.probeBackend(),
     mapStore.bootstrap(),
-    expedientesStore.fetchExpedientes(),
   ])
 
   flightsStore.loadWatchlist()
@@ -1294,10 +1286,8 @@ watch(
 
 /* A tab is an icon over a short label, in a column.
  *
- * `flex: 1 1 0` is what let the five buttons shrink below the width their text
- * needed — which is how Expediente ended up off the edge rather than merely
- * cramped. The width is now `flex: 0 0 auto` and the label is `nowrap`: five
- * tabs that fit, instead of five that try to and one that does not.
+ * The width is `flex: 0 0 auto` and the label is `nowrap`: five tabs that fit,
+ * instead of five that try to and one that does not.
  */
 .gis-tab {
   flex: 0 1 auto;
