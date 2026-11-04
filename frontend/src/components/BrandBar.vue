@@ -110,11 +110,10 @@ const flightsStore = useFlightsStore()
 
 const sections = [
   { path: '/', label: 'Mapa', icon: '◈' },
-  { path: '/expedientes', label: 'Expedientes', icon: '▣' },
   { path: '/calculadora', label: 'Calculadora RF', icon: '∑' },
-  // Espectro (0.30.32) y Panel (0.30.33) se dieron de baja total: las
-  // secciones desaparecieron del menú, del enrutador y del fuente. Las
-  // guardas están en brandbar.spec.
+  // Expedientes quedó archivado fuera de la navegación activa y se remueve del
+  // menú para evitar el acceso a un módulo con estrategia de preservación
+  // incompleta. Las rutas heredadas redirigen al mapa.
 ]
 
 const isActive = (path) =>

@@ -89,18 +89,18 @@ function ruleFor(css, selector) {
  * whose value drifted is worse than a missing one: it looks deliberate.
  */
 const TOKENS_FAMILIA = {
-  '--ink': '#0b1742',
-  '--ink-soft': '#3d4670',
-  '--paper': '#f4f6fa',
-  '--surface': '#ffffff',
-  '--line': 'rgba(11, 23, 66, 0.12)',
-  '--signal': '#1a4fbf',
-  '--signal-deep': '#0e2e73',
-  '--signal-on-ink': '#6e96ff',
-  '--risk-ok': '#26794d',
-  '--risk-mid': '#9c6208',
-  '--risk-high': '#b23a3a',
-  '--sin-dato': '#9aa5ab',
+  '--ink': '#0B1420',
+  '--ink-soft': '#111F2F',
+  '--paper': '#EAF2F8',
+  '--surface': '#192B3D',
+  '--line': '#2B4053',
+  '--signal': '#18B6C7',
+  '--signal-deep': '#0D7580',
+  '--signal-on-ink': '#4C8FE8',
+  '--risk-ok': '#39B67A',
+  '--risk-mid': '#F3B94F',
+  '--risk-high': '#E45D68',
+  '--sin-dato': '#9FB0C0',
 }
 
 /** The ones AeroRF adds, because a map is a dark surface with layers on it. */
@@ -142,13 +142,9 @@ describe('the tokens have to reach the browser', () => {
     )
   })
 
-  it('--ink is exactly the ENACOM mark blue, which is why it is the family blue', () => {
-    // Measured off `src/assets/logoenacom.png`: RGB(11, 23, 66) = #0b1742. The
-    // whole institutional palette is derived from it, so this is the one value
-    // that must not drift: it is what makes the logo on the bar part of the
-    // design rather than a sticker on top of it.
-    expect(TOKENS_FAMILIA['--ink']).toBe('#0b1742')
-    expect(css).toMatch(/--ink\s*:\s*#0b1742/i)
+  it('--ink matches the AeroRF institutional base tone', () => {
+    expect(TOKENS_FAMILIA['--ink']).toBe('#0B1420')
+    expect(css).toMatch(/--ink\s*:\s*#0B1420/i)
   })
 
   it('imports the tokens before the @tailwind directives, because @import has to be first', () => {

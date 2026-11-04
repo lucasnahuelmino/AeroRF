@@ -37,71 +37,53 @@
  */
 
 :root {
-  /* ── Color ───────────────────────────────────────────────────────────── */
-  --ink: #0b1742;
-  --ink-soft: #3d4670;
-  --paper: #f4f6fa;
-  --surface: #ffffff;
-  --line: rgba(11, 23, 66, 0.12);
-  --signal: #1a4fbf;
-  --signal-deep: #0e2e73;
-  --signal-on-ink: #6e96ff;
-  --risk-ok: #26794d;
-  --risk-mid: #9c6208;
-  --risk-high: #b23a3a;
-  --sin-dato: #9aa5ab;
+  /* Paleta institucional AeroRF 2.1 */
+  --ink: #0B1420;
+  --ink-soft: #111F2F;
+  --paper: #EAF2F8;
+  --surface: #192B3D;
+  --line: #2B4053;
+  --signal: #18B6C7;
+  --signal-deep: #0D7580;
+  --signal-on-ink: #4C8FE8;
+  --risk-ok: #39B67A;
+  --risk-mid: #F3B94F;
+  --risk-high: #E45D68;
+  --sin-dato: #9FB0C0;
 
-  /* Texto y decoración sobre --ink. Derivados de --surface con color-mix, antes
-     escritos a mano como rgba(255,255,255,x) fuera de todo sistema. */
-  --on-ink: var(--surface);
-  --on-ink-soft: color-mix(in srgb, var(--surface) 75%, transparent);
-  --on-ink-faint: color-mix(in srgb, var(--surface) 55%, transparent);
-  --on-ink-wash: color-mix(in srgb, var(--surface) 7%, transparent);
+  --on-ink: var(--paper);
+  --on-ink-soft: #C7D4E0;
+  --on-ink-faint: #9FB0C0;
+  --on-ink-wash: rgba(234, 242, 248, 0.08);
 
-  /* ── Semánticos de AeroRF ───────────────────────────────────────────────
-     Los tokens anteriores son los de la familia. Estos de abajo son los que
-     AeroRF necesita y el proyecto hermano no tenía: un mapa es una superficie
-     oscura permanente, y sus capas se dibujan una sobre otra, así que necesita
-     su propia escala de profundidad y sus propios colores de trazo.
-     Sin esto habría que elegir a mano entre `--ink` y `--ink-soft` en cada capa
-     del mapa, que es exactamente el problema que los tokens vinieron a evitar. */
+  --fondo: #0B1420;
+  --panel: #111F2F;
+  --panel-alto: #192B3D;
+  --panel-hondo: #0D1A2A;
 
-  /* Profundidad de paneles, de más cercano al operador a más hundido. */
-  --fondo: var(--ink);           /* la barra, el borde de la ventana */
-  --panel: #101d4d;              /* panel lateral, inspector: un paso arriba del fondo */
-  --panel-alto: #17286a;         /* tarjetas dentro del panel */
-  --panel-hondo: #0a1338;        /* campos, zonas hundidas */
+  --texto: #EAF2F8;
+  --texto-medio: #9FB0C0;
+  --texto-tenue: #AEBBC9;
+  --texto-invisible: #6A7C8F;
 
-  /* Texto. Los cuatro niveles, de más fuerte a más débil. */
-  --texto: #eef2fb;              /* 15.6:1 sobre --fondo */
-  --texto-medio: #b9c5e2;        /* 9.1:1  sobre --fondo */
-  --texto-tenue: #8b99c4;        /* 5.4:1  sobre --fondo */
-  --texto-invisible: #5f6d9b;    /* no apto para texto, solo para separadores */
+  --borde: rgba(130, 160, 185, 0.24);
+  --borde-fuerte: rgba(130, 160, 185, 0.45);
 
-  /* Bordes, de más presente a más sutil. */
-  --borde: rgba(146, 168, 224, 0.22);
-  --borde-fuerte: rgba(146, 168, 224, 0.38);
+  --velo: rgba(11, 20, 32, 0.74);
+  --velo-suave: rgba(11, 20, 32, 0.48);
 
-  /* Velos: los fondos translúcidos que dejan ver el contenido de atrás
-     empañado (los diálogos, la carga). Antes cada sitio usaba una opacidad
-     suelta de la vieja escala gris, sin nombre ni dueño; la migración de
-     plantillas (0.30.28) los trajo acá para que el grado del velo se decida
-     en un solo lugar. */
-  --velo: color-mix(in srgb, var(--fondo) 75%, transparent);
-  --velo-suave: color-mix(in srgb, var(--fondo) 45%, transparent);
+  --trazo: #4C8FE8;
+  --trazo-medido: #39B67A;
+  --trazo-observado: #18B6C7;
+  --trazo-vuelo: #A78BFA;
+  --trazo-borrador: #18B6C7;
+  --trazo-fin: #E45D68;
+  --medicion: #F3B94F;
+  --medicion-texto: #0B1420;
+  --aviso: #E45D68;
+  --seleccion: #F3B94F;
 
-  /* ── Trazo en el mapa ────────────────────────────────────────────────────
-     El mapa se dibuja con Leaflet, que necesita cadenas concretas: estos tokens
-     existen para que `tokens.js` los lea. Los tres de trazo se eligen por
-     función, no por gusto, porque el mapa tiene que poder leerse en campo. */
-  --trazo: var(--signal-on-ink);      /* líneas, anillos, polilíneas */
-  --trazo-medido: #4ade80;            /* lo que_medimos nosotros: Grabación AeroRF */
-  --trazo-observado: #38bdf8;
-  --trazo-vuelo: #a855f7;          /* trayectoria por defecto de una aeronave */
-  --trazo-borrador: #22d3ee;       /* lo que se esta dibujando: vertices en curso */
-  --trazo-fin: #ef4444;            /* el ultimo punto de una trayectoria */
-  --medicion: var(--seleccion);    /* el segmento que se esta midiendo */
-  --medicion-texto: #fde68a;        /* el numero de la medicion, sobre fondo oscuro */
-  --aviso: var(--risk-high);
-  --seleccion: #facc15;               /* el objeto elegido: tiene que verse de lejos */
+  --font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  --font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', ui-monospace, monospace;
 }

@@ -13,7 +13,7 @@
  * and expressed in a form Tailwind will not fight with.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 /*
  * The design tokens, and they have to be **first**.
@@ -43,11 +43,8 @@
  * ------------------------------------------------------------------------- */
 
 body {
-  font-family: 'Inter', sans-serif;
-  /* `--ink`, not a hand-written navy. `--ink` is exactly the ENACOM mark's blue,
-     so the window's ground is the institution's own colour rather than something
-     chosen to look like it. See `assets/tokens.css`. */
-  background-color: var(--ink);
+  font-family: var(--font-ui);
+  background-color: var(--fondo);
   color: var(--texto);
   line-height: 1.6;
   /* No hay bloqueo de scroll a nivel de página acá. El shell GIS es
@@ -71,6 +68,22 @@ body {
  * both here in this file. The other seven were dead. Those two usages now name
  * `--texto-tenue` directly, which is what they meant.
  */
+
+h1,
+h2,
+h3,
+h4,
+.brandbar-name b,
+.page-doc-title {
+  font-family: var(--font-display);
+}
+
+code,
+pre,
+.mono,
+.brandbar-name i {
+  font-family: var(--font-mono);
+}
 
 /* ─── Páginas de contenido ───────────────────────────────────────────────────
  * Las vistas de gestión (expedientes) se leen como documentos y quieren una
