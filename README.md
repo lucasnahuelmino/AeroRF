@@ -187,6 +187,10 @@ pruebas sensibles a la carga del entorno.
   estado verificado.
 - **[AERORF_2_IMPLEMENTATION_PLAN.md](AERORF_2_IMPLEMENTATION_PLAN.md)** —
   etapas, dependencias y estado.
+- **[AERORF_2_1_AUDIT.md](AERORF_2_1_AUDIT.md)** — auditoría del rebranding
+  institucional y corrección de trayectorias.
+- **[AERORF_2_1_IMPLEMENTATION_PLAN.md](AERORF_2_1_IMPLEMENTATION_PLAN.md)** —
+  plan de trabajo, etapas y validación de la evolución 2.1.
 - **[AERORF_2_CHANGELOG.md](AERORF_2_CHANGELOG.md)** — cambios de esta evolución.
 - **[AERORF_CHANGELOG.md](AERORF_CHANGELOG.md)** — qué cambió y por qué.
 - **[RETOMAR.md](RETOMAR.md)** — estado actual y qué queda pendiente.

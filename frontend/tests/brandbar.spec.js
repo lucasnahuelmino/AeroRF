@@ -103,25 +103,22 @@ describe('the section menu', () => {
   })
 
   it('renders on every other section', async () => {
-    // /espectro y /dashboard se quitaron de la lista con las bajas totales
-    // de las secciones (0.30.32 y 0.30.33): las rutas ya no existen, los
-    // enlaces tampoco. Las guardas de esas bajas están al final del archivo.
-    for (const path of ['/expedientes', '/calculadora', '/map']) {
+    // Expedientes quedó archivado fuera de la navegación activa: las rutas
+    // heredadas redirigen al mapa y el menú ya no expone dicho módulo.
+    for (const path of ['/calculadora', '/map']) {
       const { w } = await mountApp({ path })
       expect(w.find('.brandbar').exists(), `sin menu en ${path}`).toBe(true)
       w.unmount()
     }
   })
 
-  it('links to every section', async () => {
+  it('links to every active section', async () => {
     const { w } = await mountApp({ path: '/' })
     const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
-    // La lista es la de las secciones que quedan: Espectro (0.30.32) y
-    // Panel (0.30.33) se dieron de baja total, y las guardas al final del
-    // archivo comprueban que no vuelvan a aparecer.
-    for (const p of ['/', '/expedientes', '/calculadora']) {
+    for (const p of ['/', '/calculadora']) {
       expect(hrefs, `falta el enlace a ${p}`).toContain(p)
     }
+    expect(hrefs, 'Expedientes sigue visible en el menú activo').not.toContain('/expedientes')
     w.unmount()
   })
 
@@ -130,19 +127,18 @@ describe('the section menu', () => {
     // satisfy it, and the shell used to have exactly that.
     const { w } = await mountApp({ path: '/' })
     const nav = w.find('.brandbar-nav').element
-    // The links are in the document, not behind a click.
-    // Tres enlaces desde las bajas de Espectro (0.30.32) y Panel (0.30.33):
-    // Mapa, Expedientes y Calculadora RF.
-    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(3)
+    // The active list is intentionally short: Mapa y Calculadora RF. The legacy
+    // Expedientes module is archived and hidden from navigation.
+    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(2)
     expect(w.find('.brandbar-nav [aria-expanded]').exists()).toBe(false)
     w.unmount()
   })
 
   it('marks the current section', async () => {
-    const { w } = await mountApp({ path: '/expedientes' })
+    const { w } = await mountApp({ path: '/calculadora' })
     const on = w.findAll('.brandbar-link').filter((a) => a.classes('brandbar-link-on'))
     expect(on.length).toBe(1)
-    expect(on[0].attributes('href')).toBe('/expedientes')
+    expect(on[0].attributes('href')).toBe('/calculadora')
     w.unmount()
   })
 
@@ -156,13 +152,11 @@ describe('the section menu', () => {
 
   it('navigates when a link is followed', async () => {
     const { w, router } = await mountApp({ path: '/' })
-    // El destino representativo era /dashboard; con la baja total de Panel
-    // (0.30.33) la sección de prueba pasa a ser Expedientes. Lo que mide la
-    // prueba es que el clic navega, no qué sección existe.
-    const link = w.findAll('.brandbar-link').find((a) => a.attributes('href') === '/expedientes')
+    const link = w.findAll('.brandbar-link').find((a) => a.attributes('href') === '/calculadora')
+    expect(link, 'falta el enlace a /calculadora').toBeTruthy()
     await link.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/expedientes')
+    expect(router.currentRoute.value.path).toBe('/calculadora')
     w.unmount()
   })
 })

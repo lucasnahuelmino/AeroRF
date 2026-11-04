@@ -25,20 +25,15 @@ const routes = [
     alias: ['/mapas'],
   },
   {
-    path: '/expedientes',
-    name: 'Expedientes',
-    component: () => import('../views/ExpedientesView.vue'),
-  },
-  {
-    path: '/expedientes/:id',
-    name: 'ExpedienteDetalle',
-    component: () => import('../views/ExpedienteDetalleView.vue'),
-  },
-  {
     path: '/calculadora',
     name: 'CalculadoraRF',
     component: () => import('../views/CalculadoraRFView.vue'),
   },
+  // Expedientes queda archivado y fuera de la navegación activa: la ruta
+  // histórica se redirige al mapa para conservar el acceso a la aplicación
+  // sin exponer un módulo de trabajo ya sin estrategia de preservación.
+  { path: '/expedientes', redirect: '/' },
+  { path: '/expedientes/:id', redirect: '/' },
   // Espectro se dio de baja total (0.30.32): sin ruta propia, la dirección
   // vieja cae en el redireccionamiento de abajo y vuelve al mapa.
   { path: '/:pathMatch(.*)*', redirect: '/' },

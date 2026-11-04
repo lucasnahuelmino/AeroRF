@@ -1,7 +1,12 @@
 # Punto de retorno — AeroRF
 
-**Fecha:** 2026-09-30
-**Estado:** funcional y verificado. Rama `main` en `origin/main`.
+**Fecha:** 2026-11-04
+**Estado:** rama de trabajo `mejora/aerorf-2-rebranding-trayectorias`; la fase crítica de trayectorias está cerrada y la base de rebranding institucional quedó implementada en tokens y tipografía. Quedan pendientes la baja funcional de `Expedientes` y la auditoría de recuperación del módulo Espectro.
+
+> Nota de trabajo 2.1: la corrección del problema de render de trayectorias quedó verificada con la suite frontend, pero eso no cierra AeroRF 2.1. La identidad visual institucional y la preservación de datos de Expedientes siguen siendo tareas de evolución y riesgo arquitectónico.
+
+**Fecha histórica anterior:** 2026-09-30
+**Estado histórico:** funcional y verificado. Rama `main` en `origin/main`.
 
 ---
 
