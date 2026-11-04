@@ -46,13 +46,63 @@ export const useSystemStore = defineStore('system', () => {
     return Number.isFinite(raw) && raw >= min ? Math.min(raw, max) : fallback
   }
   const _remember = (key, value) => localStorage.setItem(key, String(value))
+  const readStoredJson = (key, fallback) => {
+    try {
+      return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback
+    } catch {
+      return fallback
+    }
+  }
+  function readWorkspaceContext() {
+    const context = readStoredJson('aerorf:workspace-context', null)
+    if (context?.type === 'object' && context.id != null) {
+      return { type: 'object', id: context.id }
+    }
+    if (context?.type === 'aircraft' && typeof context.icao24 === 'string' && context.icao24.trim()) {
+      return { type: 'aircraft', icao24: context.icao24.trim().toLowerCase() }
+    }
+    return null
+  }
+  function readWorkspaceHistory() {
+    const history = readStoredJson('aerorf:workspace-history', [])
+    if (!Array.isArray(history)) return []
+    return history
+      .filter((item) =>
+        (item?.type === 'object' && item.id != null) ||
+        (item?.type === 'aircraft' && typeof item.icao24 === 'string' && item.icao24.trim()),
+      )
+      .slice(0, 10)
+      .map((item) => item.type === 'object'
+        ? { type: 'object', id: item.id }
+        : { type: 'aircraft', icao24: item.icao24.trim().toLowerCase() })
+  }
 
-  const sidebarOpen = ref(localStorage.getItem('aerorf:sidebar-open') !== '0')
-  const leftPanel = ref('tools')
-  const sidebarWidth = ref(_num('aerorf:sidebar-width', 216, 200, 460))
+  const WORKSPACE_SECTIONS = new Set([
+    'tools', 'layers', 'objects', 'flights', 'airports', 'inspector', 'timeline',
+  ])
+  const storedMode = localStorage.getItem('aerorf:workspace-mode')
+  const workspaceMode = ref(
+    ['open', 'collapsed', 'closed'].includes(storedMode)
+      ? storedMode
+      : localStorage.getItem('aerorf:sidebar-open') === '0' ? 'closed' : 'open',
+  )
+  const workspaceSectionValue = localStorage.getItem('aerorf:workspace-section')
+  const workspaceSection = ref(
+    WORKSPACE_SECTIONS.has(workspaceSectionValue) ? workspaceSectionValue : 'tools',
+  )
+  const workspaceSide = ref(localStorage.getItem('aerorf:workspace-side') === 'right' ? 'right' : 'left')
+  const workspaceWidth = ref(_num('aerorf:workspace-width', 300, 240, 520))
+  const workspacePinned = ref(localStorage.getItem('aerorf:workspace-pinned') === '1')
+  const workspaceContext = ref(readWorkspaceContext())
+  const workspaceHistory = ref(readWorkspaceHistory())
 
-  const inspectorOpen = ref(localStorage.getItem('aerorf:inspector-open') !== '0')
-  const inspectorWidth = ref(_num('aerorf:inspector-width', 256, 240, 520))
+  const sidebarOpen = computed(() => workspaceMode.value !== 'closed')
+  const leftPanel = workspaceSection
+  const sidebarWidth = workspaceWidth
+  const inspectorOpen = computed(
+    () => workspaceMode.value === 'open' && workspaceSection.value === 'inspector',
+  )
+  const inspectorWidth = workspaceWidth
 
   const showTimeline = ref(false)
 
@@ -86,21 +136,100 @@ export const useSystemStore = defineStore('system', () => {
     localStorage.setItem('aerorf:airport-labels', airportLabels.value ? '1' : '0')
   }
 
+  function setWorkspaceWidth(px) {
+    const w = Math.max(240, Math.min(Number(px) || 300, 520))
+    workspaceWidth.value = w
+    _remember('aerorf:workspace-width', w)
+  }
+
+  function setWorkspaceMode(mode) {
+    if (!['open', 'collapsed', 'closed'].includes(mode)) return
+    workspaceMode.value = mode
+    _remember('aerorf:workspace-mode', mode)
+  }
+
+  function setWorkspaceSide(side) {
+    if (!['left', 'right'].includes(side)) return
+    workspaceSide.value = side
+    _remember('aerorf:workspace-side', side)
+  }
+
+  function toggleWorkspacePinned() {
+    workspacePinned.value = !workspacePinned.value
+    _remember('aerorf:workspace-pinned', workspacePinned.value ? '1' : '0')
+  }
+
+  function setWorkspaceContext(context, { force = false } = {}) {
+    if (!context || !['object', 'aircraft'].includes(context.type)) return false
+    if (workspacePinned.value && workspaceContext.value && !force) return false
+
+    const normalized = context.type === 'object'
+      ? { type: 'object', id: context.id }
+      : { type: 'aircraft', icao24: String(context.icao24 || '').trim().toLowerCase() }
+    if (normalized.type === 'object' && normalized.id == null) return false
+    if (normalized.type === 'aircraft' && !normalized.icao24) return false
+
+    workspaceContext.value = normalized
+    workspaceHistory.value = [
+      normalized,
+      ...workspaceHistory.value.filter((item) =>
+        item.type !== normalized.type ||
+        (item.type === 'object' ? item.id !== normalized.id : item.icao24 !== normalized.icao24),
+      ),
+    ].slice(0, 10)
+    localStorage.setItem('aerorf:workspace-context', JSON.stringify(normalized))
+    localStorage.setItem('aerorf:workspace-history', JSON.stringify(workspaceHistory.value))
+    return true
+  }
+
+  function restoreWorkspaceContext(context) {
+    return setWorkspaceContext(context, { force: true })
+  }
+
+  function clearWorkspaceContext() {
+    workspaceContext.value = null
+    localStorage.removeItem('aerorf:workspace-context')
+  }
+
+  function openWorkspace(section = workspaceSection.value) {
+    if (WORKSPACE_SECTIONS.has(section)) {
+      workspaceSection.value = section
+      _remember('aerorf:workspace-section', section)
+    }
+    setWorkspaceMode('open')
+  }
+
+  function toggleWorkspaceSection(section) {
+    if (!WORKSPACE_SECTIONS.has(section)) return
+    if (workspaceMode.value === 'open' && workspaceSection.value === section) {
+      setWorkspaceMode('collapsed')
+      return
+    }
+    openWorkspace(section)
+  }
+
+  function toggleSidebar() {
+    setWorkspaceMode(workspaceMode.value === 'closed' ? 'open' : 'closed')
+  }
+
+  function setPanel(panel) {
+    openWorkspace(panel)
+  }
+
   function setSidebarWidth(px) {
-    const w = Math.max(220, Math.min(Number(px) || 268, 460))
-    sidebarWidth.value = w
-    _remember('aerorf:sidebar-width', w)
+    setWorkspaceWidth(px)
   }
 
   function setInspectorWidth(px) {
-    const w = Math.max(260, Math.min(Number(px) || 300, 520))
-    inspectorWidth.value = w
-    _remember('aerorf:inspector-width', w)
+    setWorkspaceWidth(px)
   }
 
   function toggleInspector() {
-    inspectorOpen.value = !inspectorOpen.value
-    localStorage.setItem('aerorf:inspector-open', inspectorOpen.value ? '1' : '0')
+    if (workspaceSection.value === 'inspector' && workspaceMode.value === 'open') {
+      setWorkspaceMode('closed')
+    } else {
+      openWorkspace('inspector')
+    }
   }
 
   const connected = computed(() => backendStatus.value === 'ok')
@@ -144,21 +273,6 @@ export const useSystemStore = defineStore('system', () => {
   function setCoordinateFormat(format) {
     coordinateFormat.value = format
     localStorage.setItem('aerorf:coord-format', format)
-  }
-
-  function toggleSidebar() {
-    sidebarOpen.value = !sidebarOpen.value
-    localStorage.setItem('aerorf:sidebar-open', sidebarOpen.value ? '1' : '0')
-  }
-
-  function setPanel(panel) {
-    if (leftPanel.value === panel && sidebarOpen.value) {
-      toggleSidebar()
-      return
-    }
-    leftPanel.value = panel
-    sidebarOpen.value = true
-    localStorage.setItem('aerorf:sidebar-open', '1')
   }
 
   // ─── Dialogues and notices ──────────────────────────────────────────────────
@@ -223,6 +337,11 @@ export const useSystemStore = defineStore('system', () => {
     cursor, coordinateFormat, setCursor, setCoordinateFormat,
     sidebarOpen, leftPanel, sidebarWidth, setSidebarWidth, setPanel, toggleSidebar,
     inspectorOpen, inspectorWidth, setInspectorWidth, toggleInspector,
+    workspaceMode, workspaceSection, workspaceSide, workspaceWidth, workspacePinned,
+    workspaceContext, workspaceHistory, setWorkspaceMode, setWorkspaceSide,
+    setWorkspaceWidth, toggleWorkspacePinned, setWorkspaceContext,
+    restoreWorkspaceContext, clearWorkspaceContext, openWorkspace,
+    toggleWorkspaceSection,
     dialog, ask, answerDialog, notice, notify, dismissNotice,
     showTimeline,
     airportCountries, airportLabels, setAirportCountries, toggleAirportCountry,

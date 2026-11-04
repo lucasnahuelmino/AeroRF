@@ -110,6 +110,7 @@ const flightsStore = useFlightsStore()
 
 const sections = [
   { path: '/', label: 'Mapa', icon: '◈' },
+  { path: '/situacion', label: 'Situación', icon: '⌁' },
   { path: '/calculadora', label: 'Calculadora RF', icon: '∑' },
   // Expedientes quedó archivado fuera de la navegación activa y se remueve del
   // menú para evitar el acceso a un módulo con estrategia de preservación

@@ -122,6 +122,7 @@ def list_map_objects(
     search: Optional[str] = None,
     limit: int = Query(2000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
+    order_by: str = Query("drawing", pattern="^(drawing|recent)$"),
     format: str = Query("leaflet", pattern="^(leaflet|geojson|raw)$"),
     db: Session = Depends(get_db),
 ):
@@ -145,6 +146,7 @@ def list_map_objects(
             search=search,
             limit=limit,
             offset=offset,
+            order_by=order_by,
         )
     except svc.MapServiceError as exc:
         raise _bad_request(exc)

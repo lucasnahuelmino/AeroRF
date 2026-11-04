@@ -92,8 +92,8 @@
             :key="tab.id"
             class="gis-tab"
             :class="{ active: systemStore.leftPanel === tab.id }"
-            :title="`Panel ${tab.label}`"
-            :aria-label="`Panel ${tab.label}`"
+            :title="tab.label"
+            :aria-label="tab.label"
             :aria-current="systemStore.leftPanel === tab.id ? 'page' : undefined"
             @click="systemStore.setPanel(tab.id)"
           >
@@ -119,6 +119,8 @@
             @zoom="zoomToAirports()"
             @measure="armAirportMeasure"
           />
+          <InspectorPanel v-else-if="systemStore.leftPanel === 'inspector'" />
+          <Timeline v-else-if="systemStore.leftPanel === 'timeline'" embedded />
         </div>
 
         <!-- Drag handle: the map is the point, so the operator decides how
@@ -195,6 +197,13 @@
               {{ mapStore.selected.name || typeName(mapStore.selected.type) }}
             </span>
             <span class="w-px h-4 bg-borde" />
+            <button
+              class="gis-mini-btn"
+              title="Inspeccionar objeto"
+              @click="inspectSelected"
+            >
+              ⌕
+            </button>
             <button
               class="gis-mini-btn"
               title="Medir desde este objeto hasta el cursor"
@@ -415,6 +424,8 @@ const sideTabs = [
   { id: 'objects', label: 'Objetos', short: 'Objetos', icon: '\u25A3' },
   { id: 'flights', label: 'Vuelos', short: 'Vuelos', icon: '\u2708' },
   { id: 'airports', label: 'Aeropuertos', short: 'Aerop.', icon: '\u2316' },
+  { id: 'inspector', label: 'Inspector', short: 'Insp.', icon: '\u25B8' },
+  { id: 'timeline', label: 'Línea de tiempo', short: 'Tiempo', icon: '\u23F1' },
 ]
 
 // ─── Panel resizing ──────────────────────────────────────────────────────────
@@ -490,17 +501,14 @@ onMounted(async () => {
   // Aircraft: live markers and provenance-coloured tracks (spec §21–§23).
   aircraftRenderer = markRaw(
     new AircraftRenderer(engine, {
-      onSelect: (icao24) => {
-        flightsStore.selectedIcao24 = icao24
-        flightsStore.loadAircraftDistances(icao24)
-        // Open the inspector. The click used to set a value nothing displayed, so
-        // the panel went on saying "select an object" while the operator had just
-        // picked an aeroplane — the information was fetched and then nowhere.
-        if (!systemStore.inspectorOpen) systemStore.toggleInspector()
-        // A stale object selection would win the panel and hide the aircraft, and
-        // the operator clicked the aeroplane, not the circle next to it.
-        if (mapStore.selectedId != null) mapStore.clearSelection()
-      },
+  onSelect: (icao24) => {
+    flightsStore.selectedIcao24 = icao24
+    flightsStore.loadAircraftDistances(icao24)
+    // Selection is explicit and the inspector opens on request. Auto-opening
+    // here would make the map action feel like a panel transition and would
+    // interfere with the operator's choice of what to inspect next.
+    if (mapStore.selectedId != null) mapStore.clearSelection()
+  },
     }),
   )
   mapStore.aircraftRenderer = aircraftRenderer
@@ -779,12 +787,11 @@ async function handleToolComplete(payload) {
     ...payload,
   })
   systemStore.setPanel('tools')
-  // El objeto recién dibujado queda seleccionado y el inspector abierto:
-  // se dibuja para detallar, y sin esto al operador le toca buscar el
-  // objeto a mano en la lista antes de poder escribir una sola palabra.
+  // El objeto recién dibujado queda seleccionado, pero la inspección debe
+  // abrirse por acción explícita del operador. El mapa no debe empujar el
+  // panel cuando solo se completa una operación de dibujo.
   if (creado) {
     mapStore.select(creado.id)
-    if (!systemStore.inspectorOpen) systemStore.toggleInspector()
   }
 }
 
@@ -798,6 +805,12 @@ function saveMeasurement() {
 }
 
 // ─── Object actions ─────────────────────────────────────────────────────────
+
+function inspectSelected() {
+  if (!mapStore.selected) return
+  systemStore.setWorkspaceContext({ type: 'object', id: mapStore.selected.id })
+  systemStore.setPanel('inspector')
+}
 
 function centerSelected() {
   engine?.fitObject(mapStore.selected)
@@ -952,14 +965,11 @@ watch(
 .gis-shell {
   display: flex;
   flex-direction: column;
-  /* The viewport minus the two fixed bars, not the whole viewport. The header
-     and the footer are outside this component, and asking for 100vh here made
-     the page 74px taller than the screen: the map's bottom edge — and with it
-     the status bar — fell off the bottom, and the operator scrolled a map that
-     is meant to be one fixed view. The two heights are variables set in
-     App.vue, because the numbers belong with the bars that have them. */
-  height: calc(100vh - var(--brandbar-h, 48px) - var(--footerbar-h, 26px));
-  height: calc(100dvh - var(--brandbar-h, 48px) - var(--footerbar-h, 26px));
+  /* The viewport minus the fixed header, not the whole viewport. The footer is
+     outside this component and the map must remain on the visible screen
+     without an extra, hidden height budget. */
+  height: calc(100vh - var(--brandbar-h, 48px));
+  height: calc(100dvh - var(--brandbar-h, 48px));
   background: var(--fondo);
   color: var(--texto);
   overflow: hidden;

@@ -585,25 +585,29 @@ def list_objects(
     search: Optional[str] = None,
     limit: int = 1000,
     offset: int = 0,
+    order_by: str = "drawing",
 ) -> list[MapObject]:
     """Filtered listing used by the map and object administrator."""
+    query = _filtered_objects_query(
+        db,
+        types=types,
+        layer_id=layer_id,
+        layer_key=layer_key,
+        layer_missing=layer_missing,
+        expediente_id=expediente_id,
+        status=status,
+        visible=visible,
+        category=category,
+        source=source,
+        bbox=bbox,
+        search=search,
+    )
+    if order_by == "recent":
+        query = query.order_by(MapObject.fecha_creacion.desc(), MapObject.id.desc())
+    else:
+        query = query.order_by(MapObject.z_index, MapObject.id)
     return (
-        _filtered_objects_query(
-            db,
-            types=types,
-            layer_id=layer_id,
-            layer_key=layer_key,
-            layer_missing=layer_missing,
-            expediente_id=expediente_id,
-            status=status,
-            visible=visible,
-            category=category,
-            source=source,
-            bbox=bbox,
-            search=search,
-        )
-        .order_by(MapObject.z_index, MapObject.id)
-        .limit(max(1, min(limit, 5000)))
+        query.limit(max(1, min(limit, 5000)))
         .offset(max(0, offset))
         .all()
     )

@@ -409,7 +409,7 @@
  * and controls (spec §26), recording (spec §24) and distances to
  * references (spec §30).
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from 'vue'
 
 import { MAX_TRACKED, useFlightsStore } from '@/stores/flights'
 import { useMapStore, typeName } from '@/stores/map'
@@ -445,13 +445,23 @@ const systemStore = useSystemStore()
 
 let timer = null
 
-onMounted(() => {
+function startWatchlistRefresh() {
+  if (timer) return
   timer = setInterval(() => {
     if (flightsStore.watchlist.length) flightsStore.loadWatchlist()
   }, 30000)
-})
+}
+
+function stopWatchlistRefresh() {
+  if (timer) clearInterval(timer)
+  timer = null
+}
+
+onMounted(startWatchlistRefresh)
+onActivated(startWatchlistRefresh)
+onDeactivated(stopWatchlistRefresh)
 onBeforeUnmount(() => {
-  clearInterval(timer)
+  stopWatchlistRefresh()
   stopLiveTrack()
 })
 

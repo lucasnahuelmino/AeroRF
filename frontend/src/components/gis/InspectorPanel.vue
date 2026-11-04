@@ -2,6 +2,22 @@
   <div class="flex h-full flex-col">
     <header class="flex flex-0 items-center justify-between border-b border-borde px-3 py-2">
       <h2 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">Inspector</h2>
+      <select
+        v-if="systemStore.workspaceHistory.length > 1"
+        class="min-w-0 flex-1 rounded border border-borde bg-panel-hondo px-1 py-1 text-[10px] text-texto-medio"
+        aria-label="Contextos recientes"
+        title="Volver a un contexto inspeccionado"
+        @change="restoreContextFromHistory"
+      >
+        <option value="">Contextos recientes</option>
+        <option
+          v-for="(context, index) in systemStore.workspaceHistory"
+          :key="contextKey(context)"
+          :value="index"
+        >
+          {{ contextLabel(context) }}
+        </option>
+      </select>
       <button
         v-if="object || aircraft"
         class="gis-mini-btn"
@@ -553,12 +569,20 @@ import { useFlightsStore } from '@/stores/flights'
 import { useExpedientesStore } from '@/stores/expedientes'
 import { formatDistance } from '@/map/geo'
 
+const props = defineProps({
+  context: { type: Object, default: undefined },
+})
+
 const mapStore = useMapStore()
 const systemStore = useSystemStore()
 const flightsStore = useFlightsStore()
 const expedientesStore = useExpedientesStore()
 
-const object = computed(() => mapStore.selected)
+const object = computed(() => {
+  if (props.context === undefined) return mapStore.selected
+  if (props.context?.type !== 'object') return null
+  return mapStore.byId.get(props.context.id) || null
+})
 const locked = computed(() => object.value?.locked === true)
 
 // ─── The aircraft that was clicked ────────────────────────────────────────────
@@ -572,7 +596,9 @@ const locked = computed(() => object.value?.locked === true)
 // operator clicked *is* the live position and showing the older one next to it
 // would put two different positions in the same panel.
 const aircraft = computed(() => {
-  const icao = flightsStore.selectedIcao24
+  const icao = props.context === undefined
+    ? flightsStore.selectedIcao24
+    : props.context?.type === 'aircraft' ? props.context.icao24 : null
   if (!icao) return null
   const key = String(icao).trim().toLowerCase()
   return flightsStore.liveStates?.[key] || flightsStore.liveStates?.[icao] || null
@@ -590,7 +616,9 @@ const aircraftIsLive = computed(
 )
 
 const trajectory = computed(() => {
-  const icao = flightsStore.selectedIcao24
+  const icao = props.context === undefined
+    ? flightsStore.selectedIcao24
+    : props.context?.type === 'aircraft' ? props.context.icao24 : null
   if (!icao) return null
   return flightsStore.trackFor(icao)
 })
@@ -680,8 +708,28 @@ function fmtTime(unixSeconds) {
 
 /** Close whichever thing is being inspected, not just an object. */
 function closeInspection() {
+  if (props.context !== undefined) {
+    systemStore.clearWorkspaceContext()
+    return
+  }
   mapStore.clearSelection()
   flightsStore.selectedIcao24 = null
+}
+
+function contextKey(context) {
+  return context.type === 'object' ? `object:${context.id}` : `aircraft:${context.icao24}`
+}
+
+function contextLabel(context) {
+  return context.type === 'object'
+    ? `Objeto ${context.id}`
+    : `Aeronave ${context.icao24.toUpperCase()}`
+}
+
+function restoreContextFromHistory(event) {
+  const index = Number(event.target.value)
+  const context = systemStore.workspaceHistory[index]
+  if (context) systemStore.restoreWorkspaceContext(context)
 }
 
 /** Send the operator to the aircraft in the flights panel. */

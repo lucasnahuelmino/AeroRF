@@ -1,5 +1,5 @@
 <template>
-  <div class="gis-timeline">
+  <div class="gis-timeline" :class="{ 'gis-timeline-embedded': embedded }">
     <!-- Transport controls (spec §28) -->
     <div class="flex flex-none items-center gap-1.5 border-r border-borde px-2">
       <button
@@ -64,7 +64,14 @@
           {{ pointTimeLabel }}
         </span>
       </template>
-      <button class="gis-mini-btn" @click="systemStore.showTimeline = false">✕</button>
+      <button
+        v-if="!embedded"
+        class="gis-mini-btn"
+        aria-label="Cerrar línea de tiempo"
+        @click="systemStore.showTimeline = false"
+      >
+        ✕
+      </button>
     </div>
   </div>
 </template>
@@ -82,6 +89,10 @@ import { computed } from 'vue'
 import { useFlightsStore } from '@/stores/flights'
 import { useSystemStore } from '@/stores/system'
 import { useMapStore } from '@/stores/map'
+
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+})
 
 const flightsStore = useFlightsStore()
 const systemStore = useSystemStore()
@@ -126,25 +137,12 @@ function togglePlay() {
     flightsStore.pauseReplay()
   } else {
     flightsStore.playReplay()
-    // Follow the marker as it moves.
-    watchFollow()
   }
 }
 
 function stop() {
   flightsStore.stopReplay()
   seek(0)
-}
-
-let followTimer = null
-function watchFollow() {
-  clearInterval(followTimer)
-  followTimer = setInterval(() => {
-    const point = flightsStore.replayCurrent
-    if (point?.latitude != null) {
-      mapStore.engine?.setView(point.latitude, point.longitude, mapStore.engine.getZoom())
-    }
-  }, 200)
 }
 
 function formatClock(ts) {
@@ -164,5 +162,11 @@ function formatClock(ts) {
   background: var(--panel);
   border-top: 1px solid var(--panel-alto);
   z-index: 1050;
+}
+
+.gis-timeline-embedded {
+  border-top: 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
 }
 </style>

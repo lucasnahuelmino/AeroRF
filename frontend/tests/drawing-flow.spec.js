@@ -426,17 +426,11 @@ describe('the shell wires the clicks the way the flow needs', () => {
 
     map.createObject = realCreate
     w.unmount()
-  })
+  }, 10000)
 
-  it('deja el circulo recién creado seleccionado y con el inspector abierto', async () => {
-    // El operador dibuja un círculo para detallar de qué se trata. Si el
-    // objeto no queda seleccionado y el inspector cerrado, tiene que buscarlo
-    // a mano en la lista antes de poder escribir una sola palabra sobre él.
-    //
-    // El inspector arranca cerrado a propósito, para que la apertura sea
-    // parte de lo que esta prueba mide; el valor se lee al crear el store,
-    // así que se restituye apenas quedó capturado.
-    localStorage.setItem('aerorf:inspector-open', '0')
+  it('keeps new objects selected and opens their inspector only on request', async () => {
+    localStorage.setItem('aerorf:workspace-mode', 'open')
+    localStorage.setItem('aerorf:workspace-section', 'tools')
 
     const { mount, flushPromises } = await import('@vue/test-utils')
     const { createRouter, createMemoryHistory } = await import('vue-router')
@@ -447,11 +441,13 @@ describe('the shell wires the clicks the way the flow needs', () => {
     setActivePinia(pinia)
     const map = useMapStore()
     const system = useSystemStore()
-    localStorage.removeItem('aerorf:inspector-open')
     expect(system.inspectorOpen, 'el inspector debería arrancar cerrado').toBe(false)
 
-    map.createObject = (payload) =>
-      Promise.resolve({ id: 7, ...payload, latlng: null, latlngs: [] })
+    map.createObject = (payload) => {
+      const object = { id: 7, ...payload, latlng: null, latlngs: [] }
+      map.objects.push(object)
+      return Promise.resolve(object)
+    }
 
     const router = createRouter({
       history: createMemoryHistory(),
@@ -479,13 +475,14 @@ describe('the shell wires the clicks the way the flow needs', () => {
       map.selectedId,
       'el circulo recién creado debe quedar seleccionado',
     ).toBe(7)
-    expect(
-      system.inspectorOpen,
-      'el inspector debe abrirse: ahi es donde se detalla el objeto',
-    ).toBe(true)
+    expect(system.inspectorOpen, 'la selección no debe abrir automáticamente el inspector').toBe(false)
+
+    await w.find('[title="Inspeccionar objeto"]').trigger('click')
+    expect(system.workspaceSection).toBe('inspector')
+    expect(system.workspaceContext).toEqual({ type: 'object', id: 7 })
 
     w.unmount()
-  })
+  }, 10000)
 
   it('le pasa la fuente elegida al crear el punto', async () => {
     // El operador elige FM/TPRS/Otro en las opciones antes de hacer clic.

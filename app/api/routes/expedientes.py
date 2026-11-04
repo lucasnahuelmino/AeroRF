@@ -24,6 +24,7 @@ from app.models.expediente import Expediente
 from app.models.map_object import MapObject
 from app.models.medicion import Medicion
 from app.models.evento_rf import EventoRF
+from app.models.espectro import RegistroEspectral
 from app.models.schemas import (
     ExpedienteCreate,
     ExpedienteUpdate,
@@ -137,18 +138,14 @@ def update_expediente(
 
 @router.delete("/{id}")
 def delete_expediente(id: int, db: Session = Depends(get_db)):
-    """Delete an expediente, refusing while GIS objects still link to it."""
+    """Delete an expediente only when no dependent records would be lost."""
     db_expediente = db.query(Expediente).filter(Expediente.id == id).first()
 
     if not db_expediente:
         raise HTTPException(status_code=404, detail=f"No existe el expediente {id}.")
 
-    # P0-02: `MapObject.expediente_id` es ON DELETE SET NULL y la base
-    # corre con foreign_keys=ON, así que este borrado se llevaba el
-    # vínculo en silencio — el expediente se iba y los objetos quedaban
-    # huérfanos de caso, sin que nadie lo viera. El sentido inverso ya
-    # estaba bloqueado (no se puede borrar un objeto con expediente);
-    # el operador decidió que este responda 409.
+    # Keep the existing links and legacy child records intact. In particular,
+    # measurements and RF calculations are evidence, not disposable case data.
     vinculados = [
         oid
         for (oid,) in db.query(MapObject.id)
@@ -166,9 +163,24 @@ def delete_expediente(id: int, db: Session = Depends(get_db)):
             "Desvinculalos antes de borrarlo.",
         )
 
-    # Delete related records
-    db.query(Medicion).filter(Medicion.expediente_id == id).delete()
-    db.query(EventoRF).filter(EventoRF.expediente_id == id).delete()
+    dependencias = [
+        ("mediciones", db.query(Medicion.id).filter(Medicion.expediente_id == id).count()),
+        ("eventos RF", db.query(EventoRF.id).filter(EventoRF.expediente_id == id).count()),
+        (
+            "registros espectrales",
+            db.query(RegistroEspectral.id)
+            .filter(RegistroEspectral.expediente_id == id)
+            .count(),
+        ),
+    ]
+    dependencias = [(nombre, cantidad) for nombre, cantidad in dependencias if cantidad]
+    if dependencias:
+        detalle = ", ".join(f"{cantidad} {nombre}" for nombre, cantidad in dependencias)
+        raise HTTPException(
+            409,
+            f"No se puede borrar el expediente {id}: conserva datos asociados "
+            f"({detalle}). Archivá o vinculá esos datos antes de retirarlo.",
+        )
 
     db.delete(db_expediente)
     db.commit()

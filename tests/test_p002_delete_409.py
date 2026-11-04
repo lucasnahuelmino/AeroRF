@@ -29,6 +29,11 @@ from __future__ import annotations
 import pytest
 
 _API = "/api/v1"
+_DEPENDENCY_LABELS = {
+    "medicion": "mediciones",
+    "evento_rf": "eventos rf",
+    "registro_espectral": "registros espectrales",
+}
 
 
 @pytest.fixture
@@ -67,6 +72,44 @@ def _objeto_vinculado(client, expediente_id: int) -> dict:
     )
     assert r.status_code == 201, r.text
     return r.json()
+
+
+def _crear_dato_dependiente(kind: str, expediente_id: int) -> int:
+    from app.database.database import SessionLocal
+    from app.models.evento_rf import EventoRF
+    from app.models.espectro import RegistroEspectral
+    from app.models.medicion import Medicion
+
+    modelos = {
+        "medicion": Medicion,
+        "evento_rf": EventoRF,
+        "registro_espectral": RegistroEspectral,
+    }
+    modelo = modelos[kind]
+    valores = {"expediente_id": expediente_id}
+    if kind == "medicion":
+        valores.update(freq_mhz=121.5, lat=-34.6, lon=-58.4)
+    elif kind == "evento_rf":
+        valores.update(
+            frecuencia_resultado_mhz=121.5,
+            tipo_producto="H2",
+            formula="2 * 60.75",
+            error_khz=0.0,
+            score_probabilidad=90.0,
+        )
+    else:
+        # This is database metadata only; the test does not create or modify a file.
+        valores.update(
+            archivo_path="evidencias/prueba.png",
+            tipo_archivo="imagen",
+            nombre_archivo="prueba.png",
+        )
+
+    with SessionLocal() as session:
+        dato = modelo(**valores)
+        session.add(dato)
+        session.commit()
+        return dato.id
 
 
 # ─── El bloqueo nuevo ────────────────────────────────────────────────────────
@@ -117,6 +160,31 @@ def test_desvincular_y_borrar_es_el_camino_de_recuperacion(client):
     r = client.delete(f"{_API}/expedientes/{exp['id']}")
     assert r.status_code == 200, r.text
     assert client.get(f"{_API}/expedientes/{exp['id']}").status_code == 404
+
+
+@pytest.mark.parametrize("kind", ["medicion", "evento_rf", "registro_espectral"])
+def test_delete_con_datos_dependientes_bloquea_y_preserva_filas(client, kind):
+    from app.database.database import SessionLocal
+    from app.models.evento_rf import EventoRF
+    from app.models.espectro import RegistroEspectral
+    from app.models.medicion import Medicion
+
+    exp = _expediente(client, f"EXP-PRESERVAR-{kind}")
+    dato_id = _crear_dato_dependiente(kind, exp["id"])
+    modelos = {
+        "medicion": Medicion,
+        "evento_rf": EventoRF,
+        "registro_espectral": RegistroEspectral,
+    }
+
+    r = client.delete(f"{_API}/expedientes/{exp['id']}")
+
+    assert r.status_code == 409, r.text
+    assert "datos asociados" in r.json()["detail"].lower()
+    assert _DEPENDENCY_LABELS[kind] in r.json()["detail"].lower()
+    assert client.get(f"{_API}/expedientes/{exp['id']}").status_code == 200
+    with SessionLocal() as session:
+        assert session.get(modelos[kind], dato_id) is not None
 
 
 # ─── El 404 de esta función, en español ──────────────────────────────────────

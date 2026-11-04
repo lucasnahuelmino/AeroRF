@@ -119,12 +119,77 @@ Esto incluye las pruebas de regresión de trayectorias y del pane dedicado, adem
 - No se verificó aquí que los datos de Expedientes hayan sido archivados ni migrados. No se ejecutaron escrituras o migraciones sobre bases de datos; por lo tanto, no se afirma que la preservación de datos ya esté resuelta.
 - la recuperación del módulo Espectro queda en evaluación; requiere validación real de filtros y picos antes de reintroducir un componente funcional.
 
+### Inventario de preservación de Expedientes (solo código)
+
+La inspección de modelos, endpoints y consumidores confirma estas estructuras:
+
+| Información | Persistencia actual | Destino o vínculo posible en AeroRF | Estado |
+|---|---|---|---|
+| Identificador, estado, severidad, frecuencia, aeropuerto, coordenadas, inspector y narrativa | `expedientes` | No hay un modelo GIS de caso equivalente; no se debe convertir automáticamente el expediente entero en un objeto cartográfico ni crear un módulo sustituto | Sin destino aprobado |
+| Objetos GIS vinculados | `map_objects.expediente_id` (`ON DELETE SET NULL`) | El vínculo ya existe; la API impide borrar un caso mientras haya objetos vinculados | Preservado por FK y guarda |
+| Notas, historial y anotaciones de objetos | `object_notes`, `object_history`, `annotations`, relacionados con `map_objects` | Permanecen junto al objeto GIS correspondiente | Vínculo actual disponible |
+| Mediciones de campo con frecuencia, nivel, ancho de banda, coordenadas, fecha y notas | `mediciones.expediente_id` | Potencialmente asociables a un objeto/medición GIS, pero falta un crosswalk que determine objeto, tipo y procedencia por fila | Sin migrar; ahora el borrado se bloquea con 409 |
+| Resultados calculados RF | `eventos_rf.expediente_id` | `rf_events.calculated_evento_id` permite referenciar un resultado legacy desde un evento GIS | Sin migrar; ahora el borrado se bloquea con 409 |
+| Capturas, CSV u otros archivos espectrales: tipo, nombre, centro/ancho de banda, anotaciones y estado de procesamiento | `registros_espectrales.expediente_id`; `archivo_path` referencia almacenamiento externo | Requiere resolver y verificar cada archivo en su almacenamiento antes de asociar sus metadatos a un evento, fuente o sesión | Sin inventario físico; ahora el borrado se bloquea con 409 |
+
+El inventario es de esquema y código, no de contenido: no se abrió una base configurada ni se inspeccionó el sistema de archivos de evidencias. No hay evidencia suficiente para construir un mapeo automático sin riesgo de asignar mediciones o archivos al objeto GIS equivocado.
+
+Como protección preventiva, `DELETE /expedientes/{id}` ya no elimina en cascada mediciones ni eventos calculados y responde 409 si hay registros dependientes: objetos GIS, mediciones, resultados RF o metadatos espectrales. El bloqueo no constituye un archivo ni una migración; conserva la información mientras se define y valida su destino.
+
+### Centro de Situación y Espectro
+
+- Se incorporó `/situacion` como una vista operativa de solo lectura con estado reportado de API/base, modo/configuración OpenSky, aeronaves en la lista de seguimiento, sesiones grabando, eventos RF GIS y mediciones GIS recientes. Las fuentes se consultan mediante APIs existentes o extensiones acotadas con orden temporal y límite.
+- El feed de actividad general no existe como historial consultable: `/system/logs/recent` informa configuración/ruta de logs, mientras los registros técnicos salen por stdout. La vista declara esta limitación y no fabrica una lista de actividad.
+- La lista de seguimiento muestra las aeronaves efectivamente marcadas por el operador y estados ya recibidos por el WebSocket; no consulta todos los vuelos globales ni llama OpenSky para llenar la pantalla. El indicador de OpenSky describe configuración/capacidad reportada, no disponibilidad real del proveedor.
+- Espectro no tiene vista, ruta, API ni motor actual de análisis: `RegistroEspectral` conserva metadatos y una ruta externa a archivos; no se encontró ingestión de datos ni lógica activa de detección/filtro de picos. No se recuperó código antiguo ni se activó un análisis sin archivos/protocolo de entrada verificables.
+
 ### Sin novedad relevante
 
 - no se encontraron secretos en `.env` ni se expusieron credenciales,
-- no se realizaron migraciones destructivas ni writes en la base de producción,
-- no se tocaron endpoints ni modelos ajenos al alcance seguro y verificable del cambio.
+- no se consultaron ni modificaron bases de datos o archivos de evidencias,
+- no se realizaron cambios de esquema ni migraciones.
 
 ## Conclusión
 
-El repositorio ya resolvió la fase crítica de trayectorias y avanzó en el rebranding institucional con una paleta y tipografía centralizadas. Expedientes fue retirado parcialmente de la navegación, pero sus consumidores, vistas y APIs siguen en el código y la preservación de sus datos no está resuelta. Espectro permanece fuera de la aplicación hasta completar la auditoría funcional de bandas, picos y persistencia.
+El repositorio ya resolvió la fase crítica de trayectorias, centralizó el rebranding institucional e incorporó un Centro de Situación limitado a fuentes reales disponibles. Expedientes fue retirado parcialmente de la navegación y su endpoint de borrado protege las filas dependientes identificadas en el esquema. La preservación/migración aún no está resuelta porque falta inspeccionar una copia autorizada de datos y el almacenamiento de evidencias, además de aprobar un crosswalk. Espectro permanece fuera de la aplicación: solo se identificaron metadatos de archivos, sin un motor de análisis comprobable.
+
+## Addendum — AeroRF Workspace 2.2
+
+La rama actual de trabajo es `mejora/aerorf-workspace-unificado`, basada en
+`0fb57d1` (`main` integrado). Se preservaron las modificaciones locales de la
+fase anterior; esta continuación no crea commits, no publica cambios y no hace
+deploy.
+
+### Cambios del workspace
+
+- `GisShell.vue` ahora monta una sola superficie lateral. Su estado distingue
+  abierto, contraído y cerrado; la sección, lado y ancho se persisten en
+  `localStorage`, y el cambio de tamaño/posición vuelve a invalidar el tamaño de
+  Leaflet.
+- La navegación del workspace conserva paneles mediante `KeepAlive` y reúne
+  herramientas, capas, objetos, vuelos, aeropuertos, inspector y línea de
+  tiempo.
+- La selección del mapa ya no abre automáticamente el inspector. La acción
+  explícita abre el contexto de objeto o aeronave; el contexto se puede fijar y
+  recuperar desde el historial reciente.
+- El timeline del workspace y el dock inferior reutilizan el estado de replay
+  del store de vuelos. Se quitó el intervalo local de seguimiento: el mapa
+  sigue el índice compartido de replay y el shell pausa la reproducción al
+  desmontarse.
+- `App.vue` dejó de montar `FooterBar`; el mapa ocupa ahora el espacio restante
+  bajo la cabecera institucional. El componente de footer permanece en el
+  repositorio, pero no forma parte del árbol de la aplicación.
+- El workspace se vuelve superpuesto en pantallas estrechas para conservar el
+  área cartográfica. Se añadieron pruebas de modos, persistencia, contexto
+  fijado, navegación explícita, footer ausente y estado compartido del timeline.
+
+### Alcance que sigue pendiente
+
+- La navegación no agrega todavía una sección de Configuración ni una vista
+  independiente de Espectro: no se encontró un motor activo verificable ni un
+  protocolo/muestra autorizado para análisis de picos y bandas.
+- No se modificaron las APIs legacy de Expedientes más allá de la protección
+  contra borrado de datos dependientes; la eliminación completa continúa
+  bloqueada por falta de crosswalk aprobado y datos/evidencias autorizados.
+- La implementación y sus pruebas requieren validación final de frontend,
+  build, backend y paridad geográfica antes de registrar resultados de cierre.

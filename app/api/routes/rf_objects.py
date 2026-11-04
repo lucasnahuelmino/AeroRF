@@ -327,6 +327,7 @@ def list_events(
     frequency_max: Optional[float] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     """List RF events, filterable by frequency band and date."""
@@ -358,7 +359,15 @@ def list_events(
     if conditions:
         q = q.filter(and_(*conditions))
 
-    rows = q.order_by(MapObject.id).all()
+    rows = q.order_by(
+        func.coalesce(
+            RFEvent.event_at, MapObject.observed_at, MapObject.fecha_creacion
+        ).desc(),
+        MapObject.id.desc(),
+    )
+    if limit is not None:
+        rows = rows.limit(limit)
+    rows = rows.all()
     return {"count": len(rows), "events": [_to_leaflet(o) for o in rows]}
 
 

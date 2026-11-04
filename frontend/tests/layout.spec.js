@@ -258,46 +258,23 @@ describe('The brand mark cannot size itself again', () => {
     expect(logo).toMatch(/width:\s*34px/)
   })
 
-  it('repeats the ENACOM mark smaller in the footer than in the header', () => {
-    // 17px in the header, 12px in the footer. Both are in scoped rules, and
-    // jsdom does not compute scoped styles, so the sizes are read from the
-    // built CSS — which is the only place they actually exist.
+  it('keeps the institutional mark in the header', () => {
     const header = ruleFor(css, 'brandbar-enacom-img')
-    const footer = ruleFor(css, 'footerbar-logo')
     expect(header, 'falta .brandbar-enacom-img').toBeTruthy()
-    expect(footer, 'falta .footerbar-logo').toBeTruthy()
-    const h = Number(header.match(/height:\s*(\d+)px/)?.[1])
-    const f = Number(footer.match(/height:\s*(\d+)px/)?.[1])
-    expect(Number.isFinite(h) && Number.isFinite(f), 'ambos tamaños deben estar en px').toBe(true)
-    expect(f, 'el logo del pie debe ser mas pequeno que el de la cabecera')
-      .toBeLessThan(h)
+    expect(Number.isFinite(Number(header.match(/height:\s*(\d+)px/)?.[1]))).toBe(true)
+    expect(ruleFor(css, 'footerbar-logo')).toBeNull()
+    const chip = ruleFor(css, 'brandbar-enacom-chip')
+    expect(chip, 'falta el fondo blanco del logo oficial').toMatch(
+      /background(-color)?:\s*(#fff(fff)?|white|rgb\(255,\s*255,\s*255\))/i,
+    )
   })
 
-  it('gives both institutional marks a white ground, because the mark is dark navy', () => {
-    // Measured off the supplied file: RGB(11, 23, 66) on transparent. On this
-    // interface's near-black that is invisible. A white chip keeps the official
-    // colours exactly as they are; a filter that lightened the mark instead
-    // would be a different logo.
-    for (const cls of ['brandbar-enacom-chip', 'footerbar-chip']) {
-      const rule = ruleFor(css, cls)
-      expect(rule, `falta .${cls}`).toBeTruthy()
-      expect(rule, `.${cls} debe llevar fondo blanco`).toMatch(
-        /background(-color)?:\s*(#fff(fff)?|white|rgb\(255,\s*255,\s*255\))/i,
-      )
-    }
-  })
-
-  it('takes the two fixed bars out of the map height, so the shell is exactly one screen', () => {
-    // The shell asked for a full viewport *and* sat below a header and above a
-    // footer, so the page grew by 74px and the map's bottom edge, with it the
-    // status bar, fell off the screen. A scrolling map on a screen meant to be
-    // one fixed view.
+  it('takes only the header out of the map height', () => {
     const shell = ruleFor(css, 'gis-shell')
     expect(shell, 'falta .gis-shell').toBeTruthy()
-    // `[^}]*` rather than `[^)]*`: the declaration carries the bars' fallbacks,
-    // `var(--brandbar-h, 48px)`, and a bracket closes the group.
-    expect(shell, 'la altura del shell debe descontar las dos barras')
-      .toMatch(/height:\s*calc\([^}]*var\(--brandbar-h[^}]*var\(--footerbar-h/)
+    expect(shell, 'la altura del shell debe descontar la cabecera')
+      .toMatch(/height:\s*calc\([^}]*var\(--brandbar-h/)
+    expect(shell).not.toContain('--footerbar-h')
   })
 
   it('replaces Leaflet\'s grab hand with a crosshair over the map', () => {

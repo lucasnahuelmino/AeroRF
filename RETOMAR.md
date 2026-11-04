@@ -1,9 +1,26 @@
 # Punto de retorno — AeroRF
 
 **Fecha:** 2026-11-04
-**Estado:** rama de trabajo `mejora/aerorf-2-rebranding-trayectorias`; la fase crítica de trayectorias está cerrada y la base de rebranding institucional quedó implementada en tokens y tipografía. Quedan pendientes la baja funcional de `Expedientes` y la auditoría de recuperación del módulo Espectro.
+**Estado:** continuación AeroRF Workspace 2.2 en `mejora/aerorf-workspace-unificado`, basada en `0fb57d1`. Cambios locales preservados; sin commit, push ni deploy.
 
-> Nota de trabajo 2.1: la corrección del problema de render de trayectorias quedó verificada con la suite frontend, pero eso no cierra AeroRF 2.1. La identidad visual institucional y la preservación de datos de Expedientes siguen siendo tareas de evolución y riesgo arquitectónico.
+> Nota de trabajo 2.1: la corrección del problema de render de trayectorias quedó verificada con la suite frontend, pero eso no cierra AeroRF 2.1. El inventario de Expedientes se limitó al esquema/código: no se inspeccionó ninguna base ni archivo de evidencia y no se ejecutó migración.
+
+### Último bloque — Workspace 2.2
+
+- Implementado un panel lateral único en `GisShell.vue`, configurable entre
+  izquierdo/derecho, abierto/contraído/cerrado y con ancho persistente.
+- Reutiliza herramientas, capas, objetos, vuelos, aeropuertos, inspector y
+  timeline; el cambio de sección conserva estado local.
+- El inspector se abre mediante acción explícita o navegación deliberada.
+  Contexto y hasta diez elementos recientes se persisten; el pin impide que una
+  nueva inspección reemplace el contexto fijado.
+- La línea de tiempo dentro del workspace y el dock inferior usan el mismo
+  replay. Se quitó el temporizador local y la shell pausa el replay al salir.
+- Se retiró `FooterBar` del árbol de `App.vue`; la shell se adapta a pantallas
+  estrechas con el panel sobre el mapa.
+- Pendientes: terminar validación integral; Espectro requiere motor y entrada
+  verificables; Configuración aún no tiene una funcionalidad aprobada; la baja
+  completa de Expedientes continúa bloqueada por preservación de datos.
 
 **Fecha histórica anterior:** 2026-09-30
 **Estado histórico:** funcional y verificado. Rama `main` en `origin/main`.

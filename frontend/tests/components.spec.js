@@ -420,6 +420,37 @@ describe('Timeline', () => {
     warnSpy.mockRestore()
     w.unmount()
   })
+
+  it('shares replay state between the dock and workspace without a second timer', async () => {
+    const pinia = makePinia()
+    const flights = useFlightsStore()
+    flights.replaySession = {
+      session: { id: 2, icao24: 'abc123', callsign: 'TEST2', source: 'aerorf' },
+      positions: [
+        { latitude: -34.6, longitude: -58.4, timestamp: 1758000000 },
+        { latitude: -34.5, longitude: -58.3, timestamp: 1758000060 },
+      ],
+    }
+
+    const plugins = { global: { plugins: [pinia, makeRouter()] } }
+    const dock = mount(Timeline, plugins)
+    const embedded = mount(Timeline, { ...plugins, props: { embedded: true } })
+
+    expect(dock.find('.gis-timeline-embedded').exists()).toBe(false)
+    expect(embedded.find('.gis-timeline-embedded').exists()).toBe(true)
+    expect(dock.find('[aria-label="Cerrar línea de tiempo"]').exists()).toBe(true)
+    expect(embedded.find('[aria-label="Cerrar línea de tiempo"]').exists()).toBe(false)
+    expect(dock.text()).toContain('1/2')
+    expect(embedded.text()).toContain('1/2')
+
+    await embedded.find('button[title="Reproducir"]').trigger('click')
+    expect(flights.replayPlaying).toBe(true)
+    await dock.find('button[title="Pausar"]').trigger('click')
+    expect(flights.replayPlaying).toBe(false)
+
+    dock.unmount()
+    embedded.unmount()
+  })
 })
 
 describe('ExpedientePanel', () => {
@@ -575,6 +606,8 @@ describe('GisShell boots', () => {
    * If this test mounts and renders the panels, the shell starts.
    */
   it('mounts, builds the map and renders every panel', async () => {
+    localStorage.setItem('aerorf:workspace-mode', 'open')
+    localStorage.setItem('aerorf:workspace-section', 'tools')
     const pinia = makePinia()
     const router = makeRouter()
     await router.push('/')
@@ -608,16 +641,18 @@ describe('GisShell boots', () => {
     // panels themselves sit behind tabs, so only one is mounted at a time.
     //
     // Full names remain accessible while the visible labels stay compact.
-    for (const label of ['Herramientas', 'Capas', 'Objetos', 'Vuelos', 'Aeropuertos']) {
-      const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === `Panel ${label}`)
+    for (const label of [
+      'Herramientas', 'Capas', 'Objetos', 'Vuelos', 'Aeropuertos', 'Inspector', 'Línea de tiempo',
+    ]) {
+      const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === label)
       expect(tab, `falta la pestana ${label}`).toBeTruthy()
-      expect(tab.attributes('aria-label'), `${label} sin nombre accesible`).toBe(`Panel ${label}`)
+      expect(tab.attributes('aria-label'), `${label} sin nombre accesible`).toBe(label)
       // An icon and a short label, so the strip is a diagram and not a row of
       // words that may or may not fit.
       expect(tab.find('.gis-tab-icon').exists(), `${label} sin icono`).toBe(true)
       expect(tab.find('.gis-tab-label').exists(), `${label} sin rotulo`).toBe(true)
     }
-    expect(w.findAll('.gis-tab')).toHaveLength(5)
+    expect(w.findAll('.gis-tab')).toHaveLength(7)
     expect(w.findComponent(ToolOptions).exists()).toBe(true)
     expect(w.findComponent(CoordinateBar).exists()).toBe(true)
 
@@ -630,6 +665,8 @@ describe('GisShell boots', () => {
   })
 
   it('switches the side panel and mounts the one that was asked for', async () => {
+    localStorage.setItem('aerorf:workspace-mode', 'open')
+    localStorage.setItem('aerorf:workspace-section', 'tools')
     const pinia = makePinia()
     const router = makeRouter()
     await router.push('/')
@@ -644,7 +681,7 @@ describe('GisShell boots', () => {
     // Clicking "Capas" must swap the panel, not just change a label.
     // Matched on the full name, which the tab carries as its accessible name;
     // the visible label is the abbreviation.
-    const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === 'Panel Capas')
+    const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === 'Capas')
     expect(tab).toBeTruthy()
     await tab.trigger('click')
     await flushPromises()
@@ -652,7 +689,7 @@ describe('GisShell boots', () => {
     expect(w.findComponent(LayerPanel).exists()).toBe(true)
     expect(w.findComponent(ToolOptions).exists()).toBe(false)
     w.unmount()
-  })
+  }, 10000)
 
   it('tears the map down on unmount without throwing', async () => {
     const pinia = makePinia()

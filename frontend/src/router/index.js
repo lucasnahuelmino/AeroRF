@@ -4,7 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
  * Router
  * ──────
  * The map is the application, so `/` resolves to the GIS shell and the
- * remaining views are supporting screens (expedientes, RF calculator).
+ * remaining views are supporting workspaces.
  *
  * Every view except the shell is lazy-loaded. That keeps plotly (~3.5 MB)
  * out of the initial bundle, which previously made the first paint 5 MB.
@@ -28,6 +28,12 @@ const routes = [
     path: '/calculadora',
     name: 'CalculadoraRF',
     component: () => import('../views/CalculadoraRFView.vue'),
+  },
+  {
+    path: '/situacion',
+    name: 'Situacion',
+    component: () => import('../views/SituationView.vue'),
+    meta: { title: 'Centro de Situación' },
   },
   // Expedientes queda archivado y fuera de la navegación activa: la ruta
   // histórica se redirige al mapa para conservar el acceso a la aplicación

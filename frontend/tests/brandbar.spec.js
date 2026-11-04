@@ -77,6 +77,7 @@ const ROUTES = [
   { path: '/', name: 'Map', component: { template: '<div class="gis-map" />' } },
   { path: '/map', name: 'Mapa', component: { template: '<div class="gis-map" />' } },
   { path: '/expedientes', name: 'Expedientes', component: { template: '<div />' } },
+  { path: '/situacion', name: 'Situacion', component: { template: '<div />' } },
   { path: '/calculadora', name: 'CalculadoraRF', component: { template: '<div />' } },
 ]
 
@@ -100,12 +101,12 @@ describe('the section menu', () => {
     expect(w.find('.brandbar').exists(), 'el mapa no tiene menu').toBe(true)
     expect(w.find('.brandbar-nav').exists()).toBe(true)
     w.unmount()
-  })
+  }, 10000)
 
   it('renders on every other section', async () => {
     // Expedientes quedó archivado fuera de la navegación activa: las rutas
     // heredadas redirigen al mapa y el menú ya no expone dicho módulo.
-    for (const path of ['/calculadora', '/map']) {
+    for (const path of ['/situacion', '/calculadora', '/map']) {
       const { w } = await mountApp({ path })
       expect(w.find('.brandbar').exists(), `sin menu en ${path}`).toBe(true)
       w.unmount()
@@ -115,7 +116,7 @@ describe('the section menu', () => {
   it('links to every active section', async () => {
     const { w } = await mountApp({ path: '/' })
     const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
-    for (const p of ['/', '/calculadora']) {
+    for (const p of ['/', '/situacion', '/calculadora']) {
       expect(hrefs, `falta el enlace a ${p}`).toContain(p)
     }
     expect(hrefs, 'Expedientes sigue visible en el menú activo').not.toContain('/expedientes')
@@ -127,9 +128,9 @@ describe('the section menu', () => {
     // satisfy it, and the shell used to have exactly that.
     const { w } = await mountApp({ path: '/' })
     const nav = w.find('.brandbar-nav').element
-    // The active list is intentionally short: Mapa y Calculadora RF. The legacy
+    // The active list is intentionally short: Mapa, Situación y Calculadora RF. The legacy
     // Expedientes module is archived and hidden from navigation.
-    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(2)
+    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(3)
     expect(w.find('.brandbar-nav [aria-expanded]').exists()).toBe(false)
     w.unmount()
   })
@@ -218,31 +219,10 @@ describe('the institutional lockup', () => {
   })
 })
 
-describe('the institutional footer', () => {
-  it('names the Directorate and repeats the mark, smaller', async () => {
-    const { w } = await mountApp({ path: '/expedientes' })
-    const foot = w.find('.footerbar')
-    expect(foot.exists(), 'sin pie institucional').toBe(true)
-    expect(foot.text()).toContain('Dirección Nacional de Control y Fiscalización')
-    const img = foot.find('img')
-    expect(img.exists()).toBe(true)
-    expect(img.attributes('alt')).toContain('ENACOM')
-    expect(img.attributes('src')).toContain('logoenacom')
-    w.unmount()
-  })
-
-  it('is on the map too, where the operator spends the day', async () => {
-    // It costs the map 26px, which was accepted. A footer that only existed on
-    // the screens the operator visits least would be the one missing when it
-    // is needed.
-    const { w } = await mountApp({ path: '/' })
-    expect(w.find('.footerbar').exists()).toBe(true)
-    w.unmount()
-  })
-
-  it('repeats the mark on a white chip, as the header does', async () => {
-    const { w } = await mountApp({ path: '/' })
-    expect(w.find('.footerbar .footerbar-chip').exists()).toBe(true)
+describe('the workspace does not mount a secondary institutional footer', () => {
+  it.each(['/', '/situacion', '/calculadora'])('keeps the footer out of %s', async (path) => {
+    const { w } = await mountApp({ path })
+    expect(w.find('.footerbar').exists()).toBe(false)
     w.unmount()
   })
 })

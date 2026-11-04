@@ -103,13 +103,31 @@ sabe dónde se está y siempre se puede ir a otro lugar.
 | Pilar | Para qué es |
 |---|---|
 | **Mapa** | La herramienta principal. Todo el trabajo geográfico ocurre acá. |
+| **Centro de Situación** | Estado reportado de servicios, vuelos seguidos, sesiones, eventos RF y mediciones recientes. |
 | **Objetos GIS** | Administrar, buscar, filtrar, editar, ocultar y eliminar objetos persistentes, también si no se dibujan en el mapa. |
 | **Análisis RF** | Frecuencias, armónicos, intermodulación y análisis espacial aeronáutico. |
 
-La calculadora RF sigue disponible como herramienta. La retirada de
-**Expedientes** está pendiente: el código y sus rutas heredadas aún existen, y
-la base local conserva una fila que se debe archivar sin pérdida antes de
-retirar sus endpoints.
+### Workspace GIS
+
+En el mapa, un único panel contextual reúne herramientas, capas, objetos,
+aeropuertos, vuelos, inspector y línea de tiempo. Puede moverse a cualquiera de
+los lados, redimensionarse, contraerse o cerrarse; su sección y preferencias se
+conservan localmente. Seleccionar una entidad en el mapa no abre el inspector:
+la inspección se solicita desde la acción explícita de la entidad o desde la
+sección Inspector. El contexto inspeccionado y su historial reciente pueden
+fijarse y recuperarse.
+
+La reproducción embebida y el dock inferior usan el mismo estado de sesión y
+replay de vuelos; no crean copias independientes. El dock permanece plegable y
+el footer institucional ya no reserva espacio de pantalla dentro del árbol de
+la aplicación.
+
+La calculadora RF sigue disponible como herramienta. **Expedientes** está fuera de la navegación activa y sus rutas antiguas vuelven
+al mapa, pero quedan consumidores internos y APIs legacy. El borrado de un
+expediente con objetos GIS, mediciones, resultados RF o registros espectrales
+se bloquea para proteger esos datos. La retirada completa depende de validar
+su preservación y los vínculos destino; no se inspeccionaron ni migraron datos
+de ninguna base en esta etapa.
 
 El detalle de uso está en **[MANUAL.md](MANUAL.md)**.
 
