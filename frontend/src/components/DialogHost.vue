@@ -44,19 +44,19 @@
     -->
     <div
       v-if="dialog"
-      class="fixed inset-0 z-[1400] flex items-center justify-center bg-slate-950/70 p-4"
+      class="fixed inset-0 z-[1400] flex items-center justify-center bg-velo p-4"
       @mousedown.self="answerDialog(false)"
     >
       <div
-        class="aerorf-dialog w-full max-w-sm rounded-lg border border-slate-700 bg-slate-900 shadow-2xl"
+        class="aerorf-dialog w-full max-w-sm rounded-lg border border-borde-fuerte bg-panel shadow-2xl"
         role="alertdialog"
         aria-modal="true"
         :aria-label="dialog.title"
       >
-        <div class="border-b border-slate-800 px-4 py-3">
+        <div class="border-b border-borde px-4 py-3">
           <h2
             class="text-xs font-semibold uppercase tracking-widest"
-            :class="dialog.danger ? 'text-rose-300' : 'text-slate-200'"
+            :class="dialog.danger ? 'text-rose-300' : 'text-texto'"
           >
             {{ dialog.title }}
           </h2>
@@ -68,11 +68,11 @@
           the consequence, and collapsing both into one paragraph made the second
           half read as part of the first.
         -->
-        <p class="aerorf-dialog-message px-4 py-3 text-[12px] leading-relaxed text-slate-300">
+        <p class="aerorf-dialog-message px-4 py-3 text-[12px] leading-relaxed text-texto-medio">
           {{ dialog.message }}
         </p>
 
-        <div class="flex justify-end gap-2 border-t border-slate-800 px-4 py-3">
+        <div class="flex justify-end gap-2 border-t border-borde px-4 py-3">
           <button class="aerorf-dialog-btn" @click="answerDialog(false)">
             {{ dialog.cancelLabel }}
           </button>
@@ -95,7 +95,7 @@
     <Transition name="aerorf-notice">
       <div
         v-if="notice"
-        class="aerorf-notice fixed bottom-10 left-1/2 z-[1410] -translate-x-1/2 rounded-md border border-slate-700 bg-slate-900 px-4 py-2 shadow-xl"
+        class="aerorf-notice fixed bottom-10 left-1/2 z-[1410] -translate-x-1/2 rounded-md border border-borde-fuerte bg-panel px-4 py-2 shadow-xl"
         role="status"
       >
         {{ notice.text }}

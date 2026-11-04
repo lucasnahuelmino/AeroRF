@@ -27,8 +27,13 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core.config import get_settings
+from app.core.config import RUTA_RESPALDOS, get_settings
 from app.core.logging import log
+from app.database.lifecycle import (
+    asegurar_version,
+    crear_respaldo,
+    ruta_archivo_sqlite,
+)
 
 # Standardise log format early, before any module logs.
 logging.basicConfig(
@@ -98,11 +103,58 @@ def get_db() -> Iterator[Session]:
 
 # ─── Schema bootstrap ────────────────────────────────────────────────────────
 
-def init_db(create_all: bool = True) -> None:
-    """Create tables and seed the default layers.
+def _mantenimiento_de_arranque() -> None:
+    """Back up the database, then version-check it — before anything writes.
+
+    The order matters in both directions. The backup goes first so that
+    whatever happens next, including a refusal to start, has already been
+    preserved. The version check goes before ``create_all`` because on a
+    database written by a *newer* AeroRF, ``create_all`` would cheerfully add
+    the tables this build knows about into a schema it does not understand.
+
+    A failed backup is logged and skipped rather than raised: an application
+    that will not start because a copy could not be made is a worse outcome
+    than one that starts without the copy, provided the failure is loud.
+    In-memory databases (the test suite) and PostgreSQL skip this entirely —
+    there is no file to copy and no ``user_version`` to read.
+    """
+    ruta = ruta_archivo_sqlite(DATABASE_URL)
+    if ruta is None:
+        return
+
+    ajustes = get_settings()
+    if ajustes.respaldos_activos:
+        try:
+            destino = crear_respaldo(
+                ruta, RUTA_RESPALDOS, ajustes.respaldos_conservar
+            )
+            if destino is not None:
+                log.info(
+                    "db.respaldo",
+                    "respaldo creado antes de arrancar",
+                    archivo=destino.name,
+                    bytes=destino.stat().st_size,
+                )
+        except Exception as exc:  # pragma: no cover - disk full, permissions
+            log.error(
+                "db.respaldo",
+                "no se pudo crear el respaldo; se arranca igual",
+                ruta=str(ruta),
+                error=str(exc),
+            )
+
+    asegurar_version(ruta)
+
+
+def init_db(create_all: bool = True, mantenimiento: bool = True) -> None:
+    """Back up, version, create tables and seed the default layers.
 
     Safe to call repeatedly: ``create_all`` is a no-op when the schema is
     already present, and seeding only inserts missing layer keys.
+
+    ``mantenimiento`` is the switch for the test suite: its database is a
+    temporary file rebuilt on every run, so a backup there would be noise
+    pretending to be safety. Everything else about ``init_db`` runs the same.
     """
     from app.models import (  # noqa: F401  (populate metadata)
         map_object,
@@ -118,6 +170,9 @@ def init_db(create_all: bool = True) -> None:
     )
     from app.models.constants import DEFAULT_LAYERS
     from app.models.layer import Layer
+
+    if mantenimiento:
+        _mantenimiento_de_arranque()
 
     if create_all:
         Base.metadata.create_all(bind=engine)

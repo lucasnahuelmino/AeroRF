@@ -49,12 +49,20 @@ describe('the calculator opens without the charting library', () => {
   })
 
   it('keeps the chart wrapper small, so it can render before the library', () => {
-    const chart = chunks.find((c) => c.name.startsWith('Chart'))
-    expect(chart, 'no se encontro el chunk de Chart').toBeTruthy()
-    // 3 KB: the component, not the library.
+    // Desde la baja de Espectro (0.30.32) Rollup ya no da chunk propio a
+    // Chart.vue: con un solo importador dinámico el wrapper quedó adentro
+    // del chunk de la calculadora. Da igual dónde viva el wrapper; lo que no
+    // puede pasar es que viaje con la librería adentro, y eso lo mide el
+    // peso, porque el chunk de plotly pasa de 1000 KB.
+    const chart =
+      chunks.find((c) => c.name.startsWith('Chart')) ||
+      chunks.find((c) => c.name.startsWith('CalculadoraRFView'))
+    expect(chart, 'no se encontro el chunk que lleva el wrapper de graficos').toBeTruthy()
+    // 3 KB el componente pelado, 16 KB ya con la calculadora adentro: la
+    // librería no está.
     expect(
       kb(chart.size),
-      `Chart pesa ${kb(chart.size)} KB: la importacion sigue siendo estatica`,
+      `${chart.name} pesa ${kb(chart.size)} KB: la libreria de graficos esta adentro`,
     ).toBeLessThan(60)
   })
 

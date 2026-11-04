@@ -94,7 +94,7 @@ class RFSourcePayload(BaseModel):
     def _kind(cls, v: str) -> str:
         if v not in RF_SOURCE_KINDS:
             raise ValueError(
-                f"kind must be one of: {', '.join(RF_SOURCE_KINDS)}"
+                f"kind debe ser uno de: {', '.join(RF_SOURCE_KINDS)}"
             )
         return v
 
@@ -115,7 +115,7 @@ class AntennaPayload(BaseModel):
     @classmethod
     def _kind(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in ANTENNA_KINDS:
-            raise ValueError(f"kind must be one of: {', '.join(ANTENNA_KINDS)}")
+            raise ValueError(f"kind debe ser uno de: {', '.join(ANTENNA_KINDS)}")
         return v
 
     @field_validator("polarization")
@@ -123,7 +123,7 @@ class AntennaPayload(BaseModel):
     def _pol(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in POLARIZATIONS:
             raise ValueError(
-                f"polarization must be one of: {', '.join(POLARIZATIONS)}"
+                f"polarization debe ser uno de: {', '.join(POLARIZATIONS)}"
             )
         return v
 
@@ -139,7 +139,7 @@ class ReferencePayload(BaseModel):
     @classmethod
     def _unit(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v.lower() not in SUPPORTED_UNITS:
-            raise ValueError(f"radius_unit must be one of: {', '.join(SUPPORTED_UNITS)}")
+            raise ValueError(f"radius_unit debe ser uno de: {', '.join(SUPPORTED_UNITS)}")
         return v.lower() if v else None
 
 
@@ -155,7 +155,7 @@ class MeasurementPayload(BaseModel):
     @classmethod
     def _mode(cls, v: str) -> str:
         if v not in ("single", "multi"):
-            raise ValueError("mode must be 'single' or 'multi'")
+            raise ValueError("mode debe ser 'single' o 'multi'")
         return v
 
 
@@ -177,7 +177,7 @@ class RFEventPayload(BaseModel):
     def _class(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in RF_EVENT_CLASSIFICATIONS:
             raise ValueError(
-                f"classification must be one of: "
+                f"classification debe ser uno de: "
                 f"{', '.join(RF_EVENT_CLASSIFICATIONS)}"
             )
         return v
@@ -256,14 +256,14 @@ class MapObjectCreate(BaseModel):
     def _type(cls, v: str) -> str:
         t = (v or "").strip().lower()
         if t not in OBJECT_TYPES:
-            raise ValueError(f"type must be one of: {', '.join(OBJECT_TYPES)}")
+            raise ValueError(f"type debe ser uno de: {', '.join(OBJECT_TYPES)}")
         return t
 
     @field_validator("status")
     @classmethod
     def _status(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in OBJECT_STATES:
-            raise ValueError(f"status must be one of: {', '.join(OBJECT_STATES)}")
+            raise ValueError(f"status debe ser uno de: {', '.join(OBJECT_STATES)}")
         return v
 
     @field_validator("category")
@@ -271,7 +271,7 @@ class MapObjectCreate(BaseModel):
     def _category(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in POINT_CATEGORIES:
             raise ValueError(
-                f"category must be one of: {', '.join(POINT_CATEGORIES)}"
+                f"category debe ser uno de: {', '.join(POINT_CATEGORIES)}"
             )
         return v
 
@@ -281,7 +281,7 @@ class MapObjectCreate(BaseModel):
         if v is None:
             return None
         if v.lower() not in SUPPORTED_UNITS:
-            raise ValueError(f"unit must be one of: {', '.join(SUPPORTED_UNITS)}")
+            raise ValueError(f"unit debe ser uno de: {', '.join(SUPPORTED_UNITS)}")
         return v.lower()
 
     @field_validator("source")
@@ -289,7 +289,7 @@ class MapObjectCreate(BaseModel):
     def _source(cls, v: str) -> str:
         if v not in PROVENANCE_VALUES:
             raise ValueError(
-                f"source must be one of: {', '.join(PROVENANCE_VALUES)}"
+                f"source debe ser uno de: {', '.join(PROVENANCE_VALUES)}"
             )
         return v
 
@@ -333,7 +333,7 @@ class MapObjectUpdate(BaseModel):
     @classmethod
     def _status(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and v not in OBJECT_STATES:
-            raise ValueError(f"status must be one of: {', '.join(OBJECT_STATES)}")
+            raise ValueError(f"status debe ser uno de: {', '.join(OBJECT_STATES)}")
         return v
 
 
@@ -346,7 +346,7 @@ class StatusChange(BaseModel):
     @classmethod
     def _status(cls, v: str) -> str:
         if v not in OBJECT_STATES:
-            raise ValueError(f"status must be one of: {', '.join(OBJECT_STATES)}")
+            raise ValueError(f"status debe ser uno de: {', '.join(OBJECT_STATES)}")
         return v
 
 
@@ -439,7 +439,7 @@ class FlightSessionResponse(ORMModel):
     @classmethod
     def _status(cls, v: str) -> str:
         if v not in SESSION_STATUSES:
-            raise ValueError(f"status must be one of: {', '.join(SESSION_STATUSES)}")
+            raise ValueError(f"status debe ser uno de: {', '.join(SESSION_STATUSES)}")
         return v
 
 

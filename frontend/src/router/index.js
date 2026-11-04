@@ -4,8 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
  * Router
  * ──────
  * The map is the application, so `/` resolves to the GIS shell and the
- * remaining views are supporting screens (expedientes, RF calculator,
- * dashboard).
+ * remaining views are supporting screens (expedientes, RF calculator).
  *
  * Every view except the shell is lazy-loaded. That keeps plotly (~3.5 MB)
  * out of the initial bundle, which previously made the first paint 5 MB.
@@ -26,11 +25,6 @@ const routes = [
     alias: ['/mapas'],
   },
   {
-    path: '/dashboard',
-    name: 'Panel',
-    component: () => import('../views/DashboardView.vue'),
-  },
-  {
     path: '/expedientes',
     name: 'Expedientes',
     component: () => import('../views/ExpedientesView.vue'),
@@ -45,11 +39,8 @@ const routes = [
     name: 'CalculadoraRF',
     component: () => import('../views/CalculadoraRFView.vue'),
   },
-  {
-    path: '/espectro',
-    name: 'Espectro',
-    component: () => import('../views/EspectroView.vue'),
-  },
+  // Espectro se dio de baja total (0.30.32): sin ruta propia, la dirección
+  // vieja cae en el redireccionamiento de abajo y vuelve al mapa.
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

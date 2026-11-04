@@ -1,51 +1,131 @@
 /**
  * map/airports.js
  * ───────────────
- * Draws the aerodrome reference layer and answers distance queries against
- * it.
+ * Capa de referencia: dibuja lo publicado (archivo `data/airports.js`) y los
+ * sitios de la lista del operador (composable `useAirport`), y responde
+ * consultas de distancia contra lo publicado.
  *
- * Two rules shape this module:
+ * Reglas que dan forma a este módulo:
  *
- * 1. Nothing here is persisted. The ARP positions are published facts (see
- *    `data/airports.js`), so the layer is rebuilt from that file every time
- *    and never becomes a row in `map_objects`. That keeps a reference point
- *    from being mistaken for something the operator drew or measured.
+ * 1. Nada de esto se persiste. Las posiciones son datos de referencia —
+ *    publicados o cargados por el operador — y la capa se reconstruye desde
+ *    los archivos cada vez: nunca se vuelve una fila en `map_objects`, así
+ *    un punto de referencia no puede confundirse con algo medido.
  *
- * 2. A reference point is labelled as one. The tooltip says "referencia" and
- *    the legend lists the layer under reference data, because an ARP is a
- *    published coordinate and not an observation.
+ * 2. Cada marcador dice que es referencia: el tooltip dice «referencia» y
+ *    la leyenda lo lista bajo datos de referencia.
+ *
+ * 3. Un sitio de la lista que cae a ≤ 2 km de un aeropuerto publicado se
+ *    dibuja UNA sola vez, junto a ese aeropuerto: el popup lista todos los
+ *    sitios que caen ahí, de modo que ninguna entrada de la lista se pierde.
+ *    El resto de la lista se dibuja como sitio suelto con círculo: un EAVA
+ *    o un CCTE lejos de todo aeropuerto no es un aerodromo y no lleva avión.
+ *
+ * 4. El símbolo de aeropuerto es una imagen: `public/iconos/aeropuerto.svg`.
+ *    El marcador sólo nombra la ruta, así que cambiar el dibujo es
+ *    reemplazar el archivo — sin tocar código.
  */
 
 import L from 'leaflet'
 import { AIRPORTS, AIRPORT_COUNTRIES, findAirport, airportCode, isMajor } from '@/data/airports'
 import { haversine, haversineKm, bearing, normaliseAzimuth } from './geo'
-import { token } from '../assets/tokens'
+import { useAirport } from '@/composables/useAirport'
 
 export const AIRPORT_LAYER_KEY = 'airports'
 
-/**
- * Two symbol families, because the layer now carries every aerodrome in the
- * country and not only the hub.
- *
- * The operator asked for the smaller ones, and El Palomar and San Fernando
- * among them, which is the right request: they share the Buenos Aires FIR with
- * EZE and AEP, so a second source of metro-area interference is exactly what
- * they need an ARP for. But a 4 nm regional strip drawn the same way as a hub
- * disappears under it, so the two are told apart by colour, by size and by
- * whether the disc is filled.
- *
- * Major: sky blue, filled, and a permanent label. Minor: amber, hollow, a
- * smaller radius, and a dimmer label. The legend in the panel says which is
- * which, so the difference is information and not decoration.
- */
-const SYMBOL_MAJOR = {
-  radius: 7,
-  color: token('--trazo-observado', '#38bdf8'),
-  weight: 2,
-  fillColor: '#0ea5e9',
-  fillOpacity: 0.5,
+/** Ruta del icono de aeropuerto. Cambiar la imagen = reemplazar el archivo. */
+export const ICONO_AEROPUERTO = '/iconos/aeropuerto.svg'
+
+/** Tolerancia de la coincidencia sitio-lista ↔ aeropuerto publicado, en metros. */
+const COINCIDENCIA_M = 2000
+
+/** La lista del operador, aplanada y con su grupo, una sola vez. */
+const SITIOS_LISTA = useAirport().airport.flatMap((g) =>
+  g.options.map((o) => ({ ...o, grupo: g.group })),
+)
+
+/** El aeropuerto publicado más cercano a un sitio de la lista, o null. */
+function aeropuertoCercano(sitio) {
+  let mejor = null
+  let mejorD = Infinity
+  for (const a of AIRPORTS) {
+    const d = haversine(a.lat, a.lon, sitio.latitude, sitio.longitude)
+    if (d <= COINCIDENCIA_M && d < mejorD) {
+      mejor = a
+      mejorD = d
+    }
+  }
+  return mejor
 }
 
+/**
+ * Todos los sitios de la lista que caen junto a un aeropuerto publicado, el
+ * más cercano primero. Son varios a veces — SAAV tiene «SANTA FE» a 101 m y
+ * «EAVA SAUCE VIEJO» a 593 m — y todos deben aparecer en el popup: perder el
+ * segundo sería dejar de visualizar una entrada de la lista del operador.
+ */
+function sitiosDe(aeropuerto) {
+  return SITIOS_LISTA.map((s) => ({
+    s,
+    d: haversine(aeropuerto.lat, aeropuerto.lon, s.latitude, s.longitude),
+  }))
+    .filter((x) => x.d <= COINCIDENCIA_M)
+    .sort((a, b) => a.d - b.d)
+    .map((x) => x.s)
+}
+
+/**
+ * Todo lo que la capa dibuja, calculado una vez.
+ *
+ * Lo publicado primero (cada aeropuerto con los sitios de la lista que caen
+ * a ≤ 2 km, y el más cercano como nombre principal), y después los sitios de
+ * la lista que no son aeropuerto publicado. El resultado no tiene repetidos:
+ * un sitio ya emparejado no vuelve a sumarse por su cuenta.
+ */
+function sitiosParaDibujar() {
+  const dibujados = AIRPORTS.map((a) => {
+    const cerca = sitiosDe(a)
+    if (!cerca.length) return a
+    return {
+      ...a,
+      sitios: cerca.map((s) => s.label),
+      sitio: cerca[0].label,
+      grupo: cerca[0].grupo,
+    }
+  })
+  for (const s of SITIOS_LISTA) {
+    if (aeropuertoCercano(s)) continue
+    dibujados.push({
+      key: s.value,
+      name: s.label,
+      sitio: s.label,
+      grupo: s.grupo,
+      lat: s.latitude,
+      lon: s.longitude,
+      // Todas las coordenadas de la lista caen en territorio argentino: el
+      // país existe sólo para el filtro y se toma de esa coordenada.
+      country: 'AR',
+      kind: 'sitio',
+      icao: null,
+      iata: null,
+      gps: null,
+      local: null,
+      scheduled: false,
+      elevFt: null,
+    })
+  }
+  return dibujados
+}
+
+const DIBUJAR = sitiosParaDibujar()
+
+/**
+ * Símbolos de los círculos. Los aerodromes publicados ya no usan círculo:
+ * se dibujan con el icono de avión (ver `_marker`) y el tamaño distingue a
+ * los mayores de los menores. El círculo queda para lo que no es aeródromo
+ * de porte: el helipuerto (pizarra) y los sitios de la lista del operador
+ * sin aeropuerto publicado (ámbar, hueco — la familia menor de siempre).
+ */
 const SYMBOL_MINOR = {
   radius: 4.5,
   color: '#f59e0b',
@@ -59,7 +139,7 @@ const SYMBOL_HELIPORT = { radius: 3, color: '#64748b', weight: 1.5, fillColor: '
 
 function symbolFor(airport) {
   if (airport.kind === 'heliport') return SYMBOL_HELIPORT
-  return isMajor(airport) ? SYMBOL_MAJOR : SYMBOL_MINOR
+  return SYMBOL_MINOR
 }
 
 const KIND_LABEL = {
@@ -67,6 +147,7 @@ const KIND_LABEL = {
   medium_airport: 'Aeropuerto mediano',
   small_airport: 'Aeropuerto pequeño',
   heliport: 'Helipuerto',
+  sitio: 'Sitio de la lista del operador',
 }
 
 /**
@@ -116,7 +197,7 @@ export class AirportLayer {
     this.markers.clear()
 
     let drawn = 0
-    for (const airport of AIRPORTS) {
+    for (const airport of DIBUJAR) {
       if (this._countries.size && !this._countries.has(airport.country)) continue
       const marker = this._marker(airport)
       // Keyed by `key`, not by `icao`: San Fernando publishes no ICAO code, so
@@ -129,18 +210,35 @@ export class AirportLayer {
   }
 
   _marker(airport) {
-    const symbol = symbolFor(airport)
-    // A square-with-a-notch reads as "aerodrome" at a glance, which a plain
-    // dot does not, and stays legible next to the aircraft markers.
-    const marker = L.circleMarker([airport.lat, airport.lon], {
-      radius: symbol.radius,
-      color: symbol.color,
-      weight: symbol.weight,
-      opacity: 0.95,
-      fillColor: symbol.fillColor,
-      fillOpacity: symbol.fillOpacity,
-      bubblingMouseEvents: false,
-    })
+    let marker
+    if (airport.kind !== 'sitio' && airport.kind !== 'heliport') {
+      // Aeródromo: el icono de avión sobre un disco claro, para que cualquier
+      // imagen que ponga el operador en `public/iconos/` se lea sobre el mapa
+      // oscuro. Los mayores van más grandes: la información de antes (dos
+      // familias distinguibles), ahora en el tamaño y no en el color.
+      const lado = isMajor(airport) ? 26 : 18
+      marker = L.marker([airport.lat, airport.lon], {
+        icon: L.divIcon({
+          className: 'aerorf-airport-icon',
+          html:
+            `<img src="${ICONO_AEROPUERTO}" alt="" draggable="false"` +
+            ` width="${lado - 8}" height="${lado - 8}">`,
+          iconSize: [lado, lado],
+        }),
+        bubblingMouseEvents: false,
+      })
+    } else {
+      const symbol = symbolFor(airport)
+      marker = L.circleMarker([airport.lat, airport.lon], {
+        radius: symbol.radius,
+        color: symbol.color,
+        weight: symbol.weight,
+        opacity: 0.95,
+        fillColor: symbol.fillColor,
+        fillOpacity: symbol.fillOpacity,
+        bubblingMouseEvents: false,
+      })
+    }
 
     marker.bindTooltip(this._tooltip(airport), {
       sticky: true,
@@ -149,16 +247,29 @@ export class AirportLayer {
     })
     marker.bindPopup(this._popup(airport), { className: 'aerorf-popup-wrap', maxWidth: 260 })
     marker.airport = airport
-    marker.major = airport.kind !== 'heliport' && isMajor(airport)
+    marker.major =
+      airport.kind !== 'heliport' && airport.kind !== 'sitio' && isMajor(airport)
     return marker
   }
 
   _tooltip(airport) {
-    const bits = [
-      `<strong>${escapeHtml(airportCode(airport))}</strong>`,
-      escapeHtml(airport.name),
-      '<i>referencia</i>',
-    ]
+    // El código en negrita. Para un sitio de la lista no hay IATA ni ICAO,
+    // y ahí manda el nombre tal cual lo cargó el operador: el recorte a 14
+    // caracteres de `airportCode` partiría «EAVA SAUCE VIEJO» por la mitad.
+    const codigo = airport.kind === 'sitio' ? airport.name : airportCode(airport)
+    const bits = [`<strong>${escapeHtml(codigo)}</strong>`]
+    if (codigo !== airport.name) bits.push(escapeHtml(airport.name))
+    // Los nombres del operador cuando el marcador lleva un aeropuerto
+    // publicado encima: es como él los llama en su lista. Todos, porque la
+    // lista puede tener dos entradas sobre el mismo aeropuerto y ninguna
+    // debe perderse.
+    if (airport.sitios?.length) {
+      bits.push(`Sitio: ${escapeHtml(airport.sitios.join(' · '))}`)
+    }
+    if (airport.grupo && airport.grupo !== airport.sitio && airport.grupo !== airport.name) {
+      bits.push(escapeHtml(airport.grupo))
+    }
+    bits.push('<i>referencia</i>')
     // Every code it publishes, so the operator can see which one to type.
     const codes = [airport.icao, airport.iata, airport.gps, airport.local]
       .filter((c) => typeof c === 'string' && c.length > 0)
@@ -168,6 +279,7 @@ export class AirportLayer {
   }
 
   _popup(airport) {
+    const esSitio = airport.kind === 'sitio'
     const row = (k, v) =>
       v === null || v === undefined || v === ''
         ? ''
@@ -175,24 +287,45 @@ export class AirportLayer {
             String(v),
           )}</b></div>`
 
-    const rows = [
+    const filas = []
+    // Cómo lo llama el operador en su lista, antes que los códigos
+    // publicados. Un aeropuerto puede llevar varios sitios encima (el campo
+    // y una instalación vecina): se listan todos.
+    if (!esSitio && airport.sitios?.length) {
+      filas.push(
+        row(airport.sitios.length > 1 ? 'Sitios' : 'Sitio', airport.sitios.join(' · ')),
+      )
+    }
+    if (airport.grupo && airport.grupo !== airport.sitio && airport.grupo !== airport.name) {
+      filas.push(row('Grupo', airport.grupo))
+    }
+    filas.push(
       row('ICAO', airport.icao),
       row('IATA', airport.iata),
       row('Código local', airport.local),
       row('Nombre', airport.name),
       row('Tipo', KIND_LABEL[airport.kind] || airport.kind),
-      row('Tráfico', airport.scheduled ? 'Vuelo regular' : 'Sin vuelo regular'),
+      // Un sitio de la lista no es un aeropuerto con tráfico: la fila diría
+      // «Sin vuelo regular» sobre un CCTE, que es ruido.
+      row('Tráfico', esSitio ? null : airport.scheduled ? 'Vuelo regular' : 'Sin vuelo regular'),
       row('ARP', `${airport.lat.toFixed(5)}, ${airport.lon.toFixed(5)}`),
       row('Elevación', airport.elevFt != null ? `${airport.elevFt} ft` : null),
       row('País', airport.country),
-    ].join('')
+    )
+
+    const codigo = esSitio ? airport.name : airportCode(airport)
+    const bajada = esSitio ? airport.grupo || airport.name : airport.name
 
     return (
       `<div class="aerorf-popup">` +
-      `<div class="aerorf-popup-title">${escapeHtml(airportCode(airport))}</div>` +
-      `<div class="aerorf-popup-desc">${escapeHtml(airport.name)}</div>` +
-      rows +
-      `<div class="aerorf-popup-hint">Punto de referencia publicado, no medido por AeroRF.</div>` +
+      `<div class="aerorf-popup-title">${escapeHtml(codigo)}</div>` +
+      `<div class="aerorf-popup-desc">${escapeHtml(bajada)}</div>` +
+      filas.join('') +
+      `<div class="aerorf-popup-hint">${
+        esSitio
+          ? 'Sitio de la lista del operador, no medido por AeroRF.'
+          : 'Punto de referencia publicado, no medido por AeroRF.'
+      }</div>` +
       `</div>`
     )
   }
@@ -242,12 +375,19 @@ export class AirportLayer {
         // operator reads on a boarding pass and types into a slot. It falls
         // back to the ICAO, then the GPS, then the local code, for the
         // aerodromes that publish no IATA.
-        marker.bindTooltip(airportCode(airport), {
-          permanent: true,
-          direction: 'right',
-          className: marker.major ? 'aerorf-airport-label' : 'aerorf-airport-label aerorf-airport-label-minor',
-          opacity: 0.8,
-        })
+        //
+        // Los sitios de la lista no llevan etiqueta permanente: no tienen
+        // código corto y el nombre completo (a veces de 40 caracteres) en
+        // cada panear convertiría la capa en un muro de texto. Su nombre se
+        // lee igual en el tooltip al pasar el mouse.
+        if (airport.kind !== 'sitio') {
+          marker.bindTooltip(airportCode(airport), {
+            permanent: true,
+            direction: 'right',
+            className: marker.major ? 'aerorf-airport-label' : 'aerorf-airport-label aerorf-airport-label-minor',
+            opacity: 0.8,
+          })
+        }
       } else {
         marker.unbindTooltip()
         // Re-bind the hover tooltip, since unbinding removed it too.
@@ -270,10 +410,10 @@ export class AirportLayer {
     return AIRPORT_COUNTRIES
   }
 
-  /** Fit the map to the airports, optionally filtered. */
+  /** Fit the map to what the layer draws, optionally filtered. */
   fitTo({ country = null } = {}) {
     const points = []
-    for (const airport of AIRPORTS) {
+    for (const airport of DIBUJAR) {
       if (country && airport.country !== country) continue
       points.push([airport.lat, airport.lon])
     }

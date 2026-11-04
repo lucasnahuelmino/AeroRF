@@ -158,6 +158,40 @@ CSV_COLUMNS = [
 ]
 
 
+# ─── Blindado de CSV (P0-09) ─────────────────────────────────────────────────
+_INICIOS_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _blindar(valor: Any) -> Any:
+    """Prefija con `'` lo que una hoja de cálculo ejecutaría como fórmula.
+
+    Un CSV abierto en Excel/LibreOffice interpreta como fórmula toda
+    celda que arranca con ``=`` ``+`` ``-`` ``@`` (y con las dos
+    invisibles: tabulador y retorno). De ahí sale desde el ``HYPERLINK``
+    que lleva al sitio del atacante hasta los DDE.
+
+    El blindado va por el valor, no por la columna:
+
+    * sólo ``str`` — las columnas numéricas (latitud, longitud, dBm)
+      traen números y no se tocan;
+    * y un string legible como número (``"-34.6"``, ``"-62.5"``) tampoco:
+      prefijarlo convertiría las latitudes negativas en texto, que es
+      justamente la trampa que avisa el ítem P0-09.
+
+    Una lista blanca de columnas se pudre con la próxima columna nueva;
+    el carácter peligroso, no.
+    """
+    if not isinstance(valor, str) or not valor:
+        return valor
+    if valor[0] not in _INICIOS_FORMULA:
+        return valor
+    try:
+        float(valor)
+        return valor
+    except ValueError:
+        return "'" + valor
+
+
 def to_csv(objects: Iterable, include_notes: bool = True) -> str:
     """Flat CSV, one row per object (spec §46)."""
     out = io.StringIO()
@@ -230,7 +264,7 @@ def to_csv(objects: Iterable, include_notes: bool = True) -> str:
                 f"[{n['timestamp']}] {n['text']}" for n in props["notes"]
             )
 
-        writer.writerow(row)
+        writer.writerow({k: _blindar(v) for k, v in row.items()})
 
     return out.getvalue()
 
@@ -294,17 +328,20 @@ def track_to_csv(points: list[dict]) -> str:
         ts = p.get("timestamp")
         writer.writerow(
             [
-                ts if ts is not None else "",
-                _iso(ts),
-                p.get("latitude", ""),
-                p.get("longitude", ""),
-                p.get("altitude", ""),
-                p.get("heading", ""),
-                p.get("velocity", ""),
-                "" if p.get("on_ground") is None else p.get("on_ground"),
-                p.get("icao24", ""),
-                p.get("callsign", ""),
-                p.get("provenance", ""),
+                _blindar(v)
+                for v in (
+                    ts if ts is not None else "",
+                    _iso(ts),
+                    p.get("latitude", ""),
+                    p.get("longitude", ""),
+                    p.get("altitude", ""),
+                    p.get("heading", ""),
+                    p.get("velocity", ""),
+                    "" if p.get("on_ground") is None else p.get("on_ground"),
+                    p.get("icao24", ""),
+                    p.get("callsign", ""),
+                    p.get("provenance", ""),
+                )
             ]
         )
     return out.getvalue()

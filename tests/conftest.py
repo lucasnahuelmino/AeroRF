@@ -22,6 +22,11 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB}"
 os.environ["OPENSKY_CLIENT_ID"] = "test-client-id"
 os.environ["OPENSKY_CLIENT_SECRET"] = "test-client-secret"
 os.environ["ENVIRONMENT"] = "test"
+# No backups during the suite: the database is a throwaway file rebuilt on
+# every session, so a copy of it would be noise pretending to be safety. The
+# backup code has its own tests, against its own database, in
+# `tests/test_p006_base_y_respaldo.py`.
+os.environ["RESPALDOS_ACTIVOS"] = "0"
 
 
 @pytest.fixture(scope="session", autouse=True)

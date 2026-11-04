@@ -6,11 +6,19 @@ export const useExpedientesStore = defineStore('expedientes', () => {
   const loading = ref(false)
   const error = ref(null)
 
-  const fetchExpedientes = async () => {
+  // `params` es opcional y sin él se comporta igual que siempre, así que los
+  // llamadores viejos no cambian. Hace falta porque el endpoint devuelve
+  // `limit: int = 10` por defecto y no hay paginación en la interfaz: sin un
+  // límite explícito la lista se corta en 10 y no se nota. Lo que pide más de
+  // 10 (el desplegable de la calculadora) lo pide acá.
+  const fetchExpedientes = async (params = {}) => {
     loading.value = true
     error.value = null
     try {
-      const response = await fetch('/api/v1/expedientes')
+      const query = new URLSearchParams(params).toString()
+      const response = await fetch(
+        `/api/v1/expedientes${query ? `?${query}` : ''}`
+      )
       if (!response.ok) throw new Error('Failed to fetch')
       expedientes.value = await response.json()
     } catch (err) {

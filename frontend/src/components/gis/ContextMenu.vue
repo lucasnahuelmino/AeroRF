@@ -28,44 +28,44 @@
       :style="style"
       @click.stop
     >
-      <div class="border-b border-slate-800 px-3 py-1.5">
+      <div class="border-b border-borde px-3 py-1.5">
         <div class="font-mono text-[10px] text-emerald-300">
           {{ menu.lat.toFixed(6) }}, {{ menu.lon.toFixed(6) }}
         </div>
-        <button class="text-[10px] text-slate-500 hover:text-slate-300" @click="copyCoords">
+        <button class="text-[10px] text-texto-tenue hover:text-texto-medio" @click="copyCoords">
           ⧉ Copiar coordenadas
         </button>
       </div>
 
-      <p class="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-widest text-slate-600">Crear</p>
+      <p class="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-widest text-texto-invisible">Crear</p>
       <button
         v-for="item in createItems"
         :key="item.type"
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-slate-300 hover:bg-blue-600/25 hover:text-white"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-texto-medio hover:bg-blue-600/25 hover:text-white"
         @click="create(item)"
       >
         <span class="w-4 text-center">{{ item.icon }}</span>
         {{ item.label }}
       </button>
 
-      <p class="border-t border-slate-800 px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-widest text-slate-600">
+      <p class="border-t border-borde px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-widest text-texto-invisible">
         Herramientas
       </p>
       <button
         v-for="item in toolItems"
         :key="item.id"
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-slate-300 hover:bg-blue-600/25 hover:text-white"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-texto-medio hover:bg-blue-600/25 hover:text-white"
         @click="activateTool(item.id)"
       >
         <span class="w-4 text-center">{{ item.icon }}</span>
         {{ item.label }}
       </button>
 
-      <p class="border-t border-slate-800 px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-widest text-slate-600">
+      <p class="border-t border-borde px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-widest text-texto-invisible">
         Medir
       </p>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-slate-300 hover:bg-amber-500/25 hover:text-white"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-texto-medio hover:bg-amber-500/25 hover:text-white"
         @click="measureFromHere"
       >
         <span class="w-4 text-center">📏</span> Medir desde aquí
@@ -74,7 +74,7 @@
       <!-- Distance readout when measuring from the right-click point -->
       <div
         v-if="measuredDistance"
-        class="border-t border-slate-800 px-3 py-1.5 font-mono text-[11px] text-amber-300"
+        class="border-t border-borde px-3 py-1.5 font-mono text-[11px] text-amber-300"
       >
         {{ measuredDistance.km }} km / {{ measuredDistance.nm }} NM
       </div>
@@ -271,19 +271,19 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /**
- * The right-click menu's ground.
+ * El piso del menú contextual.
  *
- * It was written as `bg-slate-900/98` in the template. Tailwind's opacity scale
- * is 0, 5, 10 ... 95, 100 — **98 is not a step**, so the class was never
- * generated and the menu had no background at all. The operator saw a menu
- * floating over the map with only the map showing through behind its text,
- * which is what "the background is very transparent and cannot be seen" is.
+ * Se escribía en la plantilla con una utilidad de la escala gris a opacidad
+ * 98. La escala de Tailwind es 0, 5, 10 ... 95, 100 — **98 no es un paso**,
+ * así que la clase nunca se generaba y el menú quedaba sin fondo: el
+ * operador veía el menú flotando sobre el mapa con sólo el mapa detrás de
+ * su texto, que es lo que es «el fondo es muy transparente y no se ve».
  *
- * Checked against the built CSS: `.bg-slate-900\/98` is absent, and the only
- * `.bg-slate-900\/N` rule in the whole bundle is `/60`. A dead utility class is
- * invisible in the source and in a unit test; it is only visible in the output,
- * which is why the ground of anything that has to be legible is pinned here in
- * CSS rather than left to an opacity step that may not exist.
+ * Verificado contra el CSS construido: esa utilidad no estaba en el bundle,
+ * y la única regla de esa familia era la del puente. Una clase muerta es
+ * invisible en el fuente y en un test unitario; sólo se ve en la salida, y
+ * por eso el piso de cualquier cosa que tenga que ser legible se fija acá
+ * en CSS y no se deja a una opacidad que puede no existir.
  */
 .aerorf-context {
   background: var(--panel);

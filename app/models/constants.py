@@ -153,6 +153,7 @@ PROVENANCE_HISTORICAL = "historical"  # historical OpenSky data
 PROVENANCE_LIVE = "live"              # current OpenSky state vectors
 PROVENANCE_CALCULATED = "calculated"  # derived by AeroRF
 PROVENANCE_USER = "user"              # typed in by the operator
+PROVENANCE_IMPORTED = "imported"      # imported from a GeoJSON file (spec §46)
 
 PROVENANCE_VALUES = (
     PROVENANCE_OBSERVED,
@@ -160,6 +161,7 @@ PROVENANCE_VALUES = (
     PROVENANCE_LIVE,
     PROVENANCE_CALCULATED,
     PROVENANCE_USER,
+    PROVENANCE_IMPORTED,
 )
 
 PROVENANCE_LABELS_ES = {
@@ -168,6 +170,7 @@ PROVENANCE_LABELS_ES = {
     PROVENANCE_LIVE: "Dato en vivo",
     PROVENANCE_CALCULATED: "Dato calculado",
     PROVENANCE_USER: "Dato introducido por el usuario",
+    PROVENANCE_IMPORTED: "Dato importado",
 }
 
 # ─── Aircraft track sources (spec §24, §56) ─────────────────────────────────

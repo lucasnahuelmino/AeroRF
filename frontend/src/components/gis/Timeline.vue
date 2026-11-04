@@ -1,7 +1,7 @@
 <template>
   <div class="gis-timeline">
     <!-- Transport controls (spec §28) -->
-    <div class="flex flex-none items-center gap-1.5 border-r border-slate-800 px-2">
+    <div class="flex flex-none items-center gap-1.5 border-r border-borde px-2">
       <button
         class="gis-mini-btn"
         :disabled="!hasSession"
@@ -34,33 +34,33 @@
           class="w-full accent-blue-500"
           @input="seek(Number($event.target.value))"
         />
-        <div class="mt-0.5 flex justify-between font-mono text-[9px] text-slate-500">
+        <div class="mt-0.5 flex justify-between font-mono text-[9px] text-texto-tenue">
           <span>{{ startLabel }}</span>
-          <span class="text-slate-400">
+          <span class="text-texto-tenue">
             {{ currentLabel }}
             <span v-if="flightsStore.replayPlaying" class="ml-1 text-emerald-400">▶</span>
           </span>
           <span>{{ endLabel }}</span>
         </div>
       </template>
-      <p v-else class="text-center text-[10px] text-slate-500">
+      <p v-else class="text-center text-[10px] text-texto-tenue">
         Seleccione una sesión de grabación para reproducirla aquí.
       </p>
     </div>
 
     <!-- Session identity + provenance -->
-    <div class="flex flex-none items-center gap-2 border-l border-slate-800 px-2 text-[10px]">
+    <div class="flex flex-none items-center gap-2 border-l border-borde px-2 text-[10px]">
       <template v-if="hasSession">
-        <span class="font-mono text-slate-300">
+        <span class="font-mono text-texto-medio">
           {{ session.callsign || session.icao24 }}
         </span>
-        <span class="rounded bg-slate-800 px-1.5 py-1 text-slate-400">
+        <span class="rounded bg-panel-alto px-1.5 py-1 text-texto-tenue">
           {{ session.source || 'aerorf' }}
         </span>
-        <span class="text-slate-500">
+        <span class="text-texto-tenue">
           {{ flightsStore.replayIndex + 1 }}/{{ flightsStore.replayPoints.length }}
         </span>
-        <span class="text-slate-500">
+        <span class="text-texto-tenue">
           {{ pointTimeLabel }}
         </span>
       </template>

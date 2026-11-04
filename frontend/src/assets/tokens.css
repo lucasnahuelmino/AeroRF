@@ -82,6 +82,14 @@
   --borde: rgba(146, 168, 224, 0.22);
   --borde-fuerte: rgba(146, 168, 224, 0.38);
 
+  /* Velos: los fondos translúcidos que dejan ver el contenido de atrás
+     empañado (los diálogos, la carga). Antes cada sitio usaba una opacidad
+     suelta de la vieja escala gris, sin nombre ni dueño; la migración de
+     plantillas (0.30.28) los trajo acá para que el grado del velo se decida
+     en un solo lugar. */
+  --velo: color-mix(in srgb, var(--fondo) 75%, transparent);
+  --velo-suave: color-mix(in srgb, var(--fondo) 45%, transparent);
+
   /* ── Trazo en el mapa ────────────────────────────────────────────────────
      El mapa se dibuja con Leaflet, que necesita cadenas concretas: estos tokens
      existen para que `tokens.js` los lea. Los tres de trazo se eligen por

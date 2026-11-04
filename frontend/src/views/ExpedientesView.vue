@@ -15,29 +15,29 @@
 
     <!-- Modal crear expediente -->
     <div v-if="showNewForm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-slate-800 rounded-lg p-6 w-full max-w-md border border-slate-700 max-h-96 overflow-y-auto">
+      <div class="bg-panel-alto rounded-lg p-6 w-full max-w-md border border-borde-fuerte max-h-96 overflow-y-auto">
         <h2 class="text-xl font-semibold mb-4">Crear Expediente</h2>
         <form @submit.prevent="createNewExpediente" class="space-y-4">
           <input
             v-model="newForm.numero_expediente"
             placeholder="Número de expediente"
-            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+            class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
           />
           <input
             v-model.number="newForm.freq_mhz"
             type="number"
             placeholder="Frecuencia (MHz)"
             step="0.001"
-            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+            class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
           />
           <input
             v-model="newForm.aeropuerto"
             placeholder="Aeropuerto"
-            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+            class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
           />
           <select
             v-model="newForm.severidad"
-            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 focus:outline-none focus:border-sky-600"
+            class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto focus:outline-none focus:border-sky-600"
           >
             <option value="baja">Baja</option>
             <option value="media" selected>Media</option>
@@ -48,7 +48,7 @@
             v-model="newForm.observaciones"
             placeholder="Observaciones"
             rows="3"
-            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-600"
+            class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto placeholder:text-texto-invisible focus:outline-none focus:border-sky-600"
           ></textarea>
           <div class="flex gap-2">
             <button
@@ -60,7 +60,7 @@
             <button
               @click="showNewForm = false"
               type="button"
-              class="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold transition-colors"
+              class="flex-1 px-4 py-2 bg-panel-alto hover:bg-on-ink-wash rounded-lg font-semibold transition-colors"
             >
               Cancelar
             </button>

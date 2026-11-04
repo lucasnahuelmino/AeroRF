@@ -82,7 +82,9 @@ class TestCreate:
     def test_invalid_type_rejected(self, db):
         with pytest.raises(MapServiceError) as exc:
             svc.create_object(db, "unicorn", latitude=EZE[0], longitude=EZE[1])
-        assert "Unknown object type" in str(exc.value)
+        # El mensaje identifica el tipo inválido (en español: la regla
+        # del proyecto pone el texto del operador en su idioma).
+        assert "Tipo de objeto desconocido" in str(exc.value)
 
     def test_invalid_coordinate_rejected(self, db):
         with pytest.raises(MapServiceError):
@@ -211,7 +213,9 @@ class TestUpdate:
         obj = svc.create_object(db, "point", latitude=EZE[0], longitude=EZE[1])
         with pytest.raises(MapServiceError) as exc:
             svc.update_object(db, obj.id, {"nope": 1})
-        assert "Unknown field" in str(exc.value)
+        # El mensaje nombra el campo rechazado (en español, como todo
+        # lo que lee el operador).
+        assert "campo(s) desconocido(s)" in str(exc.value).lower()
 
     def test_invalid_status_rejected(self, db):
         obj = svc.create_object(db, "point", latitude=EZE[0], longitude=EZE[1])
@@ -256,7 +260,11 @@ class TestUpdate:
         svc.update_object(db, obj.id, {"locked": True})
         with pytest.raises(MapServiceError) as exc:
             svc.update_object(db, obj.id, {"name": "No"})
-        assert "locked" in str(exc.value).lower()
+        # Este texto llega al operador tal cual (`client.js` prefiere el
+        # `detail` del backend): buscaba la palabra inglesa «locked», que al
+        # pasar a español dejó de existir. Lo que se guarda es que el motivo
+        # sea el candado, y que esté en el idioma del operador.
+        assert "bloqueado" in str(exc.value).lower()
 
     def test_locked_object_can_be_unlocked(self, db):
         """A lock must never be a one-way trap."""

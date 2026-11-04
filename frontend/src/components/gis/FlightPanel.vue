@@ -1,8 +1,8 @@
 <template>
   <div class="flex h-full flex-col">
-    <div class="flex flex-none items-center justify-between border-b border-slate-800 px-3 py-2">
-      <h3 class="text-xs font-semibold uppercase tracking-widest text-slate-300">Vuelos</h3>
-      <span class="font-mono text-[10px] text-slate-500">
+    <div class="flex flex-none items-center justify-between border-b border-borde px-3 py-2">
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">Vuelos</h3>
+      <span class="font-mono text-[10px] text-texto-tenue">
         {{ flightsStore.trackedCount }}/{{ MAX_TRACKED }}
       </span>
     </div>
@@ -27,25 +27,25 @@
       </div>
 
       <!-- Search (spec §20) -->
-      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
-        <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-slate-500">Buscar vuelo</h4>
+      <section class="rounded-lg border border-borde bg-on-ink-wash p-2.5">
+        <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue">Buscar vuelo</h4>
         <input
           v-model="flightsStore.query.callsign"
           placeholder="Callsign (p. ej. ARG1234)"
-          class="mb-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] uppercase text-slate-100"
+          class="mb-1 w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] uppercase text-texto"
           @keyup.enter="doSearch()"
         />
         <div class="mb-1.5 grid grid-cols-2 gap-1">
           <input
             v-model="flightsStore.query.icao24"
             placeholder="ICAO24"
-            class="rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] lowercase text-slate-100"
+            class="rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] lowercase text-texto"
             @keyup.enter="doSearch()"
           />
           <input
             v-model="flightsStore.query.date"
             type="date"
-            class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[10px] text-slate-100"
+            class="rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-[10px] text-texto"
           />
         </div>
         <div class="grid grid-cols-2 gap-1">
@@ -60,20 +60,20 @@
         </div>
 
         <!-- Search result summary -->
-        <div v-if="flightsStore.searchResult" class="mt-2 rounded bg-slate-950/60 p-2 text-[10px]">
+        <div v-if="flightsStore.searchResult" class="mt-2 rounded bg-on-ink-wash p-2 text-[10px]">
           <div class="mb-1 flex justify-between">
-            <span class="text-slate-500">ICAO24</span>
-            <span class="font-mono text-slate-200">{{ flightsStore.searchResult.icao24 || '—' }}</span>
+            <span class="text-texto-tenue">ICAO24</span>
+            <span class="font-mono text-texto">{{ flightsStore.searchResult.icao24 || '—' }}</span>
           </div>
           <div class="mb-1 flex justify-between">
-            <span class="text-slate-500">Identificado por</span>
-            <span class="text-slate-300">
+            <span class="text-texto-tenue">Identificado por</span>
+            <span class="text-texto-medio">
               {{ comoSeIdentifico(flightsStore.searchResult.resolved_via) }}
             </span>
           </div>
           <div class="flex justify-between">
-            <span class="text-slate-500">Vuelos históricos</span>
-            <span class="font-mono text-slate-200">
+            <span class="text-texto-tenue">Vuelos históricos</span>
+            <span class="font-mono text-texto">
               {{ flightsStore.searchResult.flights?.length || 0 }}
             </span>
           </div>
@@ -84,10 +84,10 @@
             <li
               v-for="(f, i) in flightsStore.searchResult.flights"
               :key="i"
-              class="rounded bg-slate-900 px-1.5 py-1"
+              class="rounded bg-panel px-1.5 py-1"
             >
-              <div class="font-mono text-slate-200">{{ f.callsign || f.icao24 }}</div>
-              <div class="text-slate-500">
+              <div class="font-mono text-texto">{{ f.callsign || f.icao24 }}</div>
+              <div class="text-texto-tenue">
                 {{ f.departure || '—' }} → {{ f.arrival || '—' }}
               </div>
               <button
@@ -111,7 +111,7 @@
       <!-- Watchlist (spec §25, §26) -->
       <section>
         <div class="mb-1.5 flex items-center justify-between">
-          <h4 class="text-[10px] uppercase tracking-widest text-slate-500">
+          <h4 class="text-[10px] uppercase tracking-widest text-texto-tenue">
             Seguimiento ({{ flightsStore.trackedCount }}/{{ MAX_TRACKED }})
           </h4>
           <button
@@ -124,7 +124,7 @@
           </button>
         </div>
 
-        <p v-if="!flightsStore.watchlist.length" class="rounded-lg border border-dashed border-slate-800 p-2 text-center text-[11px] text-slate-500">
+        <p v-if="!flightsStore.watchlist.length" class="rounded-lg border border-dashed border-borde p-2 text-center text-[11px] text-texto-tenue">
           Sin aeronaves en seguimiento. Busque un vuelo y use «Seguir».
         </p>
 
@@ -132,20 +132,20 @@
           <li
             v-for="(slot, index) in flightsStore.watchlistWithState"
             :key="slot.icao24"
-            class="rounded-lg border bg-slate-900/60 p-2"
+            class="rounded-lg border bg-on-ink-wash p-2"
             :style="{ borderLeftColor: slot.color, borderLeftWidth: '3px' }"
           >
             <!-- Header: slot, callsign, controls -->
             <div class="mb-1 flex items-center gap-1.5">
               <span
-                class="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold text-slate-900"
+                class="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold text-ink"
                 :style="{ background: slot.color }"
               >
                 {{ index + 1 }}
               </span>
               <button
                 class="min-w-0 flex-1 truncate text-left font-mono text-[12px] font-semibold"
-                :class="slot.selected ? 'text-emerald-300' : 'text-slate-200'"
+                :class="slot.selected ? 'text-emerald-300' : 'text-texto'"
                 :title="slot.icao24"
                 @click="selectAircraft(slot)"
               >
@@ -157,30 +157,30 @@
               >
                 {{ slot.isRecording ? '🔴' : '⚪' }}
               </span>
-              <button class="flex-none text-[10px] text-slate-500 hover:text-slate-300" @click="untrack(slot.icao24)">✕</button>
+              <button class="flex-none text-[10px] text-texto-tenue hover:text-texto-medio" @click="untrack(slot.icao24)">✕</button>
             </div>
 
             <!-- Live telemetry (spec §26) -->
             <dl class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
               <div class="flex justify-between">
-                <dt class="text-slate-500">Estado</dt>
-                <dd class="text-slate-300">{{ aircraftState(slot) }}</dd>
+                <dt class="text-texto-tenue">Estado</dt>
+                <dd class="text-texto-medio">{{ aircraftState(slot) }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-slate-500">Altitud</dt>
-                <dd class="font-mono text-slate-300">{{ withUnit(slot.state?.altitude, 'm') }}</dd>
+                <dt class="text-texto-tenue">Altitud</dt>
+                <dd class="font-mono text-texto-medio">{{ withUnit(slot.state?.altitude, 'm') }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-slate-500">Velocidad</dt>
-                <dd class="font-mono text-slate-300">{{ withUnit(slot.state?.velocity, 'm/s') }}</dd>
+                <dt class="text-texto-tenue">Velocidad</dt>
+                <dd class="font-mono text-texto-medio">{{ withUnit(slot.state?.velocity, 'm/s') }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-slate-500">Heading</dt>
-                <dd class="font-mono text-slate-300">{{ withUnit(slot.state?.heading, '°') }}</dd>
+                <dt class="text-texto-tenue">Heading</dt>
+                <dd class="font-mono text-texto-medio">{{ withUnit(slot.state?.heading, '°') }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-slate-500">Posición</dt>
-                <dd class="font-mono text-slate-300">
+                <dt class="text-texto-tenue">Posición</dt>
+                <dd class="font-mono text-texto-medio">
                   <template v-if="slot.state?.latitude != null">
                     {{ slot.state.latitude.toFixed(4) }}, {{ slot.state.longitude.toFixed(4) }}
                   </template>
@@ -188,7 +188,7 @@
                 </dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-slate-500">Actualizado</dt>
+                <dt class="text-texto-tenue">Actualizado</dt>
                 <dd class="font-mono" :class="stalenessClass(slot)">
                   {{ relativeTime(slot.state?.time_position) }}
                 </dd>
@@ -207,9 +207,9 @@
             </p>
 
             <!-- Track availability (spec §21) -->
-            <div class="mt-1 text-[9px] text-slate-500">
+            <div class="mt-1 text-[9px] text-texto-tenue">
               Trayectoria:
-              <span v-if="slotTrack(slot)" class="text-slate-300">
+              <span v-if="slotTrack(slot)" class="text-texto-medio">
                 {{ slotTrack(slot).point_count }} puntos ·
                 {{ slotTrack(slot).source }}
               </span>
@@ -217,7 +217,7 @@
             </div>
             <p
               v-if="slotTrack(slot) && flightsStore.trackNote"
-              class="mt-0.5 rounded bg-slate-950/60 p-1 text-[9px] leading-snug text-amber-300/80"
+              class="mt-0.5 rounded bg-on-ink-wash p-1 text-[9px] leading-snug text-amber-300/80"
             >
               {{ flightsStore.trackNote }}
             </p>
@@ -251,9 +251,9 @@
                  has already landed. -->
             <div
               v-if="flightsStore.flightListFor === slot.icao24"
-              class="mt-1.5 rounded border border-slate-700 bg-slate-950/70 p-1.5"
+              class="mt-1.5 rounded border border-borde-fuerte bg-panel-hondo p-1.5"
             >
-              <p class="mb-1 text-[9px] text-slate-400">
+              <p class="mb-1 text-[9px] text-texto-tenue">
                 {{ flightsStore.flightListMessage || 'Vuelos de esta aeronave:' }}
               </p>
               <ul
@@ -273,17 +273,17 @@
                   </button>
                 </li>
               </ul>
-              <p v-else class="text-[9px] text-slate-500">
+              <p v-else class="text-[9px] text-texto-tenue">
                 No hay vuelos registrados para esta aeronave en el período consultado.
               </p>
-              <label class="mt-1.5 flex items-center gap-1 text-[9px] text-slate-500">
+              <label class="mt-1.5 flex items-center gap-1 text-[9px] text-texto-tenue">
                 <span class="flex-none">Buscar</span>
                 <input
                   v-model.number="historyDays"
                   type="number"
                   min="1"
                   max="30"
-                  class="w-14 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[9px] text-slate-200"
+                  class="w-14 rounded border border-borde-fuerte bg-panel px-1 py-0.5 text-[9px] text-texto"
                   @keyup.enter="reloadFlightList(slot)"
                 />
                 <span>días atrás</span>
@@ -313,9 +313,9 @@
       <!-- Distances aircraft → references (spec §30) -->
       <section
         v-if="flightsStore.aircraftDistances.length"
-        class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5"
+        class="rounded-lg border border-borde bg-on-ink-wash p-2.5"
       >
-        <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-slate-500">
+        <h4 class="mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue">
           Distancia a referencias
         </h4>
         <ul class="max-h-48 space-y-1 overflow-y-auto">
@@ -324,14 +324,14 @@
             :key="row.object_id"
             class="flex items-center justify-between gap-2 text-[10px]"
           >
-            <span class="min-w-0 flex-1 truncate text-slate-300">
+            <span class="min-w-0 flex-1 truncate text-texto-medio">
               {{ row.name || typeName(row.type) }}
             </span>
             <span class="flex-none font-mono text-cyan-300">
               {{ row.distance_nm?.toFixed(2) }} NM
-              <span class="text-slate-500">/ {{ row.distance_km?.toFixed(2) }} km</span>
+              <span class="text-texto-tenue">/ {{ row.distance_km?.toFixed(2) }} km</span>
             </span>
-            <span class="flex-none font-mono text-slate-600">{{ row.bearing }}°</span>
+            <span class="flex-none font-mono text-texto-invisible">{{ row.bearing }}°</span>
           </li>
         </ul>
         <p class="mt-1.5 rounded bg-amber-950/30 p-1.5 text-[9px] leading-snug text-amber-200/90">
@@ -340,32 +340,32 @@
       </section>
 
       <!-- Recording sessions (spec §24) -->
-      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
+      <section class="rounded-lg border border-borde bg-on-ink-wash p-2.5">
         <div class="mb-1.5 flex items-center justify-between">
-          <h4 class="text-[10px] uppercase tracking-widest text-slate-500">Sesiones de grabación</h4>
+          <h4 class="text-[10px] uppercase tracking-widest text-texto-tenue">Sesiones de grabación</h4>
           <button class="gis-mini-btn" @click="systemStore.showTimeline = !systemStore.showTimeline">
             Timeline
           </button>
         </div>
-        <p v-if="!flightsStore.sessions.length" class="text-[10px] text-slate-500">
+        <p v-if="!flightsStore.sessions.length" class="text-[10px] text-texto-tenue">
           Sin sesiones. Use «Grabar» sobre una aeronave seguida.
         </p>
         <ul class="max-h-40 space-y-1 overflow-y-auto">
           <li
             v-for="session in flightsStore.sessions"
             :key="session.id"
-            class="rounded bg-slate-950/60 p-1.5 text-[10px]"
+            class="rounded bg-on-ink-wash p-1.5 text-[10px]"
           >
             <div class="flex items-center justify-between">
-              <span class="font-mono text-slate-200">{{ session.callsign || session.icao24 }}</span>
+              <span class="font-mono text-texto">{{ session.callsign || session.icao24 }}</span>
               <span
                 class="rounded px-1 text-[9px]"
-                :class="session.status === 'recording' ? 'bg-rose-900 text-rose-200' : 'bg-slate-800 text-slate-400'"
+                :class="session.status === 'recording' ? 'bg-rose-900 text-rose-200' : 'bg-panel-alto text-texto-tenue'"
               >
                 {{ session.status }}
               </span>
             </div>
-            <div class="mt-0.5 flex justify-between text-slate-500">
+            <div class="mt-0.5 flex justify-between text-texto-tenue">
               <span>{{ session.sample_count }} muestras</span>
               <span>{{ formatDate(session.started_at) }}</span>
             </div>
@@ -384,16 +384,16 @@
       </section>
 
       <!-- Live feed status -->
-      <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5 text-[10px]">
+      <section class="rounded-lg border border-borde bg-on-ink-wash p-2.5 text-[10px]">
         <div class="flex justify-between">
-          <span class="text-slate-500">WebSocket</span>
-          <span class="text-slate-300">{{ flightsStore.socketState }}</span>
+          <span class="text-texto-tenue">WebSocket</span>
+          <span class="text-texto-medio">{{ flightsStore.socketState }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-slate-500">Aeronaves en vivo</span>
-          <span class="font-mono text-slate-300">{{ Object.keys(flightsStore.liveStates).length }}</span>
+          <span class="text-texto-tenue">Aeronaves en vivo</span>
+          <span class="font-mono text-texto-medio">{{ Object.keys(flightsStore.liveStates).length }}</span>
         </div>
-        <p class="mt-1 text-[9px] leading-snug text-slate-600">
+        <p class="mt-1 text-[9px] leading-snug text-texto-invisible">
           El backend envía únicamente cambios. Una aeronave detenida no genera tráfico.
         </p>
       </section>
@@ -756,10 +756,10 @@ function stalenessWarning(slot) {
 
 function stalenessClass(slot) {
   const age = positionAge(slot)
-  if (age === null) return 'text-slate-300'
+  if (age === null) return 'text-texto-medio'
   if (age > 3600) return 'text-rose-400'
   if (age > STALE_WARNING_S) return 'text-amber-400'
-  return 'text-slate-300'
+  return 'text-texto-medio'
 }
 
 function relativeTime(ts) {

@@ -277,6 +277,41 @@ describe('InspectorPanel', () => {
     expect(w.text()).toContain('Introducido por el usuario')
     w.unmount()
   })
+
+  it('muestra el payload del evento leído de properties.event (F2-03)', async () => {
+    // El backend serializa el evento como `properties.event`, igual que
+    // `rf`, `antenna` y `reference` (geojson_service.object_to_feature).
+    // El panel lo leía en plano (`p.frequency_mhz`) y, como el backend no
+    // emitía nada, la sección salía vacía: F2-03.
+    const pinia = makePinia()
+    const map = useMapStore()
+    const w = mountComponent(InspectorPanel, { pinia })
+    map.upsert({
+      id: 41, type: 'rf_event', name: 'Evento RF 118.300', status: 'Activo',
+      geometry_type: 'Point', latlng: [-34.55, -58.44], latlngs: [[-34.55, -58.44]],
+      latitude: -34.55, longitude: -58.44,
+      visible: true, locked: false, layer: 'rf_events',
+      provenance: 'user',
+      properties: {
+        layer_name: 'Eventos RF',
+        event: {
+          frequency_mhz: 118.3,
+          level_dbm: -62.5,
+          classification: 'Interferencia aeronaútica',
+        },
+      },
+      created_at: '2026-10-01T10:00:00', updated_at: '2026-10-01T10:00:00',
+    })
+    map.select(41)
+    await flushPromises()
+
+    const texto = w.text()
+    expect(texto).toContain('Atributos del evento')
+    expect(texto).toContain('118.3 MHz')
+    expect(texto).toContain('-62.5 dBm')
+    expect(texto).toContain('Interferencia aeronaútica')
+    w.unmount()
+  })
 })
 
 describe('LayerPanel', () => {
@@ -301,6 +336,33 @@ describe('ToolOptions', () => {
     expect(w.text()).toContain('Unidades')
     // 1 NM = 1.852 km is stated so the operator knows the conversion.
     expect(w.text()).toContain('1,852')
+    w.unmount()
+  })
+
+  it('ofrece la fuente del punto mientras la herramienta punto esta activa', async () => {
+    // Elegir FM/TPRS/Otro es una decision del punto que se va a dibujar: la
+    // seccion aparece solo con la herramienta punto, para que nadie ande
+    // buscando una fuente donde no la hay.
+    const pinia = makePinia()
+    const map = useMapStore()
+    // `setTool` sólo arma la herramienta en el toolManager, que en los tests
+    // no existe: es GisShell quien volca el tool sobre `activeTool`.
+    // El contrato del panel es reaccionar a `activeTool`, así que se pone
+    // directo, que es también lo que GisShell hace.
+    map.activeTool = 'point'
+    const w = mountComponent(ToolOptions, { pinia })
+    await flushPromises()
+    expect(w.text()).toContain('Fuente del punto')
+    const opciones = w.findAll('option').map((o) => o.text())
+    expect(opciones).toContain('FM')
+    expect(opciones).toContain('TPRS')
+    expect(opciones).toContain('Otra fuente')
+
+    map.activeTool = 'circle'
+    await flushPromises()
+    expect(w.text(), 'la fuente no es asunto de los circulos').not.toContain(
+      'Fuente del punto',
+    )
     w.unmount()
   })
 })
@@ -545,12 +607,8 @@ describe('GisShell boots', () => {
     // The tool palette and the side-panel tab strip must be present. The
     // panels themselves sit behind tabs, so only one is mounted at a time.
     //
-    // The full names live in each tab's `title` and `aria-label`, because the
-    // visible label is abbreviated: the five full names need 312px and the
-    // sidebar has 215, and `flex: 1 1 0` shrank them until Expediente fell off
-    // the strip entirely. Asserted on the accessible name so a rename of the
-    // abbreviation cannot quietly take a section with it.
-    for (const label of ['Herramientas', 'Capas', 'Vuelos', 'Aeropuertos', 'Expediente']) {
+    // Full names remain accessible while the visible labels stay compact.
+    for (const label of ['Herramientas', 'Capas', 'Objetos', 'Vuelos', 'Aeropuertos']) {
       const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === `Panel ${label}`)
       expect(tab, `falta la pestana ${label}`).toBeTruthy()
       expect(tab.attributes('aria-label'), `${label} sin nombre accesible`).toBe(`Panel ${label}`)
@@ -1214,6 +1272,34 @@ describe('clicking an aircraft fills the inspector', () => {
     await flushPromises()
     expect(w.text(), 'el panel del objeto manda cuando hay objeto').toContain('Inspector')
     expect(w.text()).not.toContain('Procedencia:')
+    w.unmount()
+  })
+
+  it('permite reclasificar la fuente de un punto desde el inspector', async () => {
+    // La fuente no se elige solo al crearla: un punto puesto sin fuente se
+    // reclasifica despues sin volver a dibujarlo, y el cambio va al mismo
+    // campo `icon` que el backend ya guarda y devuelve.
+    const pinia = makePinia()
+    const map = useMapStore()
+    map.upsert({
+      id: 33, type: 'point', name: 'Punto FM', status: 'Activo',
+      geometry_type: 'Point', latlng: [-34.6, -58.4], latlngs: null,
+      latitude: -34.6, longitude: -58.4, icon: 'point', visible: true,
+      locked: false, layer: 'reference_points', provenance: 'user',
+      properties: {}, created_at: '2026-10-05T10:00:00', updated_at: '2026-10-05T10:00:00',
+    })
+    map.select(33)
+    const actualizar = vi.spyOn(map, 'updateObject').mockResolvedValue(null)
+
+    const w = mountComponent(InspectorPanel, { pinia })
+    await flushPromises()
+
+    const selector = w.findAll('select').find((s) =>
+      s.findAll('option').some((o) => o.text() === 'TPRS'),
+    )
+    expect(selector, 'falta el selector de fuente del punto en el panel').toBeTruthy()
+    await selector.setValue('tprs')
+    expect(actualizar).toHaveBeenCalledWith(33, { icon: 'tprs' })
     w.unmount()
   })
 

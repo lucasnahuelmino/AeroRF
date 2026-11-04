@@ -3585,11 +3585,258 @@ dos veces. El 16 era un número mío que ya no se sostiene; aquí queda corregid
 - `aerorf.db` no está trackeado por git, así que esto no aparece como cambio en
   el repositorio.
 
+## 0.30.5 - La base en el mismo sitio, con respaldo y con versión
+
+**Estado:** completada · auditoría de Claude, ítem **P0-06**, primero por decisión
+del operador
+
+### P0-06 no puede ir en sexto lugar
+
+La auditoría de Claude ordena once P0 y deja P0-06 en sexto. No puede ir ahí:
+P0-01 pide `nullable=False` sobre `numero_expediente` y P0-03 pide limpiar filas
+ya guardadas, y **los dos necesitan lo que falta aquí** —una versión de esquema
+y un respaldo previo— para no romper cada base que ya está instalada. P0-06 no
+es un ítem más, es el que desbloquea a otros tres: entra primero.
+
+### El defecto: la base seguía al directorio de trabajo
+
+El default era `sqlite:///./aerorf.db`, una ruta **relativa**. Relativa se
+resuelve contra el directorio de trabajo del proceso, así que arrancar por
+`start.bat`, por `uvicorn` desde otra carpeta o desde el IDE creaba un
+`aerorf.db` distinto en cada caso y lo guardado en uno no existía en el otro.
+Ése es entero el síntoma que se resume en «se perdieron los expedientes»:
+**no se perdió ninguna fila, la aplicación miraba a otra parte.**
+
+`.env.example` traía esa misma línea, así que cualquiera que copiara el ejemplo
+reintroducía el problema.
+
+**Arreglado sin mover el archivo.** `RUTA_BASE_SQLITE` apunta a la raíz del
+proyecto y `_anclar_sqlite` pasa por encima de cualquier `DATABASE_URL`
+relativa. Elegí anclar en vez de trasladar a `data/` porque la ubicación no era
+el defecto y moverlo habría añadido un riesgo —arrancar con la base vacía—
+que es exactamente lo que se está arreglando.
+
+### Lo que medí antes de tocar nada
+
+Busqué `aerorf*.db` en todo el disco: **sólo hay una**, de 647 168 bytes. No se
+había partido en dos todavía. Encontré además un `-wal` de **4 198 312 bytes**
+contra un `.db` de 647 168, con marca de hora más reciente.
+
+**Corrijo lo que dije al verlo.** Afirmé que esas 4 MB eran transacciones sin
+llegar al archivo principal. No lo son: al abrir la base (que hace checkpoint
+automático al cerrar) el `.db` pasó a 679 936 bytes, el WAL quedó en 0 y los
+conteos eran **idénticos antes y después** — 1 expediente, 2 objetos, 42
+pistas. El WAL guardaba imágenes de páginas, no filas. Nada estuvo en peligro.
+
+Lo que un respaldo ingenuo sí pierde es lo que se escribe **con el servidor
+corriendo**, que es exactamente cuando se respalda. El riesgo se sostiene; la
+cifra que lo ilustraba era mía y estaba inflada.
+
+### Un respaldo que copia el archivo no vale
+
+Con WAL, las últimas escrituras viven en `aerorf.db-wal` hasta que un checkpoint
+las mueve al `.db`. `shutil.copyfile` copia un archivo atrasado, y lo hace justo
+en el peor momento: con el servidor vivo. Por eso el respaldo va por
+`sqlite3.Connection.backup`, que lee a través del WAL y deja un archivo
+completo y abirible por su solo cuenta.
+
+- **Se hace en cada arranque, antes de escribir nada** (`RESPALDOS_ACTIVOS`).
+- En `respaldos/` de la raíz; `*.db` ya estaba en `.gitignore`, así que no hace
+  falta tocarlo.
+- Rotación automática, conservando `RESPALDOS_CONSERVAR` (10 por defecto).
+- Un respaldo que falla **se registra y se arranca igual**: una aplicación que
+  no levanta porque no pudo hacer una copia es un resultado peor que una que
+  levanta sin ella, con tal de que el fallo sea ruidoso.
+
+### Versionado de esquema, que antes no existía
+
+`PRAGMA user_version` valía **0** en la base instalada, y lo único que había era
+`create_all`, que crea tablas que faltan y es estructuralmente incapaz de añadir
+una columna o una restricción a una base existente. La primera columna nueva —
+`numero_expediente` perdiendo su nulabilidad ya está en cola — habría roto cada
+base en el campo.
+
+Ahora hay `VERSION_ESQUEMA` y `MIGRACIONES`. La versión **no avanza si el paso
+falla**: sentencias y sello dentro de la misma transacción, con `ROLLBACK` si
+algo revienta, porque el caso peor no es una migración rota, es una migración
+rota que ya dice estar hecha. Y si la base es de una AeroRF **más nueva**, no se
+toca nada y se dice en español.
+
+### Seis reverts, once guardas que mordieron
+
+Cada arreglo se revirtió por separado y se volvió a correr la suite:
+
+| revert | guardas que fallaron |
+|---|---|
+| vuelta a `sqlite:///./aerorf.db` | 2 — *«ruta relativa, seguiría al directorio de trabajo: aerorf.db»* |
+| `Connection.backup` → `shutil.copyfile` | 1 — *«el respaldo no trajo la fila escrita en el WAL»* |
+| no lanzar con una base más nueva | 2 — `DID NOT RAISE BaseDeDatosMasNueva` |
+| el sello de versión no avanza | 2 — `assert 0 == 1` |
+| la rotación deja de borrar | 2 — *«sobrevivieron los equivocados»* |
+| `init_db` sin mantenimiento | 2 — *«esperaba un respaldo y hay 0»* |
+
+La prueba del WAL **demuestra el defecto** y no sólo el arreglo: inserta una
+fila, fuerza el checkpoint del esquema, escribe otra y mantiene la conexión
+abierta para que la fila se quede en el WAL, y entonces compara una copia del
+archivo (0 filas) con el respaldo (1 fila). Quien sustituya la API de SQLite por
+un `copyfile` la pierde y la prueba revienta.
+
+### Un número del documento que no reproducía
+
+`AERORF_ARCHITECTURE.md` decía **357 unitarias** mientras el conjunto ya daba
+452 antes de este cambio. Misma clase de caducidad que el «16 duplicados» de
+0.30.4: un número que quedó escrito y dejó de corresponder. Medido ahora con
+`pytest --collect-only -m "not integration"`: **466 pruebas en 15 archivos**, y
+las 7 de integración siguen siendo las de `test_websocket.py`.
+
+### Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **466 pasan**, 7 deseleccionadas (antes 452) |
+| Arranque real del backend | `db.respaldo respaldo creado antes de arrancar \| archivo=aerorf-20261003-103529.db bytes=679936` |
+| | `db.migracion esquema llevado a la versión 1 \| desde=0 hasta=1` |
+| | `db.version esquema sin versionar adoptado como versión 1` |
+| Endpoints | `/expedientes/`, `/map/layers`, `/flights/tracked`, `/map/objects/stats` → **200** |
+| Frontend, paridad, build | 448 en 30 archivos · 675 · limpio |
+| Estabilidad | 1 archivo de vitest falló en la primera corrida de la sesión y **no se reprodujo en las 10 siguientes**. El detalle se perdió en un filtro de la salida, así que queda sin identificar: si vuelve, capturar la salida entera la primera vez |
+
+Los mensajes llegan en UTF-8 correcto: las bytes del `ó` en el log son `C3 B3`.
+Conviene anotarlo porque el primer chequeo lo hice mal —busqué un `0x3C` de más
+en el patrón y devolvió falso— y parecía un texto roto.
+
+---
+
+## 0.30.6 - El WebSocket se rendía en modo anónimo
+
+**Estado:** completada · auditoría de Claude, ítem **P0-04**
+
+### Se reprodujo con dos instancias a la vez
+
+El mismo momento, la misma base, dos servidores:
+
+| | instancian con credenciales | instancian anónima |
+|---|---|---|
+| `GET /flights/live` | 200 | **200**, `auth=anonymous` |
+| `/ws/flights` | consulta con `auth=oauth2` | **0 peticiones**, manda `not_configured` |
+
+La cuenta de peticiones es la prueba, no la impresión: en el log de la
+instancia anónima hay **0** líneas `auth=oauth2` y exactamente **una** petición
+a `states/all`, que es la de la ruta REST. El WebSocket no hizo ninguna.
+
+Para que la instancia saliera realmente anónima hubo que vencer un detalle de
+medición: en PowerShell `$env:X = ""` **borra** la variable, así que `.env` la
+rellenaba con `override=False` y la prueba salía «con credenciales» sin que se
+notara. Lo que funcionó fue dejarla presente pero en blanco, que `_env` ya
+trata como ausente. El `hello` lo anunciaba igualmente (`opensky_configured`),
+y es por eso que se pudo descartar el falso negativo.
+
+### La causa: un predicado que pregunta otra cosa
+
+`ws.py` hacía `if not service.configured`. Eso responde «¿hay credenciales
+OAuth2?», y lo que hace falta saber es «¿puedo consultar estados?» — que es
+`can_query_states`, y que OpenSky sí responde a llamadas anónimas desde su
+bolsa de 400 créditos diarios.
+
+**La ruta REST ya lo tenía bien**, en `flights.py::_service_or_503`:
+`configured or can_query_states`. El canal de WebSocket era el único que no.
+
+Al arreglo le cambié también el mensaje: decía «defina
+`OPENSKY_CLIENT_ID`…», que era inútil en un equipo donde lo que faltaba era
+activar lo anónimo. Ahora dice las dos formas de salir.
+
+### Las guardas
+
+Cinco pruebas en `tests/test_p004_websocket_anonimo.py`. Llaman a `Hub._tick`
+directamente con el servicio y el WebSocket falsos, así que miden la decisión
+sin servidor, sin tiempo de por medio y sin gastar crédito.
+
+- **Antes del arreglo**: `assert 0 == 1`, con el mensaje
+  «el WebSocket no consultó OpenSky en modo anónimo: estados de salida
+  `['not_configured']`».
+- **Después**: 5 en verde.
+- Las otras cuatro no son decorado: una comprueba que con credenciales sigue
+  consultando, otra que **la compuerta sigue cerrada** cuando de verdad no hay
+  forma de consultar (si no, la lectura obvia sería «borrar el chequeo» y el
+  feed quedaría mudo), otra que la lista vacía sigue ganando al chequeo de
+  credenciales —que es lo que evita la consulta global de 4 créditos— y la
+  última que el aviso esté en español.
+
+### Verificación en vivo
+
+Instancia anónima reiniciada con el arreglo: `opensky_configured=False`,
+**0** apariciones de `not_configured`, y el WebSocket emitió
+`GET https://opensky-network.org/api/states/all?icao24=e06543&icao24=e0b354`
+—con sus dos aeronaves, o sea que además usó la lista de seguimiento—.
+
+### Tres cosas que encontré al verificar y que no toqué aquí
+
+1. **`lost` se reenvía en cada tick, y eso cuelga al propio test.**
+   `test_feed_does_not_flood` mide durante 22 s con un `while True` cuyo
+   timeout es de 22 s por lectura: si llega un frame cada 10 s el bucle nunca
+   expira. **Medido con vigilante: sigue corriendo a los 150 s cuando debería
+   tardar ~22 s, y sin producir salida.** Un test que se cuelga es peor que uno
+   que falla. La causa es del servidor, no del test: el aviso de que una
+   aeronave se perdió se repite cada 10 s sin deduplicar, que es justo lo que
+   la §48 prohíbe y lo que ese test existe para detectar. Requiere su propio
+   commit.
+2. **`test_idle_when_nothing_is_tracked` exige una lista vacía y la lista no
+   está vacía**: falla en su propia precondición, `count == 0` contra `count
+   == 2`, que son `ARG1646` y `LVKMT` añadidos el 02/10. El comentario del
+   test asume que «el recorrido se limpia solo y ninguna otra suite la llena»;
+   el operador la llenó a mano.
+3. **Dos mensajes que se quedaron cortos**: `ws.py:446` manda
+   `Unknown action: ...` en inglés al navegador, y el aviso de arranque dice
+   «flight features disabled» cuando en modo anónimo las de vuelo **sí**
+   funcionan.
+
+Y aclaración sobre los dos rojos de integración: el backend del 8010 se
+arrancó a las 10:35, **antes** de este arreglo, y sin `--reload`. Las dos
+caídas y el cuelgue se produjeron contra el **código original**, así que no
+hace falta ningún revert para descartarlos: nunca pasaron por mi cambio.
+
+### Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **471 pasan**, 7 deseleccionadas (antes 466) |
+| `tests/geo_parity.mjs` | 675 pasan |
+| Instancia anónima con el arreglo | 0 `not_configured`, `GET states/all?icao24=e06543&icao24=e0b354` |
+| Instancia anónima sin el arreglo | 0 peticiones, `not_configured`, 0 líneas `auth=oauth2` |
+| Integración (sobre el código viejo) | 5 pasan, 2 caen — preexistentes, ver arriba |
+
+---
+
 ### Pendiente (lista viva)
 
-Resueltos en esta entrega: las **filas duplicadas** (decidido y borrado) y las
-**tipografías** (el operador eligió adoptar las de `rni-app-4.0` y subir el
-peldaño de tamaño — la implementación sigue pendiente).
+Resueltos hasta ahora en la auditoría: **P0-06** (base anclada, respaldo
+automático, versión de esquema) y **P0-04** (el WebSocket en modo anónimo).
+
+**Encontrado al verificar P0-04, sin tocar** — cada uno con su repro y en
+espera de commit propio:
+
+- **`lost` se reenvía cada 10 s sin deduplicar**, que es lo que la §48 prohíbe.
+  `test_feed_does_not_flood` existe para detectarlo y en vez de fallar **se
+  cuelga**: mide 22 s con un timeout de 22 s por lectura, y un frame cada 10 s
+  hace que nunca expire. Vigilante puesto: sigue corriendo a los 150 s.
+- **`test_idle_when_nothing_is_tracked` no puede pasar** con la lista llena:
+  exige `count == 0` y hay 2 (`ARG1646`, `LVKMT`, del 02/10). O el test se
+  adapta, o se salta cuando la lista no está vacía; **no borrarlo**.
+- **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
+- **El aviso de arranque dice «flight features disabled»** cuando en modo
+  anónimo las de vuelo sí funcionan.
+
+Decisiones que tomó el operador al revisar la auditoría:
+
+- **P0-02 — borrar expedientes con objetos GIS vinculados: bloquear con 409.**
+  Coherente con lo que ya pasa al revés, que borrar un objeto vinculado sí está
+  bloqueado. Nada se pierde en silencio.
+- **Se empieza por P0-06** y de ahí se sigue con el resto de la auditoría.
+- **El modelo de despliegue sigue sin decidir** — una PC por técnico o servidor
+  compartido —, así que el middleware de `Origin` va acotado a los orígenes de
+  CORS configurados, que sirve para los dos casos sin comprometer nada.
+
+### Pendiente de antes
 
 - **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
   de 0.30.0. Decidido por el operador; por hacer. Es el cambio más grande que
@@ -3607,3 +3854,2203 @@ peldaño de tamaño — la implementación sigue pendiente).
 - **`CATEGORY_DRAW_RANK`**: sigue describiendo un comportamiento que el rango no
   produce (`circles: -1`). El orden del avión ya no depende de él, pero el
   comentario de la intención sobre círculos y radiales sigue sin cumplirse.
+- **`.env.example` no trae `CACHE_TTL_TRACKS_LIVE_S`** — omisión del 0.30.2, la
+  mía. Está en `config.py` con default 30 y no estaba documentada.
+
+---
+
+## 0.30.7 - El botón que decía «guardado» y no guardaba
+
+**Rama:** `auditoria/p011-guardar-en-expediente`
+**Ítem:** P0-11 de la auditoría de Claude.
+**Decisión del operador:** «Selector en la calculadora».
+
+### El defecto
+
+Texto exacto que había en `frontend/src/views/CalculadoraRFView.vue`, y no era
+otra cosa:
+
+```js
+const storeResult = () => {
+  alert('Resultado guardado (próximamente integrado con expediente)')
+}
+```
+
+El diálogo afirmaba un guardado que no ocurría. **Medido**: las cuatro tablas
+RF estaban vacías (`eventos_rf` 0, `mediciones` 0, `rf_events` 0,
+`rf_sources` 0) y `client.js` llevaba `rf.createEvent` definido **sin un solo
+llamador** en toda la interfaz.
+
+### No era una decisión de diseño: eran dos arquitecturas paralelas
+
+Al cablear a ciegas habría ido al lugar equivocado, así que primero se miró
+qué había:
+
+| | **A — `eventos_rf`** | **B — `rf_events`** |
+|---|---|---|
+| Campos | `formula`, `tipo_producto`, `error_khz`, `score_probabilidad`, `proximidad`, `expediente_id` | `frequency_mhz`, `classification`, `event_at`, `calculated_evento_id` |
+| Escritura | **no tenía** | `POST /rf/events` → crea un `MapObject` |
+| Lectura | `GET /expedientes/{id}/eventos`, **ya existía** | `GET /rf/events` |
+| Coordenadas | ninguna | obligatorias (es un objeto de mapa) |
+
+La calculadora produce exactamente lo de la **A** y no tiene coordenadas: un
+resultado de armónico no es un punto del mapa. `rf.createEvent` (la **B**)
+habría exigido inventarle una lat/lon. **El guardado va a la A.**
+
+### Lo que ya existía y no se reconstruyó
+
+- `EventoRF` en `app/models/evento_rf.py`, con todos los campos del cálculo.
+- `EventoRFCreate` y `EventoRFResponse` en `app/models/schemas.py`.
+- `GET /expedientes/{id}/eventos`, ordenado por probabilidad.
+- El borrado en cascata al borrar el expediente (`expedientes.py`).
+
+Lo único que faltaba era la escritura. Por eso el `GET` siempre devolvía `[]`:
+no había nada que guardar nunca.
+
+### Lo que se hizo
+
+**Backend** — `POST /expedientes/{id}/eventos` en
+`app/api/routes/expedientes.py`. La URL manda: el expediente a guardar es el
+de la ruta; si el cuerpo dice otro, responde 400 en vez de adivinar. 404
+«No existe el expediente {id}» si no existe, también en español. Responde
+201 con `EventoRFResponse`.
+
+**Contrato** — `expedientes.crearEvento(id, payload)` en
+`frontend/src/api/client.js`, en el mismo commit que el endpoint, como exige
+la regla.
+
+**Interfaz** — `CalculadoraRFView.vue`:
+
+- Desplegable **Expediente de destino** (la ruta `/calculadora` no recibe id y
+  en la app no hay «expediente activo», así que hay que elegir).
+- El botón queda inactivo hasta que haya resultado **y** destino.
+- El aviso vive en la página (`role="status"`), en español, y distingue
+  éxito de error. Si la carga de expedientes falla dice «No se pudieron
+  cargar», no «no hay ninguno», que sería repetir el defecto.
+- Al cambiar de resultado el aviso anterior se borra: no queda un «guardado»
+  hablando de un resultado que ya no es el visible.
+
+**Lectura** — `ExpedienteDetalleView.vue` muestra **«Guardados en este
+expediente»**, que viene de la base, aparte de **«Resultados del último
+cálculo»**, que es memoria de la sesión. Los dos títulos ahora dicen lo que
+son.
+
+**Sin truncar** — `stores/expedientes.js`: `fetchExpedientes` acepta
+parámetros opcionales (sin ellos se comporta igual que antes, ningún llamador
+viejo cambia). La calculadora pide `{ limit: 100 }`.
+
+### Las guardas
+
+Backend, `tests/test_p011_guardar_en_expediente.py`, **6 pruebas**:
+
+1. Guardar y volver a leer por el `GET` que ya existía.
+2. Que ningún campo se redondee ni trunque en el ida y vuelta.
+3. Que cada guardado deje una fila y el `GET` salga ordenado.
+4. Que los dos expedientes no se mezclen.
+5. 404 en español para un expediente inexistente.
+6. 400 si el cuerpo contradice la URL, **y que no se haya escrito nada**.
+
+Frontend, `frontend/tests/p011-guardar.spec.js`, **5 pruebas**: botón
+inactivo sin destino y sin llamada; guardado con el mapeo exacto de campos; un
+error del backend se muestra como error; un fallo de carga no se disfraza de
+«no hay expedientes»; y que el texto mentiroso ya no está en la vista.
+
+**Por reversión** — backend: quitado el endpoint, **6 de 6 fallan** (405 Method
+Not Allowed). Frontend: restaurada la vista original de git, **5 de 5
+fallan**. Las 11 vuelven a verde con el arreglo, y las dos suites completas
+pasan después.
+
+### Verificación en vivo
+
+Contra una base **temporal** en el puerto 8011, no contra `aerorf.db`: no hay
+`DELETE` de `eventos_rf`, así que una fila de prueba en la base real no se
+podría borrar sin borrar el expediente entero. Se borró la base al terminar y
+no quedó ningún respaldo nuevo.
+
+| Acción | Resultado |
+|---|---|
+| `POST /expedientes/` | 200 |
+| `POST /expedientes/1/eventos` | **201**, con `id` y `timestamp` |
+| `GET /expedientes/1/eventos` | 200, **1 fila** (antes siempre 0) |
+| `POST /expedientes/999999/eventos` | **404** «No existe el expediente 999999» |
+| `POST` con cuerpo que contradice la URL | **400** «El expediente del cuerpo (501) no coincide con el de la ruta (1)» |
+| `GET` después del 400 | sigue en **1**: no escribió nada |
+
+**Un falso negativo propio, anotado para no repetirlo.** El primer chequeo de
+bytes lo hice en PowerShell y el `×` (U+00D7) salió como `C3 83 C2 97`, es
+decir mojibake: parecía que el servidor corrompía la fórmula. Repetido el ida y
+vuelta en Python, sin ninguna capa de codificación en el medio: **`32 20 C3 97
+20 38 38 2E 35` idéntico en el POST y en el GET**. La culpa era mía: PowerShell
+5.1 leyó mi comando como CP1252 y el `×` llegó duplicado. El endpoint estaba
+bien; el instrumento no.
+
+### Números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 471 | **477** (+6) |
+| Frontend (vitest) | 448 / 30 archivos | **453 / 31 archivos** (+5) |
+| Paridad geográfica | 675 | **675**, 0 fallos |
+| Build | — | **`✓ built in 1m 30s`** |
+
+### Hallazgos nuevos, sin tocar
+
+Cada uno para su commit:
+
+- **`GET /expedientes` corta en 10 y nadie pagina.** El parámetro es
+  `limit: int = 10`, `ExpedientesView` no pagina nada y los cinco llamadores
+  de `fetchExpedientes()` van sin parámetro, así que la pantalla de expedientes
+  muestra a lo sumo 10 y no se nota. **Leído en el código, no reproducido:**
+  con un solo expediente en la base no hay forma de verlo fallar. Por eso el
+  desplegable pide 100 explícitamente.
+- **`toolbar.spec.js` falló una vez al cargar** en una corrida completa
+  (441 de 453, 12 pruebas sin correr). Pasó sola 12/12 y la corrida
+  siguiente dio **453/453**. Es el mismo síntoma que el flake ya registrado en
+  0.30.6; **no se pudo reproducir y no se pudo atribuir a este cambio**.
+- **Mensajes en inglés en `expedientes.py`**: «Expediente not found» (en los
+  `GET` de mediciones y eventos) y «Expediente … already exists» (en el
+  `POST`). Los del endpoint nuevo sí están en español.
+- **Los 422 de FastAPI siguen en inglés** («Field required»). No se mandan al
+  operador: la vista los traduce a un mensaje propio, pero el texto crudo
+  sigue ahí para quien mire el JSON.
+- **`client.js` tenia `rf.createEvent` sin llamador** — y es de la arquitectura
+  B. Cablearlo habría sido el error fácil: habría dado «guardado» en la tabla
+  equivocada.
+
+### Pendiente (lista viva)
+
+Resueltos hasta ahora en la auditoría: **P0-06** (base anclada, respaldo
+automático, versión de esquema), **P0-04** (el WebSocket en modo anónimo),
+**P0-11** (el botón que decía «guardado»), en 0.30.8 el **`lost`** que se
+reenviaba cada 10 s, y en **0.30.9 la precondición de `test_idle`**: la
+prueba vacía la lista por la API y la restaura en un `finally`, y la
+integración quedó en **7 pasan, 0 caen**.
+
+**Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro y
+en espera de commit propio:
+
+- **Nadie lee `lost`.** El inundador se arregló en 0.30.8, pero el frontend no
+  tiene manejador: el marcador de una aeronave que se fue sigue quedando en
+  pantalla. O se agrega el manejo, o se quita el frame — **decisión del
+  operador**, porque cambia cómo se ve el mapa.
+- **`ws.py:446` manda `Unknown action: ...` en inglés** al navegador.
+- **El aviso de arranque dice «flight features disabled»** cuando en modo
+  anónimo las de vuelo sí funcionan.
+- **`GET /expedientes` corta en 10 sin paginación** (arriba, en Hallazgos).
+- **`toolbar.spec.js` flaky**, tres veces ya: un archivo que no cargó, luego
+  `toolbar` y ahora 4 pruebas en 3 archivos en una corrida a 210 s — sola
+  37/37 y la completa 453/453. **Sin repro, sin atribución posible.**
+
+Decisiones que tomó el operador al revisar la auditoría:
+
+- **P0-02 — borrar expedientes con objetos GIS vinculados: bloquear con 409.**
+  Coherente con lo que ya pasa al revés, que borrar un objeto vinculado sí está
+  bloqueado. Nada se pierde en silencio.
+- **P0-11 — selector de expediente en la calculadora.** Se eligió esa forma
+  entre las cuatro que se le presentaron (guardar desde el detalle, meter la
+  calculadora en el expediente, o quitar el botón).
+- **Se empieza por P0-06** y de ahí se sigue con el resto de la auditoría.
+- **El modelo de despliegue sigue sin decidir** — una PC por técnico o servidor
+  compartido —, así que el middleware de `Origin` va acotado a los orígenes de
+  CORS configurados, que sirve para los dos casos sin comprometer nada.
+
+---
+
+## 0.30.8 - «lost» se mandaba cada 10 segundos y eso colgaba al test
+
+**Estado:** completada · hallazgo propio, encontrado al verificar P0-04
+
+### Qué estaba mal
+
+En `app/api/routes/ws.py`, el bucle de tick hacía:
+
+```python
+for code in missing:
+    for sub in list(self.clients):
+        if sub.wants(code):
+            await sub.send({"type": "lost", ...})
+```
+
+Sin deduplicar. Mientras una aeronave de la lista de seguimiento no
+apareciera en la respuesta de OpenSky —lo normal cuando no está volando, o
+está fuera de su cobertura—, el servidor le reenviaba **el mismo aviso cada
+10 s, para siempre**. Es exactamente lo que la §48 prohíbe.
+
+`send_status` ya deduplicaba desde hace tiempo (el «status repetido cada
+10 s» que está en la tabla de la 0.30.0): el `lost` era **el mismo defecto
+que quedó sin arreglar en el otro canal**.
+
+### Dos hechos que salieron de mirar, y que agravan el diagnóstico
+
+1. **El frontend no tiene ningún manejador de `lost`.** Una búsqueda amplia
+   por `frontend/src` devuelve **una sola coincidencia**, y es prosa de un
+   comentario de `map.js`. El frame se mandaba cada 10 s y **nadie lo leía**:
+   el costo era puro ancho de banda más el cuelgue, y el beneficio, cero.
+   El comentario del código dice que el aviso existe para que no quede un
+   marcador viejo en pantalla — y como nadie lo lee, el marcador sigue
+   quedando. **Eso va por su cuenta** (¿manejador en el cliente, o se quita
+   el frame?), porque la respuesta cambia cómo se ve el mapa.
+2. **Por eso el test no fallaba: se colgaba.**
+   `test_feed_does_not_flood` lee hasta que hay 22 s de silencio, con un
+   timeout de 22 s por lectura. Un frame cada 10 s hace que ese silencio
+   nunca llegue. **Un test que se cuelga es peor que uno que falla**: no
+   informa nada y traba la suite entera.
+
+### El arreglo
+
+Dos métodos nuevos en `FlightSubscription`, del mismo calibre que el
+`send_status` que ya estaba:
+
+- `note_missing(icao24)` devuelve `True` **la primera vez** y `False` a
+  partir de ahí, hasta que la aeronave vuelva.
+- `note_returned(icao24s)` hace la mitad simétrica: si la aeronave vuelve,
+  borra el aviso —para que una caída posterior también se anuncie— **y borra
+  la huella guardada en `last`**.
+
+Esa segunda parte no es decorado: `last` guarda la posición del último
+estado mandado. Sin borrarla, al volver con la misma posición `changed()`
+daba `False` y no se mandaba nada — o sea, un cliente que hubiera hecho caso
+al aviso y borrado el marcador **nunca lo recupera**. Deduplicar sin eso
+deja un hueco.
+
+### Las guardas
+
+`tests/test_lost_sin_inundar.py`, cinco pruebas. Corren varios `_tick`
+contra la misma conexión, reutilizando el doble de servicio que armó
+P0-04, porque el inundador no se ve en un tick suelto: se ve en la
+repetición. Sin servidor, sin reloj y sin gastar crédito.
+
+**Escritas antes del arreglo y ejecutadas antes de tocar nada: 3 en rojo,
+2 en verde.**
+
+| Prueba | Antes del arreglo |
+|---|---|
+| un solo aviso por aeronave ausente en 3 ticks | **falla**: mandó 3 |
+| dos ausentes en tres ticks | **falla**: mandó 6 |
+| al volver se reenvía su estado aunque no cambie | **falla**: 1 `states` en 3 ticks |
+| si se pierde dos veces se avisa dos | pasa (regresión) |
+| el aviso está en español | pasa (regresión) |
+
+### Verificación en vivo
+
+El 8010 reiniciado con el arreglo, y la suite `integration` corrida entera:
+
+| | antes | después |
+|---|---|---|
+| `test_feed_does_not_flood` | **se colgaba** (sin salida a los 150 s) | **PASA** |
+| total | 5 passed, 2 failed | **6 passed, 1 failed** |
+
+La corrida entera tardó **47 s**. La única que sigue fallando es
+`test_idle_when_nothing_is_tracked`, que es la precondición de las 2
+entradas del watchlist — otro ítem, que no toca este.
+
+### Números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 477 | **482** (+5) |
+| Integration | 5 passed / 2 failed | **6 passed / 1 failed** |
+
+---
+
+# 0.30.9 — La precondición de `test_idle_when_nothing_is_tracked`
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/test-idle-lista-vacia` ·
+**Archivos:** 1 (una prueba)
+
+## El problema
+
+Era el último rojo de integración. La prueba exige `count == 0` en la lista de
+seguimiento y en la base del operador hay 2 (`ARG1646`, `LVKMT`, del 02/10),
+así que cae en `assert 2 == 0`. La precondición no se cumple tocando el
+código: hay que dejar la lista vacía.
+
+## Las tres opciones
+
+- **Saltarla** cuando la lista no está vacía: la más barata y la peor. Sería
+  la única de las 7 de integración que no corre donde importa. **Un guardia
+  que nunca corre no es un guardia.**
+- **Borrarla**: prohibido por las reglas de trabajo, además de irreversible.
+- **Elegida: arreglar la precondición.** Fotografiar la lista, vaciarla por la
+  API pública, asertar que quedó vacía, correr el aserto del `idle` y
+  **restaurar en un `finally`**, con un aserto extra de que la restauración
+  devolvió exactamente lo que había.
+
+La guarda unitaria de P0-04
+(`test_nada_se_pregunta_si_no_hay_aeronaves_en_seguimiento`, línea 148) ya
+afirma `["idle"]` y que no se consulta nada. Esta mitad es la del transporte:
+que el frame `idle` llegue **por el WebSocket de verdad**, no sólo en el
+servicio.
+
+## Lo que cuesta
+
+**`added_at` no se puede restaurar.** `GET /flights/tracked` no lo devuelve y
+`update_selection` sólo acepta `callsign, show_track, show_marker, selected,
+color, last_seen, last_position`. O sea: **cada corrida mueve `added_at` a la
+fecha de hoy**.
+
+Sí se devuelve y se restaura campo por campo: `icao24`, `callsign`, `slot`,
+`color`, `show_track`, `show_marker`, `selected`. `last_seen` y
+`last_position` se dejan en `NULL`, como estaban (la columna es de fecha y
+hora; meterle el string de la API sería mentirle al tipo).
+
+`added_at` no se lee en ninguna parte: 0 coincidencias en `frontend/src` y en
+el backend sólo se devuelve. Es el único dato que se pierde, y se pierde a la
+vista:
+
+| | antes | después de la corrida |
+|---|---|---|
+| filas | 2 | **2** |
+| `icao24`, `callsign`, `slot`, `color` | — | **idénticos** |
+| `show_track`, `show_marker`, `selected` | 1, 1, 0 | **1, 1, 0** |
+| `added_at` | 02/10 18:52 | 04/10 05:18 ← el costo |
+
+Verificado leyendo la base del operador después de la corrida, no de memoria.
+Y el `added_at` original se repuso a mano al terminar
+(`2026-10-02 18:52:11.055863` y `2026-10-02 18:52:44.498771`); la próxima
+corrida lo vuelve a mover.
+
+## Verificación
+
+| | antes | después |
+|---|---|---|
+| `test_idle_when_nothing_is_tracked` | **falla** (`assert 2 == 0`) | **PASA** (6,3 s) |
+| suite `integration` completa | 6 passed, 1 failed (47 s) | **7 passed, 0 failed (28 s)** |
+
+No hay asertos que fallen antes de tocar nada: esto es una prueba, no un
+cambio de producción. Lo que se verifica es que la precondición se arregla
+sola **y que la lista vuelve como estaba**.
+
+**Ruido registrado, sin atribuir.** En la misma ventana, una corrida de vitest
+con el equipo cargado falló **4 pruebas en 3 archivos** en 210 s (lo normal son
+55 s); repetido, los mismos 3 archivos dieron **37/37 en 10 s** y la corrida
+completa después **453/453 en 99 s**. Tercera aparición del mismo síntoma,
+distinto archivo, sin repro y sin ningún cambio de frontend de por medio.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 482 | **482** (sin cambios: esto es una prueba) |
+| Integration | 6 passed, 1 failed | **7 passed, 0 failed** |
+| Frontend | 453 | **453** |
+
+---
+
+# 0.30.10 — F2-01: el candado se salteaba por los campos RF
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f201-candado-rf` ·
+**Archivos:** 4 · **Fase 2 de la auditoría, ítem 1 de 8**
+
+## El problema, reproducido
+
+Las cuatro rutas tipadas escribían el satélite y hacían `commit` **antes** de
+llamar a `svc.update_object`, y el único punto que verificaba el candado era
+`update_object` (`map_service.py`). Con la fuente bloqueada:
+
+| repro | qué pasaba |
+|---|---|
+| `PUT /rf/sources/{id} {"frequency_mhz": 200}` | **200** y la frecuencia de 98.1 a 200 |
+| `PUT … {"frequency_mhz": 201, "name": "otro"}` | **400** por candado, pero **201 ya quedó guardado** |
+
+La auditoría marcaba antenas y eventos como «deducido por lectura» y dejaba
+`update_reference` sin leer: las cuatro tienen el mismo esqueleto, y se
+verificó una por una.
+
+`tests/test_f201_candado_rf.py`, siete pruebas escritas y corridas **antes**
+de tocar el código:
+
+| | antes del arreglo | después |
+|---|---|---|
+| las 4 parametrizadas (fuente, antena, evento, referencia) | **fallan**: responden 200 | **pasan** |
+| escritura parcial | **falla**: `la frecuencia pasó a 201.0` | **pasa** |
+| control desbloqueado | pasa | pasa |
+| desbloquear sigue permitido | pasa | pasa |
+
+**5 en rojo, 2 en verde** → 7 en verde.
+
+## El arreglo
+
+- **`map_service.require_unlocked(obj, patch)`**: el chequeo, extraído de
+  `update_object` y con una sola implementación para todos los caminos. Lo
+  nuevo es que las cuatro rutas RF lo llaman **antes** de tocar el satélite.
+- **Una sola transacción**: desaparecen los `db.commit()` intermedios del
+  satélite. Si hay `patch`, el único `commit` es el de `update_object`, y el
+  satélite pendiente viaja en esa misma transacción; si no lo hay, un
+  `db.commit()` final. Si algo falla en el medio, **`db.rollback()`** — antes
+  la ventana de escritura parcial estaba abierta entre los dos `commit`.
+- **El mensaje pasó a español**: `El objeto {id} está bloqueado.
+  Desbloquéalo antes de editar.` `client.js` prefiere el `detail` del
+  backend, así que esa cadena es literalmente lo que ve el operador.
+
+## Una guarda existente que hubo que actualizar
+
+`test_map_objects.py::test_locked_object_refuses_edits` buscaba la palabra
+**«locked»** en el mensaje — que al pasar a español dejó de existir. Se le
+cambió la aserción a **«bloqueado»**: la prueba sigue prohibiendo la edición
+y además de paso queda que el motivo esté en el idioma del operador. No se
+borró ninguna prueba.
+
+## Lo que NO se tocó, y por qué
+
+- **El código sigue siendo 400**, no 409. Cambiarlo es decisión de contrato
+  (coherencia con el 409 ya decidido en P0-02) y no está tomada; además
+  `tests/smoke_e2e.py:353` fija 400. Si se cambia, `client.js` en el mismo
+  commit.
+- **`update_reference:483-484`** cambia `db_obj.radius` sin que eso aparezca
+  en el historial: es F2-02, no éste.
+- **El historial de los satélites** sigue roto (`getattr(obj, "rf.k")` da
+  `None`): F2-02.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **489 pasan** (482 + 7 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **453 pasan**, 31 archivos |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** |
+| `python tests/smoke_e2e.py` (base del operador, 8010) | 75 de 78 |
+
+### Hallazgo al verificar: el E2E contra la base real deja rastro
+
+La primera corrida fue contra la base del operador, como indica el propio
+`ARCHITECTURE`, y **dejó basura**: 3 aviones falsos (`abc001`-`abc003`) en
+la lista de seguimiento, 8 objetos de prueba en el mapa, una fuente enganchada
+al expediente y un expediente `EXP-SMOKE-001`. Todo se repuso por la API
+pública y se verificó contra la base: **los 2 aviones, los 2 objetos y el
+expediente del operador, con el `added_at` original y `eventos_rf` en 0**.
+
+De ahí salen tres fallas del E2E, ninguna por este cambio:
+
+| falla | causa |
+|---|---|
+| `15 default layers` | el script espera **15** y hoy se siembran **17** (`lines` y `polygons`, del 26/09). **Falla también en base limpia** — expectativa vieja del script |
+| `5 aircraft tracked` → `added=3` | los 2 aviones del operador llenaron la ventana de 5. En base limpia pasa |
+| `geojson lon/lat order` | ambiental. En base limpia pasa |
+
+**Corrección al método**: el E2E hay que correrlo contra una base temporal
+(`DATABASE_URL` apuntando a un descartable), no contra `aerorf.db`.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 482 | **489** (+7) |
+| Integration | 7 | **7** |
+| Frontend | 453 | **453** |
+
+---
+
+# 0.30.11 — F2-02: el historial escribía filas falsas
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f202-historial-tipado` ·
+**Archivos:** 3 · **Fase 2 de la auditoría, ítem 2 de 8**
+
+## Qué pasaba
+
+`_record_history(db, db_obj, {"rf.power_dbm": 40})` hace
+`getattr(obj, "rf.power_dbm")` sobre el **MapObject** — y ese atributo no
+existe, porque `obj` es el objeto y no el satélite. Devuelve `None`. Entonces,
+para **cada** campo del satélite que tenga valor, el historial graba que pasó
+a `None`.
+
+El repro de la auditoría: cambiando sólo `power_dbm` de 40 a 41, se generaban
+6 filas:
+
+| fila del historial | lo que afirma |
+|---|---|
+| `rf.id '1' → None` | se borró la clave del satélite |
+| `rf.object_id '1' → None` | se borró el enlace con el objeto |
+| `rf.kind 'FM' → None` | se borró el tipo |
+| `rf.frequency_mhz '98.1' → None` | **se borró la frecuencia** |
+| `rf.provenance 'user' → None` | se borró la procedencia |
+| `rf.power_dbm '40.0' → None` | se borró la potencia |
+
+**Y el cambio de verdad, 40 → 41, no aparecía en ninguna parte.** El historial
+era exactamente al revés de lo que había pasado: contradecía el guardado que
+acababa de ocurrir y no registraba el que había ocurrido.
+
+Las cuatro vistas tenían la misma copia del mismo error (`rf.`, `antenna.`,
+`event.`, `reference.`), y la auditoría sólo había leído dos.
+
+## La guarda
+
+`tests/test_f202_historial_tipado.py`, ocho pruebas. Las primeras siete se
+escribieron y corrieron **antes** de tocar el código: **7 en rojo**. Cada una
+lee el historial **por la API** (`GET /map/objects/{id}/history`), no con la
+sesión interna, para que el aserto sea sobre lo que queda guardado.
+
+1. `test_un_campo_cambiado_produce_exactamente_una_fila` (4 parametrizadas):
+   cambio un solo campo de una fuente, una antena, un evento y una referencia →
+   **exactamente una** fila, con su campo, su valor viejo y su valor nuevo.
+2. `test_no_afirma_que_se_borro_lo_que_sigue_ahi`: ninguna fila con
+   `new_value: None`.
+3. `test_el_cambio_real_aparece_con_los_dos_valores`: el repro 40 → 41.
+4. `test_el_cambio_del_objeto_padre_tambien_aparece`: el caso que la
+   auditoría no vio (abajo).
+
+La octava llegó con el arreglo y se verificó **por revertida**: con la
+comparación anterior (sólo texto) da
+`[('rf.height_m', '25.0', '25')]` y falla; con la nueva, pasa.
+
+## El arreglo
+
+- **`map_service.record_typed_history(...)`** — un solo camino para las
+  cuatro rutas. Compara el satélite **contra su propio snapshot** (no contra
+  el objeto) y devuelve sólo los campos que cambiaron.
+- **`_SATELLITE_SKIP = _HISTORY_SKIP | {"object_id"}`**: `id` y `object_id`
+  son identidad, no valores editados — de ahí salían las filas «se borró la
+  clave».
+- **`_mismo_valor(old, new, old_s, new_s)`**: `25.0` y `25` son el mismo
+  número. Sin esto, reenviar una medida como entero generaría **otra** fila
+  falsa («pasó de 25.0 a 25»). Se aplica a **los dos** diffs, el del satélite
+  y el del objeto.
+- **El diff del objeto padre**, que era la parte que faltaba: `update_antenna`
+  copia `azimuth_deg` a `db_obj.azimuth` y `update_reference` puede copiar
+  `radius` **ahí mismo, sin pasar por ningún diff** — el objeto cambiaba y el
+  historial no se enteraba. Las rutas ahora sacan una foto del objeto antes
+  (`_snapshot`) y la pasan junto con la del satélite.
+
+## Lo que NO se toca, y por qué
+
+- **El formato sigue asimétrico**: el valor viejo es `40.0` (la creación sí
+  pasa por Pydantic) y el nuevo es `41` (el `PUT` arma el satélite con el
+  cuerpo **crudo**, `body.items()` filtrado por `.model_fields`, sin validar).
+  Esa falta de validación es **F2-05**, no éste; por eso las pruebas comparan
+  el valor como **número** y no como texto, y lo dicen en el comentario.
+- **Las altas de satélite siguen sin dejar fila**: si el satélite no existía
+  y hay que crearlo, no hay `before` que difuminar. Es registro de creación,
+  no de cambio; el `__created__` del objeto ya cubre el alta.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **497 pasan** (489 + 8 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **453 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (igual que en 0.30.10: el chequeo viejo de capas) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 489 | **497** (+8) |
+| Integration | 7 | **7** |
+| Frontend | 453 | **453** |
+---
+
+# 0.30.12 — F2-03: el payload de `rf_events` no se serializaba
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f203-evento-serializado` ·
+**Archivos:** 8 · **Fase 2 de la auditoría, ítem 3 de 8** (la parte del bug)
+
+## Qué pasaba
+
+`object_to_feature` serializa cuatro payloads tipados — `rf`, `antenna`,
+`reference`, `measurement` — y **nunca `event`**. `RFEvent` es además el
+único satélite sin relación en el lado del objeto: `RFEvent.object`
+(`rf.py:189`) es de una sola vía, así que no había por dónde llegar al
+registro desde el `MapObject`.
+
+Tres consumidores esperaban ese bloque y no lo recibían:
+
+| quién | lo que esperaba | lo que salía |
+|---|---|---|
+| `export_service.to_csv` (líneas 224-226) | `props["event"].level_dbm` y `.classification` | columnas `event_level_dbm` y `classification` **vacías en toda exportación** |
+| el Inspector (`InspectorPanel.vue:856`) | `p.frequency_mhz` en plano | nada: no había payload que leer |
+| `duplicate_object` | `event=` en `create_object` (keyword que existe desde el origen, `map_service.py:260`) | el duplicado se perdía el payload completo |
+
+El CSV es la prueba de que el bloque estaba previsto: el código que lo leía
+ya estaba escrito, apuntando a una clave que ningún backend emitía.
+
+## La guarda
+
+`tests/test_f203_evento_serializado.py`, siete pruebas. Las cuatro primeras
+se escribieron y corrieron **antes** de tocar el código: **4 en rojo**
+(respuesta del mapa, GeoJSON, CSV y duplicado). Las otras tres ya daban
+verde y quedan como guarda de lo que no debe romperse:
+
+1. un evento **sin** payload no inventa un bloque;
+2. una fuente sigue llevando `rf` y **no** lleva `event`;
+3. borrar un evento sigue funcionando — ésta protege la relación nueva:
+   con `cascade="all, delete-orphan"` ahora es el ORM el que cascadea
+   (antes lo hacía sólo la base con `ondelete=CASCADE`).
+
+En el frontend, una prueba nueva en `tests/components.spec.js` monta el
+Inspector con `properties.event` anidado y exige que se muestren la
+frecuencia, el nivel y la clasificación. **Verificada por revertida**: con
+la lectura plana anterior da exactamente 1 fallo (`118.3 MHz` no aparece)
+y con la lectura nueva, pasa.
+
+## El arreglo
+
+- **`MapObject.rf_event`** (`uselist=False`, `lazy="selectin"`,
+  `cascade="all, delete-orphan"`) con `back_populates` en las dos
+  direcciones: la única relación que faltaba entre objeto y satélite.
+- **`object_to_feature` emite `props["event"]`** con las mismas 11 columnas
+  que declara `RFEventPayload`, incluido `calculated_evento_id`.
+- **`duplicate_object` pasa `event=_payload_dict(src.rf_event)`**, como ya
+  hacía con los otros cuatro satélites.
+- **`_loaders()`** agrega `selectinload(MapObject.rf_event)`, para que la
+  lista de eventos no dispare una consulta por fila.
+- **`InspectorPanel.vue`** pasa de `p.frequency_mhz` a
+  `p.event.frequency_mhz`, igual que `p.rf.*` para las fuentes: es el único
+  cambio de contrato, y va en el mismo commit.
+
+## Lo que NO se toca, y por qué
+
+- **`calculated_evento_id` sigue sin escribirse.** Decisión del operador:
+  queda declarado hasta que exista un caso de uso real, porque nada en el
+  flujo vincula un evento del mapa con un resultado de la calculadora y
+  escribirlo sería inventar el vínculo.
+- **No se unifican las dos arquitecturas de eventos** (recomendación del
+  anexo de F2-03 en `RETOMAR.md`): dueños distintos, semánticas distintas,
+  y ya están enlazadas por esa clave.
+- **La fila `rf_events` no se toca**: sólo se serializa lo que ya estaba
+  guardado. No hay migración de esquema.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **504 pasan** (497 + 7 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (35,9 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 497 | **504** (+7) |
+| Integration | 7 | **7** |
+| Frontend | 453 | **454** (+1) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+---
+
+# 0.30.13 — F2-04: el borrado masivo no miraba nada
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f204-borrado-filtrado` ·
+**Archivos:** 6 · **Fase 2 de la auditoría, ítem 4 de 8**
+
+## Qué pasaba
+
+`clear_layer` hacía `DELETE FROM map_objects WHERE layer_id = ?` y
+devolvía el conteo. Ni `locked`, ni `expediente_id`, ni `parent_id`. Y como
+las tres tablas de al lado (`ObjectNote`, `ObjectHistory`, `Annotation`)
+tienen `ondelete="CASCADE"`, cada objeto borrado se llevaba consigo sus
+notas, su historial y sus anotaciones: destrucción sin vuelta atrás en una
+operación que se pide desde «borrar capa».
+
+`delete_object`, el borrado de a uno, bloqueaba expediente e hijo pero
+**no el candado**: un objeto cerrado se podía borrar sin más, aunque
+editarlo estuviera vetado.
+
+La decisión del operador, **antes** de tocar el código: **borrado físico
+con los filtros**, no baja lógica con `deleted_at`. Lo libre se borra; lo
+protegido no se toca.
+
+## La guarda
+
+`tests/test_f204_borrado_filtrado.py`, seis pruebas. Las cuatro primeras
+corrieron antes del arreglo: **4 en rojo, 2 verdes**.
+
+1. `test_clear_borra_lo_libre_y_conserva_lo_protegido` — capa con un
+   libre, uno cerrado y uno vinculado: antes 200 y no quedaba nada; ahora
+   409, el libre se fue, los dos protegidos siguen y la capa también.
+2. `test_clear_con_todo_libre_borra_objetos_y_capa` (verde de guarda) —
+   el caso simple no se rompe.
+3. `test_clear_no_divide_un_grupo` — un hijo no se va solo.
+4. `test_borrado_individual_respeta_el_candado` — cerrado: antes 200;
+   ahora 400 con mensaje en español, y `?cascade=true` sigue siendo la
+   fuerza explícita de a uno.
+5. `test_borrado_individual_sigue_bloqueando_por_expediente` — roja sólo
+   por el mensaje en inglés; el bloqueo ya existía.
+6. `test_clear_sin_cascada_no_borra_nada` (verde de guarda) — el
+   precontrato de `clear_layer` no cambia.
+
+## El arreglo
+
+- **`clear_layer`** selecciona los candidatos con sus tres banderas, suma
+  los que son padre de otro objeto (para no partir un grupo) y borra sólo
+  los libres con una sentencia por id. Devuelve cuántos borró y registra
+  `removed` y `kept` en el log.
+- **`delete_object`**: el candado entra en la lista de impedimentos, y el
+  mensaje entero pasó a español («No se puede borrar el objeto 5: está
+  bloqueado…»), igual que el de `clear_layer`.
+- **`DELETE /map/layers/{id}`** limpia primero; si queda algo, **no borra
+  la capa** y contesta **409** con el detalle. No es capricho:
+  `Layer.objects` no tiene cascade, así que SQLAlchemy pondría
+  `layer_id = NULL` en los supervivientes y los dejaría huérfanos —
+  proteger dentro de `clear_layer` no serviría de nada si la capa se
+  borrara igual. Los 404 y el 400 de capa de sistema de esa misma ruta
+  también pasaron a español.
+- **409 y no all-or-nothing**: era la opción elegida («lo libre se borra,
+  lo protegido no se toca»); la opción «no se borra nada si hay
+  protegidos» estaba en el menú y no se eligió.
+
+## Lo que NO se toca, y por qué
+
+- **El borrado individual sigue respondiendo 400** cuando se niega, como
+  antes (el smoke lo tiene asentado en la línea 285). Unificar edición y
+  borrado en 409 es un cambio de contrato ya comentado y sigue pendiente
+  de tu palabra: hacerlo acá dejaría la edición en 400 y el borrado en 409.
+- **`client.js` no necesita cambios**: el interceptor ya prefiere el
+  `detail` del backend para cualquier status, así que el 409 en español
+  llega a la pantalla tal cual. Todavía no hay ninguna vista que llame a
+  `layers.remove`.
+- **La baja lógica (`deleted_at`)** queda descartada por decisión
+  explícita, no por omisión.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **510 pasan** (504 + 6 nuevas), 7 deseleccionadas |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan**, 0 caen |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (33,9 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 504 | **510** (+6) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.14 — el test del flood se colgaba: medía silencio, no tiempo
+
+**Fecha:** 2026-10-04 · **Rama:** `tests/flood-ventana-acotada` ·
+**Archivos:** 1 (sólo el test) · **reparación de un test, no del producto**
+
+## Qué pasaba
+
+`test_feed_does_not_flood` (spec §48) mide los frames que llegan en una
+ventana de `poll * 2 + 2 = 22 s`, pero aplicaba esa ventana como **22 s de
+silencio**: sólo cortaba cuando `ws.recv()` se quedaba sin nada que dar.
+Con OpenSky configurado y aeronaves en la lista — estado normal de esta
+máquina — el servidor emite `states` cada `LIVE_POLL_INTERVAL_S = 10 s`,
+y la medición nunca terminaba: el test corría para siempre.
+
+Demostrado, no supuesto: un registro de 40 s contra el WS del 8010 anotó
+`hello`, `lost` y tres `states` a 0,9 s / 11,7 s / 22,5 s — frames cada
+10,8 s, todos dentro de la ventana. Tres corridas de integración se
+agotaron sin terminar (300 s, 420 s, 150 s) mientras las cinco pruebas
+anteriores ya habían pasado: el colgado no falla, sólo deja el resto del
+módulo sin ejecutar (`test_idle_when_nothing_is_tracked` quedaba a la
+espera).
+
+## El arreglo
+
+La ventana pasó a ser de **tiempo total**: un `limite` con
+`loop.time() + window_s`, y `wait_for(..., timeout=restante)` en cada
+lectura. Si llegan frames, se acumulan hasta agotar la ventana; si no
+llegan, se corta igual. Ninguna aserción cambió: siguen mandando
+`len(messages) <= 6` y `len(statuses) <= 1`, que es lo que la spec §48
+exige — sólo cambió cuándo deja de mirar.
+
+Un test que se cuelga es peor que uno roto: el colgado no dice nada.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m integration` (8010 arriba) | **7 pasan en 35 s** (antes: colgado > 420 s) |
+| `pytest -m "not integration"` | **510 pasan** (el test vive en la suite de integración) |
+# 0.30.15 — F2-05: ninguna entrada inválida llega a 500
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f205-entradas-invalidas` ·
+**Fase 2 de la auditoría, ítem 5 de 8**
+
+## Qué pasaba
+
+Tres ejemplos de la auditoría (`null` en `visible`, `layer_id`
+inexistente, `kind` inválido) y cinco vías más al mismo hueco:
+
+| entrada | dónde estallaba | por qué |
+|---|---|---|
+| `layer_id` / `expediente_id` que no existe | al hacer commit | FK: `_resolve_layer_id` devolvía el id sin mirar si la capa existía |
+| `visible: null` (u otra columna NOT NULL) en un update | al escribir | el patch escribía `None` en una columna que no admite `null` |
+| `kind: "Basura"` en `POST /rf/sources` | dentro del handler | `_coerce` construye el modelo adentro de la vista: su `ValidationError` no lo atrapa nadie |
+| `opacity: "media"` en `POST /map/layers` | dentro del handler | `float(payload[...])` sobre el cuerpo crudo |
+| `object_id: "no-numero"` en `correlation/rf-aircraft` | dentro del handler | `int(...)` sobre el cuerpo crudo |
+
+Y el ojo que anota la auditoría: si esto se arreglaba pasando a Pydantic,
+los 500 se convertían en **422 en inglés** («Input should be a valid
+boolean…»), que `describeError` pinta tal cual en pantalla. Por eso el
+traductor va **en el mismo commit**.
+
+## El arreglo: tres capas
+
+1. **Antes de escribir** (`map_service`): `_existe_referencia` chequea
+   capa y expediente tanto en el alta como en el update; y el patch
+   completo se chequea contra la nulidad **real** de las columnas
+   (`MapObject.__table__.columns[...]`) antes de tocar la fila. Así un
+   `null` en NOT NULL dice «El campo visible no admite null: es
+   obligatorio.» en vez de romper el commit — y el chequeo corre antes
+   de cualquier `setattr`, así que no hay escritura parcial.
+2. **Traductor global** (`app/api/errors.py`, nuevo; registrado desde
+   `app.main`): `RequestValidationError` → **422** con `msg` en español
+   (pisa el handler de FastAPI); `pydantic.ValidationError` → **422**
+   igual, que es lo que cubre la validación dentro del handler;
+   `IntegrityError` → **400** genérico en español con la causa real en
+   el log. El 400 es un piso de seguridad para cualquier FK o NOT NULL
+   que no tenga chequeo propio — los casos del operador sí lo tienen,
+   con mensaje que nombra lo que falta («No existe la capa 999999.»).
+3. **Los 14 validadores de `schemas_gis.py` hablan español** (`kind
+   debe ser uno de: …`). No es cosmético: para `value_error` el
+   traductor muestra el mensaje del validador tal cual, así que un
+   validador en inglés produce un 422 en inglés.
+
+Los dos guards de cuerpo crudo (`create_layer`, `rf_aircraft`)
+convierten con `try/except` → 400 que nombra el campo.
+
+## La guarda
+
+`tests/test_f205_entradas_invalidas.py`, **11 pruebas escritas antes del
+arreglo**. Rojo-antes registrado: contra el código original, **7 de 8**
+fallaban en la primera corrida (los tres de la auditoría incluidos; la
+única verde era la guarda de que lo válido sigue funcionando). Con los
+handlers ya puestos y sin los chequeos del servicio quedaban **7 rojas**
+— cada familia midió su propio rojo. El corte de `rf-aircraft` se
+verificó aparte, **por revertida**: sin el `try/except`,
+`ValueError: invalid literal for int()` vuelve a salir del TestClient.
+Al final: **11 verdes**.
+
+La guarda del contrato: un 422 sigue siendo 422 (el traductor no cambia
+status, sólo el idioma), y lo válido sigue creando con 201.
+
+## Lo que NO cambia
+
+- **`client.js`: ningún diff.** El interceptor ya prefiere `detail` y
+  `describeError` ya une `loc: msg`; el traductor devuelve exactamente
+  ese formato (`{type, loc, msg}`), así que la pantalla recibe español
+  sin que el frontend se entere.
+- **`type` conserva el código de Pydantic** (`bool_parsing`, `missing`…):
+  es un identificador para máquinas, no prosa, y no se muestra. Lo que
+  se muestra es `msg`, y ése siempre sale en español.
+- **No se migró ninguna ruta a `body: dict` ni al revés.** El traductor
+  cubre las dos formas de validación; cambiar el estilo de las rutas
+  sería otra cosa.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **521 pasan** (510 + 11 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 35 s** |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (39,7 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 510 | **521** (+11) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.16 — F2-06: el update escribía geometría sin validarla
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f206-geometria-update` ·
+**Fase 2 de la auditoría, ítem 6 de 8**
+
+## Qué pasaba
+
+`create_object` valida la geometría con `gjs.validate_geometry` antes de
+escribir — el propio comentario avisa del riesgo: «one bad ring used to
+be stored happily and then took down the whole listing endpoint with a
+500» — y el docstring de esa misma función promete estar en «the create
+and **update** paths». El update no la llamaba: `PUT /map/objects/{id}`
+con `geometry` en el body pasaba por `MUTABLE_FIELDS` y escribía el
+valor tal cual.
+
+La consecuencia no era un 500 inmediato, porque la lectura ya está
+blindada (`object_to_leaflet` devuelve «Objeto sin geometría derivable»
+en vez de romper el listado). Era peor para el operador: el PUT
+contestaba **200**, el objeto se guardaba «bien», y después
+desaparecía del mapa sin ningún aviso de por qué. Un anillo roto
+guardado hoy sigue roto mañana, y nadie lo señala.
+
+## La guarda
+
+`tests/test_f206_geometria_update.py`, 3 pruebas escritas antes del
+arreglo: **1 roja** (el PUT devolvía 200 y el log confirmaba
+`fields=geometry`) y 2 verdes que quedan como guarda — la geometría
+válida sigue pasando, y la puerta del alta sigue cerrada. La roja se
+volvió a medir **por revertida**, con el chequeo anulado: vuelve el 200.
+
+Detalle de la aserción clave: mira la **columna**
+(`db.get(MapObject, oid).geometry is None`), no la respuesta del GET —
+ésta devuelve un Point derivado de `latitude`/`longitude` que taparía la
+diferencia entre «no se escribió» y «se escribió otro».
+
+## El arreglo
+
+Un chequeo en `update_object`, **antes** de tocar la fila y junto a los
+demás pre-cheques del patch que agregó F2-05: `gjs.validate_geometry`
+y, ante `GeometryError`, `MapServiceError` → 400 con el mensaje en
+español que la función ya trae («Un polígono necesita al menos 4
+posiciones…», «El anillo del polígono no está cerrado…»).
+
+Mismo criterio que el alta, en el mismo lugar donde ya se chequeaban
+referencias y nulidad: o entra todo el patch, o no entra nada — sin
+escritura parcial.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **524 pasan** (521 + 3 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 37 s** |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (37,5 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 521 | **524** (+3) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.17 — F2-07: un 429 tiene que pausar el feed, venga de donde venga
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f207-backoff-compartido` ·
+**Fase 2 de la auditoría, ítem 7 de 8**
+
+## Qué pedía y qué había
+
+La auditoría pide «un `BackoffController` para los tres pools: un 429 de
+`/tracks` pausa también el feed en vivo». La estructura existía desde el
+commit inicial — `OpenSkyService` crea **un** controlador y se lo pasa a
+los tres `CreditAwareClient` —, pero eso no era una garantía medida: era
+un comentario en el código. La guarda nueva lo mide en las dos
+direcciones con la red mockeada y **pasa**: el gate ya cruzaba pools.
+
+Lo que NO pasaba es el 429 que no pertenece a ningún pool: la
+**renovación del token**. `OpenSkyTokenManager` contestaba 429 y
+`_headers` lo disfrazaba de `OpenSkyNotConfigured`:
+
+- el feed seguía renovando cada 10 s contra un endpoint que estaba
+  limitando la cuenta — cada intento otro 429, y el gate quedaba abierto;
+- el operador veía `not_configured` con un mensaje en inglés: apagado el
+  frente e informado de algo falso. No son credenciales faltantes, es un
+  tope, y un tope se levanta solo.
+
+## El arreglo
+
+- **`OpenSkyRateLimited(OpenSkyAuthError)`** con `retry_after_s`: el 429
+  del token deja de confundirse con «no configurado».
+- **`_headers` lo atrapa y hace lo mismo que un 429 de datos**:
+  `backoff.trip(retry_after)` sobre el gate compartido →
+  `RateLimitedError` **en español**. El poller ya sabía manejarla
+  (`send_throttled` → la franja en español con los segundos), las rutas
+  ya la traducen a 429 y `client.js` ya la pinta en español. El replay
+  de 401 vuelve a pasar por `_headers`, así que también queda cubierto.
+- **`retry_after_seconds(headers)` en `cache.py`**: los dos nombres de
+  header viven una sola vez, compartidos por el camino de datos y el de
+  token.
+
+## La guarda
+
+`tests/test_f207_backoff_compartido.py`, 3 pruebas escritas antes de
+tocar nada: **2 verdes** — el cruce de pools que la auditoría nombra, en
+las dos direcciones (ninguna consulta sale a la red después del tope) —
+y **1 roja**: el 429-del-token esperaba `RateLimitedError` y recibía
+`OpenSkyNotConfigured`. La roja se volvió a medir **por revertida**:
+restaurada la conversión vieja, vuelve a fallar.
+
+## Lo que NO cambia
+
+- Las credenciales de verdad siguen sin estar: 401/403 siguen siendo
+  `OpenSkyNotConfigured`, y su texto en inglés queda en la cola de
+  traducción — igual que `TokenState.last_error = "rate limited"`,
+  que es diagnóstico interno.
+- Sin tocar el mensaje del 429 de datos ni el contrato de status: 429
+  sigue siendo 429, ahora también cuando el tope viene del token.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **527 pasan** (524 + 3 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 38 s** |
+| `npm test` (frontend) | **454 pasan**, 31 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (38,3 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 524 | **527** (+3) |
+| Integration | 7 | **7** |
+| Frontend | 454 | **454** |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.18 — F2-08: el import ya no dice que lo tecleaste tú
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/f208-source-importado` ·
+**Fase 2 de la auditoría, ítem 8 de 8 — cierra la F2**
+
+## Qué decía la auditoría
+
+«`import_geojson` no pasa `source` y queda `"user"`. No necesita
+migración (no hay `CheckConstraint` en ningún modelo), pero sí hay que
+agregar la etiqueta en `MapEngine.js:1028` o muestra el valor crudo en
+inglés.»
+
+Un archivo importado aparecía en el Inspector como «Introducido por el
+usuario» y salía así en las exportaciones: **la procedencia mentía sobre
+el origen del dato**, que es justo lo que la trazabilidad existe para
+impedir.
+
+## El arreglo — las tres bocas a la vez
+
+Arreglar solo una dejaba el dato cayéndose por otra, así que las tres:
+
+1. **`PROVENANCE_IMPORTED = "imported"`** en `constants.py`, sumado a
+   `PROVENANCE_VALUES` — el validador de `MapObjectCreate` rechaza todo
+   lo que no esté en la tupla: el alta a mano con `source: "imported"`
+   devolvía **422** («source debe ser uno de: observed, historical,
+   live, calculated, user») — y a `PROVENANCE_LABELS_ES` con «Dato
+   importado», que es lo que sirve `/map/vocabulary` y lee la leyenda de
+   `LayerPanel`.
+2. **`import_geojson` pasa `source=PROVENANCE_IMPORTED`** a
+   `create_object`. Sin migración: la columna ya existe con su default.
+3. **`MapEngine.js`: `imported: 'Importado'`** en `PROVENANCE_LABELS` —
+   `provenanceLabel` tiene tabla propia y no lee el vocabulario del
+   backend, así que sin esta línea el Inspector habría pintado el crudo
+   «imported», en inglés.
+
+## La guarda
+
+`tests/test_f208_source_importado.py` (3) +
+`frontend/tests/provenance-label.spec.js` (3), escritas **antes** de
+tocar el código: **4 rojas** — source «user», vocabulario sin
+«imported», create en 422, etiqueta cruda en inglés — y 2 verdes de
+arranque que quedan como salvaguarda de los cinco valores originales y
+del guion largo. La roja del import se volvió a medir **por
+revertida**: quitada la línea del `source`, vuelve a decir «user».
+
+## Lo que NO cambia
+
+- **Las filas ya importadas en bases existentes siguen con `"user"`:**
+  no hay migración y el ítem lo dice expresamente. Reetiquetar historia
+  retroactiva sería inventar datos; si algún día hace falta, es una
+  decisión del operador sobre sus propios datos.
+- La tupla solo crece: ningún valor viejo deja de ser válido, ningún
+  contrato cambia (misma ruta, mismos campos, misma respuesta).
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **530 pasan** (527 + 3 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 28 s** |
+| `npm test` (frontend) | **457 pasan**, 32 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (33,3 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 527 | **530** (+3) |
+| Integration | 7 | **7** |
+| Frontend | 454 (31 archivos) | **457** (32) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.19 — P0-02: borrar un expediente ya no se lleva a los objetos GIS
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p002-delete-409` ·
+**Auditoría de Claude, ítem P0-02 — decisión del operador: «bloquear con 409»**
+
+## Qué estaba mal
+
+`DELETE /expedientes/{id}` borraba el expediente y **se llevaba el
+vínculo en silencio**. La cadena era:
+
+- `MapObject.expediente_id` está declarado `ON DELETE SET NULL`;
+- la base corre con `PRAGMA foreign_keys=ON` (lo que hizo P0-06);
+- o sea: el DELETE contestaba **200**, el expediente desaparecía y los
+  objetos de mapa que eran parte del caso quedaban **huérfanos de
+  caso** — dibujos sueltos que nadie desvinculó ni vio.
+
+Y lo más grueso: **el sentido inverso ya estaba bloqueado** — no se
+puede borrar un objeto que pertenece a un expediente (lo niega
+`delete_object` desde hace rato). Se podía destruir el caso entero
+dejando sus piezas por el piso, pero no se podía tocar una pieza.
+El operador lo dijo clarito: «igual que ya pasa al revés».
+
+## El arreglo
+
+Un pre-check en la ruta, **antes** de tocar fila alguna:
+
+```python
+if vinculados:
+    raise HTTPException(409, "No se puede borrar el expediente {id}: "
+        "N objetos de mapa siguen vinculados (ids ...). "
+        "Desvinculalos antes de borrarlo.")
+```
+
+- **409** (no 400): es un conflicto con el estado actual de los datos,
+  no un malformado — y el backend ya usa 409 en `delete_layer`, así
+  que el contrato solo crece donde ya había lenguaje.
+- El detalle trae **los ids** (hasta 10, y si hay más, la coma final
+  con «...») para que el operador sepa exactamente qué desvincular.
+- **En español**, como todo lo que ve el operador.
+
+Y como la regla de contrato exige el cliente en el mismo commit:
+`describeError` aprendió el 409 (fallback en español para un 409 sin
+`detail`; con `detail`, que es el caso normal, sigue mandando el texto
+del backend, que es lo que prefiere desde siempre).
+
+## También en español, en la misma ruta
+
+La regra de «lo que toco habla español» se aplicó a las dos líneas de
+texto que quedaban en inglés **dentro de la función tocada**: el 404
+(`Expediente not found` → `No existe el expediente {id}.`) y el mensaje
+de éxito (`Expediente {id} deleted` → `Expediente {id} eliminado`).
+Los demás 404 de este archivo siguen en la cola de traducción.
+
+## El camino de recuperación, verificado
+
+1. `DELETE` con vínculos → **409**, y **no se borró nada** (el
+   expediente responde 200 y el objeto conserva su `expediente_id`);
+2. `PUT /map/objects/{id}` con `expediente_id: null` → el parcial usa
+   `exclude_none=False`, así que el `null` llega y desvincula;
+3. `DELETE` de nuevo → **200**.
+
+## La guarda
+
+`tests/test_p002_delete_409.py` (4) +
+`frontend/tests/describe-error.spec.js` (3), escritas antes de tocar:
+**4 rojas de backend** (200 en vez de 409, mensaje en inglés, 404 en
+inglés) y **1 roja de frontend** («Error 409» crudo). La del bloqueo se
+repitió **por revertida**: sin el pre-check vuelve `200 == 409`.
+
+## Lo que NO cambia
+
+- **`Medicion` y `EventoRF` siguen borrándose con el expediente** —
+  son registros del propio documento, ésa es la semántica de siempre.
+- El sentido inverso (borrar objeto con expediente) sigue bloqueado
+  **con su 400 de siempre**: la coherencia 400 ↔ 409 es el ítem de
+  contrato aparte, ya encolado.
+- Sin migración: no se toca esquema ni filas existentes.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **534 pasan** (530 + 4 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 29 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (34,7 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 530 | **534** (+4) |
+| Integration | 7 | **7** |
+| Frontend | 457 (32 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.20 — P0-07: el middleware de Origin/Host, acotado a la lista configurada
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p007-origin-host` ·
+**Auditoría de Claude, ítem P0-07 — decisión del operador: acotarlo a
+los orígenes de CORS configurados**
+
+## Qué pedía y por qué así
+
+La auditoría pide un middleware de `Origin`/`Host`. El modelo de
+despliegue sigue sin decidir (una PC por técnico vs. servidor
+compartido), así que la decisión fue **acotarlo a `CORS_ORIGINS`** —
+el mismo `.env` — que sirve en los dos modelos: cada técnico pone sus
+orígenes, el servidor compartido los suyos.
+
+Y la advertencia, que era la parte fina: «con el proxy de Vite el
+`Origin` es `5199` y el `Host` es `8010`: sin esa lista rechaza la
+interfaz entera **y los tests salen verdes**» — los tests no mandan
+`Origin`, así que un guard con lista inventada rompería la interfaz
+sin que ninguna prueba se enterara. Medido: los 540 tests siguen
+verdes **porque** el guard usa la lista configurada.
+
+## Qué cierra cada mitad
+
+| | `Origin` | `Host` |
+|---|---|---|
+| qué ataca | CSRF de sitio: formularios y XHR que **hacen** — CORS sólo niega **leer** | DNS rebinding: `evil.com` → 127.0.0.1, same-origin para el browser, y **lee** |
+| por qué no basta el otro | — | el rebinding **no manda** `Origin` |
+| rechazo | 403 «Origen no permitido: …» | 403 «Host no permitido: …» |
+
+- **Una sola lista para los dos**: el guard lee
+  `settings.cors_origin_list` — cualquier origen que
+  `CORSMiddleware` sirve, el guard lo deja llegar; los dos leen el
+  mismo `.env` y nunca se contradicen.
+- **`ALLOWED_HOSTS`** (nuevo, en `.env.example`): loopback +
+  `testserver` (el `Host` que manda TestClient), **más** los hostnames
+  de los orígenes configurados: la lista de hosts aprende de la de
+  orígenes.
+- **ASGI puro**, no `BaseHTTPMiddleware`: cubre también el scope
+  `websocket` — el upgrade trae `Origin` y `Host`, y si no se miran, el
+  rebinding entra por ahí con la misma facilidad.
+- 403 con `{"detail"}` en español: el formato que `describeError` ya
+  entiende.
+
+## La guarda
+
+`tests/test_p007_origin_host.py`, 6 escritas **antes** de tocar: **3
+rojas** — el origin evil pasaba (200), el host evil pasaba (200), y el
+websocket ni siquiera tenía módulo — y 3 verdes de arranque (origin
+configurado, host local, control sin cabeceras). La roja del cableado
+se volvió a medir **por revertida**: sin `install_origin_guard(app)`
+vuelven las dos de API.
+
+**En vivo contra el 8010 real**: evil `Origin` → **403** ·
+`Origin: http://localhost:5199` (el de `.env`) → **200** · evil
+`Host` → **403** · sin cabeceras → **200**.
+
+## Lo que NO cambia
+
+- **Sin `Origin` la petición pasa** (curl, tests, integración): el
+  guard es defensa de browser, no autenticación — la API no tiene auth
+  todavía, que es otro ítem.
+- El default de `ALLOWED_HOSTS` acepta `testserver`: inofensivo (un
+  browser no puede mandarlo a propósito; el rebinding manda su propio
+  dominio, que queda rechazado).
+- Orden de middleware: guard → CORS → rutas; CORS sigue agregando sus
+  cabeceras a las peticiones que el guard deja pasar.
+- El default de `CORS_ORIGINS` en `config.py` (5173) no se tocó: lo
+  mandan `.env`/`.env.example` (5199), como antes de este ítem.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **540 pasan** (534 + 6 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 36 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (54,6 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+| En vivo contra 8010 | evil origin 403 · origin configurado 200 · evil host 403 · sin cabeceras 200 |
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 534 | **540** (+6) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.21 — P0-09: la inyección de fórmulas en el CSV, sin tocar los números
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p009-csv-injection` ·
+**Auditoría de Claude, ítem P0-09 — «sólo en campos de texto libre»**
+
+## Qué estaba mal
+
+`GET /export/csv` escribía cada celda **tal cual**. Un nombre tecleado
+`=HYPERLINK("http://evil.example","clic")` viajaba entero y la hoja de
+cálculo lo abría como **fórmula**: el operador hace clic en la celda y
+cae en el sitio del atacante. Peor, la familia DDE
+(``=cmd|'/c calc'!A0``) llega a ejecutar comandos en la máquina donde
+se abre el archivo. Los disparadores: `=`, `+`, `-`, `@`, y las dos
+invisibles — tabulador y retorno de carro.
+
+## La trampa que avisa el propio ítem
+
+«Prefijar lo que empieza con `-` convertiría las latitudes negativas en
+texto.» La solución tacaña — blindar toda celda que arranque con uno de
+esos caracteres — arruina `-34.6` en una columna de latitud. El ítem
+pide blindar **sólo texto libre**.
+
+## El arreglo: por valor, no por columna
+
+```python
+def _blindar(valor):
+    if not isinstance(valor, str) or not valor:   # números intactos
+        return valor
+    if valor[0] not in ("=", "+", "-", "@", "\t", "\r"):
+        return valor
+    try:
+        float(valor)          # "-34.6", "-62.5", "+7.5": es un número
+        return valor          # …prefijarlo sería el error del ítem
+    except ValueError:
+        return "'" + valor    # la fórmula, prefijada
+```
+
+- **Sólo `str`**: las columnas numéricas (latitud, longitud, nivel dBm)
+  traen números y no se tocan.
+- **Un string legible como número tampoco se toca**: es exactamente la
+  advertencia del ítem, y cubre además el caso real de un dBm que llega
+  como string desde el JSON de propiedades.
+- **Por qué no una lista blanca de columnas**: se pudre con la próxima
+  columna nueva (la que nadie agregue al whitelist es el hueco de
+  mañana); el carácter peligroso no se pudre. En la práctica el
+  resultado es el que pide el ítem: los system values (`point`,
+  `user`, `#ff0000`, ISOs) no arrancan con ninguno de esos caracteres
+  — la blindada es no-op — y lo tecleado o venido de un tercero sí
+  queda cubierto.
+- **Los dos escritores**: `to_csv` (objetos del mapa) y `track_to_csv`
+  (trayectorias). El `callsign` de esta última viene de **OpenSky** —
+  dato de un tercero, ni siquiera del operador.
+- Las notas quedan cubiertas de fábrica (la celda empieza con
+  `[timestamp]`) y la blindada por valor las cubre igual por si cambia
+  el formato.
+
+## Lo que NO cambia
+
+- **KML y GeoJSON no se tocan**: son otras clases de archivo (XML y
+  JSON), no CSV — fuera del ítem.
+- Los números del CSV siguen siendo números: `-34.6` se abre como
+  `-34.6`, sin apóstrofo ni comillas de más.
+- Sin cambio de contrato: misma ruta, mismas columnas, mismo
+  delimitador `;`.
+
+## La guarda
+
+`tests/test_p009_csv_injection.py`, 4 escritas **antes** de tocar:
+**3 rojas** — la fórmula salía viva en `name` y en `description`, la de
+la trayectoria con el callsign `=1+1`, y `_blindar` ni siquiera
+existía — y **1 verde de arranque**: las latitudes negativas intactas,
+que es la cara que el arreglo tiene prohibida y que sigue verde
+después. La roja del CSV se volvió a medir **por revertida**: sin el
+blindado vuelve `=HYPERLINK(...)` a secas.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **544 pasan** (540 + 4 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 29 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (38,1 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+Nota de suite: la primera corrida de frontend, en paralelo con pytest,
+sacó **1 roja** con el perfil documentado del flaky de
+`toolbar.spec.js` (corrida lenta, >190 s); la corrida limpia inmediata
+dio **460/460 en 90 s**.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 540 | **544** (+4) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+# 0.30.22 — P0-01 + P0-03: el número de expediente ya no se puede perder
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p001-p003-numero-obligatorio` ·
+**Auditoría de Claude, ítems P0-01 y P0-03 — «van juntos y ya se pueden»**
+
+## Qué estaba mal, por dos frentes
+
+**La base lo permitía.** `numero_expediente` era anulable: cualquier
+escritura directa dejaba expedientes sin número, y el número ES el
+identificador del caso — sin él, la fila es un documento sin firma.
+
+**La API lo hacía sola.** `PUT /expedientes/{id}` con
+`{"numero_expediente": null}` pasaba por `exclude_unset` — el `None`
+vino **explicitado**, no omitido —, el route hacía `setattr(None)` y
+**commiteaba**; recién después la validación de la respuesta reventaba
+en 500. O sea, en ese orden: fila sucia **y** error en inglés. Ese era
+el origen real de las filas que P0-03 manda a limpiar.
+
+P0-06 (0.30.5) se hizo antes exactamente para éste: un respaldo previo
+y una versión de esquema. Acá están los dos.
+
+## P0-01: `nullable=False`
+
+Modelo (`app/models/expediente.py`):
+
+```python
+numero_expediente = Column(String(50), nullable=False, unique=True, index=True)
+```
+
+Y **la API deja de fabricar el problema** — validadores en las schemas
+(patron del proyecto, F2-05 traduce `value_error` con nuestro mensaje):
+
+- `ExpedienteUpdate`: `null` explícito → **422** «el número de
+  expediente no admite null»; vacío o en blanco → 422 «no puede quedar
+  vacío». La fila guardada queda **intacta** (lo que antes se perdía).
+- `ExpedienteCreate`: número en blanco → 422 con el mismo mensaje.
+- Sin cambio de contrato con el frontend: el **422 en lista** era ya la
+  forma que `describeError` parsea desde el POST (F2-05), así que
+  `client.js` no se toca. Lo que cambia es que el PUT con `null` pasó
+  de 200-con-500-detrás a 422 temprano.
+
+## P0-03: limpiar sin borrar
+
+SQLite **no sabe** `ALTER COLUMN`, así que la migración reconstruye la
+tabla. Los pasos (versión 1 → 2):
+
+1. `CREATE TABLE IF NOT EXISTS expedientes (forma vieja)` — los pasos
+   corren **antes** de `create_all`, así que una base recién creada
+   atraviesa la migración con cero filas en vez de romper con «no such
+   table».
+2. **La limpieza**: `UPDATE … SET numero_expediente = 'SIN-NUMERO-' || id
+   WHERE numero_expediente IS NULL OR TRIM(numero_expediente) = ''`.
+   - **No se borra ninguna fila**: mediciones, eventos y vínculos siguen
+     enteros. Borrar un caso porque le falte el número sería tirar la
+     investigación por una etiqueta.
+   - `SIN-NUMERO-5` **no inventa un número de causa**: es un marcador
+     de ausencia, legible, único (el `id` lo es), y el operador puede
+     poner el número real después por la API de siempre.
+   - Determinista: la migración es un solo paso transaccional y
+     repetible.
+3. `CREATE TABLE expedientes_nuevo (… NOT NULL)` + `INSERT … SELECT`
+   **con lista de columnas explícita** (el orden de la tabla vieja de
+   una base que nadie vio no está garantizado; el de la nueva, sí).
+4. `DROP` + `RENAME` (con `foreign_keys` OFF en esta conexión, como
+   siempre) y recreación de los tres índices con sus nombres de siempre.
+
+**En la base real, en vivo**: respaldo automático previo
+(`aerorf-20261004-204642.db`), `user_version: 1 → 2`, el expediente
+del operador **idéntico** (`EX-2026-37478934-…`, 118.85, abierto), y
+`notnull = 1` leído de `PRAGMA table_info`. Cero filas tocadas (la base
+real no tenía ninguna sucia).
+
+## Lo que tuve que adaptar al subir la versión
+
+- `test_p006` fijaba `_version == 0` tras una migración rota: con
+  `VERSION_ESQUEMA = 2` el paso 1 (sin sentencias) **sí** corre y el
+  fallo del paso 2 deja la versión en 1. El aserto ahora es
+  `VERSION_ESQUEMA - 1` — la intención («nunca reclamar el paso que
+  revienta») queda intacta y queda más fuerte: además mide el avance
+  parcial legítimo.
+- El log «esquema sin versionar **adoptado como versión 1**» mintió
+  apenas hubo pasos: ahora dice «llevado a la versión {VERSION}».
+- El docstring de `lifecycle.py` que decía que este cambio «ya estaba
+  encolado» pasó a decir que **es** la migración 2.
+
+## La guarda
+
+`tests/test_p001_p003_numero_obligatorio.py`, 7 escritas **antes** de
+tocar: **6 rojas** (esquema anulable, PUT null, PUT vacío, POST vacío,
+migración de base vieja, migración de base nueva) y **1 verde** de
+arranque (crear sin número ya era 422). Repetidas **por revertida**
+(`git stash` de los cuatro archivos de implementación): mismas 6 rojas.
+Detalle del primer intento de revertida: la base temporal ya estaba en
+v2 y la app revertida la rechazó con `BaseDeDatosMasNueva` — el
+mecanismo de P0-06 haciendo su trabajo; para el rojo por aserto se
+limpió la base temporal (desechable por diseño).
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **551 pasan** (544 + 7 nuevas) |
+| `pytest -m integration` (8010 reiniciado, migración aplicada) | **7 pasan en 27 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (1 m 19 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+| Base real del operador (solo lectura tras el reinicio) | v2, respaldo previo, 1 expediente intacto, `notnull=1` |
+
+Nota de suite: la primera corrida de frontend corrió **en paralelo con
+el build** y sacó 448/460 con el perfil documentado del flaky; la
+corrida limpia inmediata dio **460/460 en 77 s**.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 544 | **551** (+7) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+| Versión del esquema | 1 | **2** |
+# 0.30.23 — Los últimos textos en inglés del backend, de una
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/textos-espanol-backend` ·
+**Regla del proyecto: lo que el operador lee está en español**
+
+## Cómo llegó a ser un solo ítem
+
+La cola de RETOMAR los anotó **uno por uno** — `ws.py`, el aviso de
+arranque, `expedientes.py`, «future timestamps», `correlation.py`,
+`map.py` — y el barrido encontró **más de lo mismo** en
+`map_service`, `flight_service`, `opensky_service` y `cache`: unas 40
+frases de una línea repartidas en 12 archivos. Son la misma falta
+once veces: prosa nuestra escrita en inglés donde llega un detalle
+`HTTPException`, un `MapServiceError` o un frame del websocket.
+Traducirlos en tandas de uno habría sido once rondas de rama y
+commit para una sola regla; se cierra **como un ítem**, con una guarda
+que cubre cada frase.
+
+## Qué se tradujo
+
+| Dónde | Qué |
+|---|---|
+| `map.py` | el helper `_not_found` («Object … not found») y los tres matchers `if "not found" in str(exc)` que lo buscaban — cambiados **junto con el servicio**, después de grep: la frase vivía en `map_service` |
+| `correlation.py` | 404 y «has no position…» ×2, «radii_nm must be…» |
+| `expedientes.py` | 4 × «Expediente not found» + «already exists» (y el comentario en inglés que tocaba, por la regla de lo que un commit toca) |
+| `rf_expediente.py` | 2 × «Expediente not found» |
+| `flights.py` | «Invalid ICAO24…», «`end` must be greater…» ×2, «future timestamps» ×2, «Session … not found» ×2, «Stop the session…», «At most … per query», «bbox must be…» |
+| `system.py` | «Invalid log level» |
+| `ws.py` | «Unknown action: …» (el frame `error` al navegador) |
+| `main.py` | el aviso de arranque — **que además era falso** (abajo) |
+| `map_service.py` | tipo/estado/campo desconocidos, «Invalid WGS84» ×3, «A note cannot be empty», «Object … not found» ×4 |
+| `flight_service.py` | «Invalid date/time…» — las rutas las devuelven como 400 vía `_handle` |
+| `opensky_service.py` | timeout, red, token rechazado, límite de créditos (¡estaba **mezclado**: la mitad en inglés y la mitad en español), parámetros, 5xx, HTTP raro, reintento, JSON ilegible |
+| `cache.py` | el mensaje del gate de backoff de F2-07 (429 al operador) |
+
+### El aviso de arranque decía una mentira
+
+> «OpenSky credentials absent — flight features disabled»
+
+Falso: en modo anónimo el **tráfico en vivo sí funciona** (OpenSky
+sirve `/states/all` sin cuenta) y lo que se cae sin credenciales es el
+**historial**. El texto nuevo lo dice así, en español, y nombra
+`OPENSKY_ALLOW_ANONYMOUS`, que es la llave del otro caso.
+
+### El quinto ICAO24
+
+`test_error_icao24` ya existía para un mensaje que estaba **cuatro
+veces** en `flight_service.py`, y fija que las cuatro pasen por
+`_explicar_icao24_invalido`. La ruta `GET /{icao24}/flights` tenía su
+**propia quinta copia**, en inglés, que el guardia no miraba (escanea
+`flight_service.py`). Ahora la ruta usa el mismo ayudante: una sola
+prosa, en español, que además dice «si escribió un callsign, ese campo
+sí funciona».
+
+## Lo que quedó fuera, con la razón
+
+- **`geo.py require_latlon`** — nadie lo llama: es código muerto y su
+  `ValueError` no llega a ninguna respuesta.
+- **`rf_expediente` y su `except Exception → 500 str(exc)`** — otra
+  clase de defecto (el 500 que F2-05 manda que no exista), no prosa:
+  si se arregla, se arregla por el estado, no por el texto.
+- **Lo que escriben httpx, SQLite o el OpenSky arriba de nosotros** —
+  texto de terceros; se traduce donde nace la frase nuestra.
+- **Las líneas de log por petición** — claves de diagnóstico, no prosa
+  de pantalla. El aviso de arranque sí entró: es lo primero que el
+  operador lee al abrir la consola.
+
+## La guarda
+
+`tests/test_textos_espanol_backend.py`, **49 escritas antes de tocar**:
+**12 en vivo** (los endpoints de la cola pedidos de verdad: 404 de mapa,
+expediente y sesión; el 400 del repetido; correlación sin posición y
+radios inválidos; ICAO24, timestamps y `end > begin`; nivel de log) y
+**37 portero de código** — el texto viejo literal no reaparece en su
+archivo, el patrón de `test_error_icao24`. **49 rojas antes** y
+**49 rojas por revertida** (`git stash` de los 13 archivos).
+
+Colateral honesto: **2 pins adaptados** en `test_map_objects` («Unknown
+object type» → «Tipo de objeto desconocido», «Unknown field» →
+«campo(s) desconocido(s)») — el assert sigue midiendo que el mensaje
+**nombre** el problema; cambia el idioma, no la intención.
+
+Y una validación del portero que se corrigió a sí misma: el primer
+ciclo quedó en 48/49 porque el scan encontró «already exists» en un
+**comentario** en inglés sobre la línea que tocaba — traducido, como
+manda la regla.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **600 pasan** (551 + 49 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 28 s** |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (38 s) |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **77 de 78** (la capa obsoleta, ya encolada) |
+
+**En vivo contra el 8010**, los cuatro que la cola nombraba:
+
+```
+GET /map/objects/9999          → {"detail":"No existe el objeto 9999."}
+GET /expedientes/9999          → {"detail":"No existe el expediente 9999."}
+POST /flights/sessions/9999/start → {"detail":"No existe la sesión de vuelo 9999."}
+GET /flights/lvkcc/flights     → 422 «…Si es un nombre de vuelo como LVKCC,
+                                  escríbalo en el campo de callsign…» (¡hasta
+                                  las comillas latinas del ayudante!)
+```
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 551 | **600** (+49) |
+| Integration | 7 | **7** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| smoke_e2e (base temporal) | 77/78 | **77/78** |
+| Frases en inglés llegando al operador | ~40 | **0** (guarda de 37 scans) |
+# 0.30.24 — El smoke esperaba 15 capas y se siembran 17
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/smoke-capas-17` ·
+**Clase:** expectativa vieja, no regresión (RETOMAR lo anotó así)
+
+## Qué fallaba
+
+Desde el 26/09, cuando entraron `lines` y `polygons` en
+`DEFAULT_LAYERS` (15 → 17), el chequeo de capas de `smoke_e2e.py`
+reportaba FAIL en **base limpia**:
+
+```
+Failures:
+  - 15 default layers :: 200
+SMOKE_EXIT=1
+```
+
+Ese era el único rojo de los **77/78**: el endpoint contestaba `200`
+con `count = 17`, o sea perfecto — la expectativa del script era la que
+estaba vieja. No era regresión: el smoke nació con 15 y nadie lo
+actualizó cuando la semilla creció.
+
+## El arreglo
+
+Dos números en una línea de `smoke_e2e.py` (el rótulo **y** el valor:
+ambos dicen 15) pasan a **17**, con un comentario que apunta a la
+guarda. El chequeo sigue siendo igual de estricto: en base recién
+creada, los defaults siembrados son exactamente los de
+`DEFAULT_LAYERS`, y `_seed_layers` además **backfillea** los que falten
+en bases viejas (por eso el 8010 real ya servía 17).
+
+## La guarda: que no vuelva a desfasarse
+
+El defecto no fue el número: fue que el código creció y el script no.
+`tests/test_smoke_capas.py` (**3 pruebas, la del valor roja antes**)
+lee el número escrito en `smoke_e2e.py` y lo pisa con
+`len(DEFAULT_LAYERS)`:
+
+- **el chequeo existe y se puede leer** — si alguien reescribe la línea
+  con otra forma, la guarda lo dice en vez de fallar mudo;
+- **el valor son los defaults que se siembran** — la roja de este ítem:
+  *«smoke_e2e espera 15 capas y DEFAULT_LAYERS siembra 17»*;
+- **la etiqueta dice el mismo número que el valor** — el rótulo del
+  informe no puede quedar desfasado del chequeo (los dos decían 15,
+  pero son dos literales independientes).
+
+El smoke es un script HTTP puro, sin imports de `app` — habla con el
+servidor como lo haría el frente — así que no puede comparar contra el
+origen él solo; la guarda vive en la suite de pytest, que corre siempre.
+
+Si alguien agrega una capa por defecto, la guarda queda roja hasta que
+el smoke diga el número nuevo; si se pone roja sin que los defaults se
+hayan tocado, es el smoke el que se movió.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **603 pasan** (600 + 3 nuevas) |
+| `pytest -m integration` (8010) | **7 pasan en 37 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (30 s) |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+
+Rojo por revertida: `git stash` del arreglo en `smoke_e2e.py` → la
+guarda vuelve a decir *«espera 15 … siembra 17»*.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 600 | **603** (+3) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | **77/78** (la capa) | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+# 0.30.25 — `.env.example` por fin documenta el TTL de tracks en vivo
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/env-example-ttl-vivo` ·
+**Clase:** documentación de configuración (omisión del 0.30.2, anotada
+por la auditoría)
+
+## Qué faltaba
+
+`CACHE_TTL_TRACKS_LIVE_S` nació en 0.30.2 — el caché corto (30 s) que
+usa la ruta `fresh=true` cuando se sigue a una aeronave en el aire,
+para que el sondeo de 10 s no sea contestado con los bytes de 300 s —
+y **quedó sin documentar en `.env.example`**: quien copiaba el ejemplo
+para armar su `.env` no se enteraba de que existía. La auditoría lo
+dejó escrito como «omisión del 0.30.2».
+
+## La variable, y el archivo
+
+La línea entra con su comentario **en español**, entre
+`CACHE_TTL_TRACKS_S` y `CACHE_TTL_FLIGHTS_S` (el mismo orden que
+`config.py`), explicando lo que hace: es el mismo caché acortado, gasta
+créditos de más sólo mientras alguien sigue un vuelo que está volando.
+
+Y como tocar `.env.example` obliga a que lo tocado hable español
+(precédente: el bloque de `ALLOWED_HOSTS` que P0-07 agregó en su
+momento), el resto del archivo queda como está — traducirlo entero es
+otro ítem, no éste.
+
+## La guarda: por campo, no por la lista concreta
+
+El defecto no fue el número: fue que el settings creció y el ejemplo
+no. `tests/test_env_example_documentado.py` (**28 pruebas: la de la
+variable roja antes, 27 de control verdes**) recorre `Settings` y exige
+que **cada campo con `default_factory`** — en este dataclass, esa es
+la señal de «lee la variable de entorno» — esté escrito en
+`.env.example`. Si mañana aparece un settings nuevo, hay una prueba
+roja nueva esperando a que el ejemplo lo diga.
+
+Dos exclusiones documentadas en el propio guardia:
+
+- **`max_tracked_aircraft` no es una omisión**: es default plano
+  («hard cap from the spec, not configurable»); una línea en el
+  ejemplo **mentiría**, porque no se leería nunca.
+- **`VITE_PORT` está en el ejemplo y no en `Settings`**: lo lee el
+  frente y `start.bat`. La comparación va de `Settings` al ejemplo, no
+  al revés.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **631 pasan** (603 + 28 nuevas) |
+| `pytest -m integration` (8010) | **7 pasan en 36 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (29 s) |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+
+Rojo por revertida: `git stash` de la línea del ejemplo → *«Settings
+lee `cache_ttl_tracks_live_s` de la variable de entorno y .env.example
+no la documenta»*.
+
+Sin cambio de comportamiento: `.env.example` no lo lee nadie en
+runtime (lo que se lee es `.env`, que no se toca).
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 603 | **631** (+28) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | 78/78 | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| Variables de `Settings` documentadas en el ejemplo | 26 de 27 | **27 de 27** |
+# 0.30.26 — `async def` sin nada de async: adiós al loop congelado
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p1-async-def` ·
+**Ítem:** P1 de la auditoría («`async def` → `def`; con SQLite hay que
+mirar `check_same_thread` antes; Claude lo marca como no medido»)
+
+## El prerrequisito, cumplido desde antes
+
+`_build_engine` pasa `check_same_thread=False` a **toda** conexión
+sqlite (`database.py`), que es lo que permite que el threadpool de
+FastAPI toque la base desde distintos hilos — con `StaticPool` (los
+tests en memoria) la conexión única se comparte justamente por eso.
+No había que tocar nada: el ítem sólo exigía **mirarlo** antes de
+convertir, y está mirado.
+
+## Qué estaba mal, medido
+
+Un `async def` **sin `await` ni `async with`** es trabajo síncrono
+disfrazado: FastAPI lo corre **sobre el event loop de asyncio**, y
+mientras dura, no giran ni el WebSocket de vuelos ni el sondeo de
+OpenSky ni ninguna otra petición. El barrido con `ast` sobre `app/`
+encontró **9**: los 3 handlers de `rf.py` (mat pura), la dependencia
+`_service_or_503`, los dos manejadores de errores (`_validacion`,
+`_integridad`), `ws.stop`, `ws._record` (escribe sesiones en la base
+en cada tick) y `lifespan` — este último **exento**: `@asynccontextmanager`
+exige que sea async, es elección del framework.
+
+Lo que se congelaba por request en `POST /rf/calculate`, medido en
+esta máquina con el motor real (one-off, 50–200 corridas):
+
+| Candidatas | Mediana | Peor |
+|---|---|---|
+| 12 | 3,98 ms | 44,44 ms |
+| 24 | 18,7 ms | 22,9 ms |
+| 48 | **75,2 ms** | **115,9 ms** |
+
+O sea: con una planilla de 48 candidatas, **~75–116 ms de loop
+parado por cada consulta de interferencias** — el feed en vivo se
+congelaba y ni se enteraba el operador. `harmonics` (0,014 ms) y
+`validate` (0,044 ms) eran cosméticos, pero entran al mismo invariante.
+
+## El arreglo
+
+Las 8 funciones pasan de `async def` a **`def`** (FastAPI las manda al
+threadpool y el loop sigue girando), con sus dos únicos call sites
+actualizados: `service = await _service_or_503()` y
+`await self._record(...)` pierden el `await` (esperar algo que no es
+corrutina sería `TypeError`). `ws.stop` no tenía llamadores.
+
+Los exception handlers síncronos los soporta Starlette de fábrica:
+`starlette._exception_handler` importa `is_async_callable` y
+`run_in_threadpool` justamente para eso, y los 422/400 en vivo salen
+idénticos.
+
+**Lo que queda async, y por qué:** los handlers de vuelos y
+correlación **esperan OpenSky de verdad** — son async legítimos. Sus
+llamadas cortas a la base entre `await` son de milisegundos; moverlas
+al threadpool sería otra pieza, medida primero, no ésta.
+
+## La guarda
+
+`tests/test_async_sin_trabajo_sincrono.py` (**55 pruebas: las de los
+8 rojas antes**) recorre `app/` con `ast` y exige, función por
+función, que cada `async def` contenga `await`, `async with` o
+`async for`, o que esté envuelto en `@asynccontextmanager`. El
+mensaje dice qué hacer: declárala `def`, o anota por qué el framework
+exige async. Un handler nuevo síncrono-en-máscara tendrá su prueba
+roja esperando.
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **686 pasan** (631 + 55 nuevas) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 35 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (31 s) |
+| `npm test` (frontend) | **460 pasan**, 33 archivos |
+
+En vivo contra el 8010 con el código nuevo: `/health` ok;
+`POST /rf/calculate` devuelve el IM3 (2×88.5 − 58 = 119, score 99);
+un body roto cae en `_validacion` síncrono con su 422 en español;
+`GET /flights/live` pasa por `_service_or_503` y contesta 200 con
+tráfico real.
+
+Rojo por revertida: `git stash` de `app/api` → las mismas 8 vuelven a
+la carga.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 631 | **686** (+55) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | 78/78 | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| `async def` sin async real en `app/` | **9** | **1** (`lifespan`, exento) |
+# 0.30.27 — Correlación: la temporal de verdad, y la caja en vez del mundo
+
+**Fecha:** 2026-10-04 · **Rama:** `auditoria/p1-correlacion-temporal` ·
+**Ítem:** P1 de la auditoría («Compara el evento con las posiciones
+*actuales* y la documentación dice «espacial y temporal»; eso correlaciona
+un evento de hace tres días con tráfico de hoy. Primero corregir la
+redacción, después comparar con `observed_at`. Y `get_states()` global en
+vez de `get_states_in_box` quema créditos»)
+
+## El defecto
+
+Los dos payload de correlación (`routes/correlation.py` y
+`services/flight_service.py`) anunciaban **«Correlación espacial y
+temporal únicamente»** mientras comparaban el evento con las posiciones
+**actuales** del cielo: un evento de hace tres días declaraba
+contemporáneas a las aeronaves de hoy. Y las tres rutas que traían
+estados a mano pedían `get_states()` **global** — todo el cielo para
+correlizar una caja.
+
+## Arreglado en el orden de la cola
+
+**1. La redacción.** Cada respuesta ahora **declara cómo compara**:
+`comparacion` (`espacial_y_temporal` cuando hay `observed_at`,
+`espacial` cuando no), `observado_en`, `ventana_temporal_s` y
+`fuera_de_ventana`. El disclaimer del objeto explica la comparación que
+hace; la vista por aeronave (`/correlation/aircraft/{icao24}`), que sólo
+lista cercanía, tiene **su propio disclaimer declarado espacial** — que
+es lo que dicen el MANUAL §215, la Ficha Técnica y el propio GisShell,
+coincidiendo por fin con los hechos.
+
+**2. `observed_at`.** Cuando el objeto tiene fecha de observación, cada
+estado se compara con `delta_t_s` = `last_contact − observed_at`; sólo
+cuenta dentro de la ventana de **600 s**
+(`CORRELACION_VENTANA_TEMPORAL_S`, en `app/core/correlacion.py`). Lo que
+queda dentro del radio pero fuera de la ventana se **reporta** en
+`fuera_de_ventana`, no se esconde. Un estado sin hora no prueba nada y
+no cuenta. Sin `observed_at` no hay nada que comparar y la respuesta se
+declara `espacial`. El flujo en vivo no cambia (evento recién observado
+→ deltas de segundos → todo cuenta); el de historia usa el `states` que
+el cuerpo ya permitía mandar — que ahora es el camino honesto: estados
+del momento del evento, deltas ≈ 0. En la ruta de vuelos,
+`correlate_event` aplica la misma regla.
+
+**3. La caja en vez del mundo.** Las tres rutas (`rf-aircraft`,
+`object/{id}`, `flights/correlate`) piden ahora
+`get_states_in_box(*caja_alrededor(...))` con el radio máximo pedido
+alrededor del objeto. La caja de 50 nm mide ~4 sq-deg: **tramo de 1
+crédito** de `estimate_states_credits` (área ≤ 25 sq-deg), con respuesta
+de decenas en vez de miles de estados. Además el handler de vuelos ya no
+gasta la llamada si el objeto no existe o no tiene posición (antes
+traía el cielo para que `correlate_event` rechazara después).
+
+## Lo que queda dicho y no estaba dicho
+
+- **Hallazgo anotado:** `estimate_states_credits` modela la rama `None`
+  como «serial-only» (1 crédito) — el caso **global no está modelado**
+  en el repo, así que este commit no afirma cuánto ahorra en créditos el
+  cambio; afirma lo verificable: la caja cae en el tramo de 1 crédito y
+  se deja de pedir el estado global. Va como pendiente aparte.
+- **Contrato:** los campos nuevos son **aditivos**; `client.js` pasa los
+  datos sin esquema, así que no requiere cambio (y no se tocó).
+  `FlightPanel` pinta el disclaimer nuevo tal cual, sin editar Vue.
+- El mensaje «Object … has no position» de `flights/correlate` era
+  inglés y **llegaba al cliente** (400 vía `_handle`): traducido, y el
+  portero de textos ganó el pin
+  `("app/services/flight_service.py", "has no position…")` — que estaba
+  rojo antes (la cadena vivía en el archivo) y verde después.
+- `app/core/correlacion.py` es el **único** dueño de ventana, delta,
+  caja y los dos disclaimer: la duplicación entre la ruta y el servicio
+  quedó afuera.
+
+## La guarda
+
+`tests/test_correlacion_temporal.py` — **11 pruebas: 10 rojas antes y
+una de control verde** (`test_control_bandas_sigue_contando_lo_espacial`:
+las bandas siguen contando lo espacial). Cubren el caso de la auditoría
+(evento de 3 días → 0 contemporáneas + `fuera_de_ventana`), el flujo en
+vivo (evento de 30 s → cuenta, con su `delta_t_s`), el objeto sin fecha
+(`comparacion: espacial`), el estado sin hora (no cuenta), los dos
+disclaimer y las tres rutas pidiendo caja (la caja se valida por
+propiedades: centrada, simétrica, cubre el radio, área ≤ 25 sq-deg — no
+se copia la fórmula de implementación). **Rojo por revertida:**
+`git stash push -- app` → las mismas 11 (10 + el pin del portero).
+
+## Verificación
+
+| Suite | Resultado |
+|---|---|
+| `pytest -m "not integration"` | **698 pasan** (686 + 11 + 1 pin) |
+| `pytest -m integration` (8010 reiniciado) | **7 pasan en 29 s** |
+| `python tests/smoke_e2e.py` (base temporal, 8011) | **78 de 78**, `SMOKE_EXIT=0` |
+| `tests/geo_parity.mjs` | **675 pasan** |
+| `npm run build` | compila (33 s) |
+| `npm test` (frontend) | **33 de 33 archivos** |
+
+En vivo contra el 8010 con el código nuevo: `/health` ok y las suites
+de integración ejercitan las tres rutas de correlación con el servicio
+real.
+
+### Los números
+
+| Suite | Antes | Después |
+|---|---|---|
+| Python sin integración | 686 | **698** (+11 temporal +1 pin) |
+| Integration | 7 | **7** |
+| smoke_e2e (base temporal) | 78/78 | **78/78** |
+| Frontend | 460 (33 archivos) | **460** (33) |
+| geo_parity | 675 | **675** |
+| Disclaimers que prometían temporal sin medirlo | 2 | **0** |
+## 0.30.28 — Las plantillas dejan de mentir: `slate-N` → nombres semánticos
+
+El puente de 0.30.0 cumplió su promesa temporal con el costo que declaraba en su
+propio comentario: unas 640 utilidades `slate-N` reescritas por CSS para que
+`bg-slate-900` pintara `--panel` — la clase mentía y cualquier uso nuevo podía
+quedar gris sin que nadie lo notara. El ítem «migrar las plantillas» era la otra
+mitad, y ahora está:
+
+- **652 reemplazos en 22 plantillas**: cada `slate-N` pasó a su nombre
+  semántico (`bg-panel`, `text-texto-medio`, `border-borde`…). Tres reglas de
+  rol donde la misma clase cumplía papeles distintos: los 12 inputs a
+  `bg-panel-hondo` («campos, zonas hundidas»), las cajas claras dentro de
+  tarjetas a `bg-on-ink-wash` (si no, sobre `panel-alto` se volvían invisibles)
+  y los divisores de 1px a `bg-borde`. Los fondos de diálogo translúcidos
+  conservaron su transparencia con dos tokens nuevos, `--velo` (75%) y
+  `--velo-suave` (45%), en el patrón `color-mix` de los `on-ink`. Los
+  placeholders muertos (sintaxis v2, sin `text-`, nunca generados) ahora son
+  `placeholder:text-texto-invisible` y se pintan.
+- **El puente se borró**: las 28 reglas de `styles.css` desaparecieron y en su
+  lugar quedó una cabecera en español que explica de dónde sale el color. Los
+  20 nombres semánticos viven una sola vez, en `tailwind.config.js`, cada uno
+  `var(--token)` — la clase y el token dicen lo mismo.
+- **Guardas**: nueva `sin_slate.spec.js` (cero `slate-N` en el fuente; roja
+  antes con 652), `tokens.spec` adaptado (las 14 utilidades semánticas
+  resuelven a token, el bundle no contiene ni una regla `slate-\d`, ningún
+  ring amarra a `--signal`) y `theme.spec` con el espejo dado vuelta
+  (`slate === 0` y más de 20 usos semánticos). La intención de cada test
+  adaptado está escrita en el propio test.
+
+**465 frontend (34 archivos) · 705 Python · 675 paridad · 36 geo · build ✓.**
+## 0.30.29 — El círculo recién dibujado se selecciona solo
+
+Dibujar un círculo servía para que existiera: el objeto aparecía en el mapa y el
+inspector seguía diciendo «seleccione un objeto», así que detallarlo pedía
+buscarlo a mano en la lista. Ahora `handleToolComplete` deja el objeto recién
+creado **seleccionado** y abre el inspector si estaba cerrado — el mismo gesto
+que ya hacía el clic en una aeronave. Se dibuja para escribir sobre lo que se
+dibujó.
+
+Prueba en `drawing-flow.spec.js` con el harness existente (monta el shell, dos
+clics reales, `createObject` interceptado): el inspector arranca **cerrado** a
+propósito y tiene que terminar abierto con el id del objeto nuevo — **roja
+antes** (`selectedId: null → 7`), verde después.
+
+**466 frontend (34 archivos) · build ✓ · backend sin cambios.**
+## 0.30.30 — La capa de aeropuertos dibuja la lista del operador, con icono descargable
+
+El composable `useAirport` que cargó el operador (116 sitios: aeropuertos,
+EAVA/ACC, CCTE, aeroclubs) es ahora lo que la capa de referencia
+visualiza en el mapa, **sumado** a lo publicado — nada de lo que ya estaba
+se pierde:
+
+- Un sitio que cae a ≤ 2 km de un aeropuerto publicado se dibuja **una vez**,
+  con ese aeropuerto, y el popup lista todos los que caen ahí (SAAV lleva
+  «SANTA FE» y «EAVA SAUCE VIEJO»). Los números de la coincidencia: 76 de
+  116 emparejan; el emparejado más lejano está a 1937 m y el sitio suelto
+  más cercano a 4679 m — el umbral cae en una zona sin datos.
+- Los 40 sitios sin aeropuerto cerca se dibujan como círculo ámbar, con su
+  grupo y su etiqueta; el popup dice «Sitio de la lista del operador, no
+  medido por AeroRF»: procedencia visible, sin inventar códigos que la
+  lista no tiene.
+- El símbolo de aeropuerto es ahora el icono de
+  `public/iconos/aeropuerto.svg` sobre un disco claro (clase nueva
+  `.aerorf-airport-icon`): el mapa es oscuro y el SVG descargado viene
+  negro. Las familias mayor/menor se distinguen por el tamaño del icono
+  (26/18 px), ya no por el color del círculo; los helipuertos siguen en
+  círculo pizarra.
+- Cuatro iconos descargados de Font Awesome Free 6.7.2 (CC BY 4.0) y
+  dejados en `public/iconos/` con `LEEME.txt` de procedencia:
+  `aeropuerto.svg` y, para el item siguiente, `fm.svg`, `tprs.svg`,
+  `otro.svg`. Cambiar un dibujo es reemplazar el archivo, mismo nombre —
+  el código sólo nombra la ruta.
+- El composable vive en `src/composables/useAirport.js` con la lista del
+  operador textual, y su guard en `airports.spec.js` le aplica las mismas
+  salvaguardas que al archivo publicado: identificadores únicos y
+  coordenadas en rango.
+
+Pruebas: 4 nuevas en `airports.spec.js` — **rojas antes** (el sitio CCTE
+CABA no se dibujaba y el marcador no tenía `options.icon`), 4 adaptadas
+con la intención escrita en el test (unión publicado+lista, filtro por
+país y contador, familias por tamaño). **470 frontend (34 archivos) ·
+build ✓ · backend sin cambios.**
+## 0.30.31 - La fuente del punto: FM, TPRS u Otra, con su icono reemplazable
+
+El punto ya no es un círculo anónimo. Al armar la herramienta **Punto**, las
+opciones muestran **Fuente del punto**: Sin fuente (punto simple), FM, TPRS u
+Otra fuente, y la elección viaja como campo `icon` al guardar. El campo no es
+nuevo - el backend lo guarda y lo devuelve desde hace versiones; lo que
+faltaba era escribirlo y dibujarlo:
+
+- `MapEngine` dibuja `public/iconos/<valor>.svg` (clase
+  `.aerorf-punto-icono`, el mismo disco claro que el avión de aeropuerto)
+  cuando el objeto es un punto y su `icon` está entre `fm`/`tprs`/`otro`.
+  Cualquier otro valor -el `point` por defecto, las filas viejas- sigue
+  siendo el círculo de siempre: lo que el operador no pidió no cambia de
+  aspecto.
+- La fuente se elige al crear el punto (opciones de la herramienta) y se
+  cambia después desde el inspector, sobre un punto existente, sin volver
+  a dibujarlo. La creación manual por coordenadas también la lleva.
+- Los tres SVG ya estaban en `public/iconos/` con su `LEEME.txt` desde
+  0.30.30; cambiar un dibujo sigue siendo reemplazar el archivo, mismo
+  nombre, sin tocar código.
+
+Pruebas: 6 nuevas - **rojas antes** - repartidas en
+`stored-shapes.spec.js` (el marcador con `icon: 'fm'` devolvía el
+círculo; y guardas: los tres archivos existen, el `point` por defecto
+sigue siendo círculo), `components.spec.js` (la sección *Fuente del
+punto* sólo con la herramienta activa, y el selector del inspector que
+escribe `icon` con `updateObject`) y `drawing-flow.spec.js` (el payload
+del punto no llevaba la fuente elegida). Detalle del rojo: `setTool`
+sin toolManager no mueve `activeTool` - lo mueve GisShell al reportar la
+herramienta -, así que el test del panel lo pone directo, que es
+justamente el contrato del componente.
+
+**476 frontend (34 archivos) - build V - backend sin cambios.**
+## 0.30.32 - Espectro, baja total: se fue el menú, la ruta y la vista
+
+El operador eligió la baja total de la sección Espectro, y la baja se hizo en
+los tres archivos donde la sección podía sobrevivir:
+
+- `BrandBar.vue` ya no ofrece la sección: quedan cuatro enlaces en el menú
+  (Mapa, Panel, Expedientes, Calculadora RF).
+- El enrutador ya no registra `/espectro`: la dirección vieja cae en el
+  redireccionamiento catch-all y vuelve al mapa, sin una pantalla rota.
+- `src/views/EspectroView.vue` fue borrada del fuente.
+
+Lo que NO se tocó, a propósito: `Chart.vue` y plotly siguen, porque la
+Calculadora RF grafica con el mismo componente, y el backend de
+espectrogramas queda intacto - la baja es de la pantalla, no de los datos
+del operador. El comentario de `vite.config.js` que atribuía plotly sólo a
+la vista de espectro quedó corregido: lo usa la calculadora, bajo demanda.
+El MANUAL y el README pasan de cinco secciones a cuatro.
+
+Pruebas: 3 guardas nuevas en `brandbar.spec.js` - **rojas antes** (el menú
+ofrecía `/espectro`, el enrutador la registraba y el view existía) -, una
+por archivo editado a mano, para que la sección no vuelva por una entrada
+vieja; 3 adaptadas con la intención escrita en el test (la lista de
+secciones esperadas y el piso de enlaces bajan de 5 a 4).
+
+**479 frontend (34 archivos) - build V - backend sin cambios.**
+## 0.30.33 - Panel, baja total: se fue el menu, la ruta y la vista
+
+Segunda baja total que pide el operador, con el mismo patrón del 0.30.32 y en
+los mismos tres archivos donde una sección puede sobrevivir sin que nada la
+contradiga:
+
+- `BrandBar.vue` ya no ofrece la sección Panel: quedan tres enlaces (Mapa,
+  Expedientes, Calculadora RF).
+- El enrutador ya no registra `/dashboard`: la dirección vieja cae en el
+  catch-all y vuelve al mapa, sin una pantalla rota.
+- `src/views/DashboardView.vue` fue borrada del fuente, y con ella
+  `src/components/StatCard.vue`, que era su único consumidor (se grepeó antes
+  de borrar: `DataTable` la sigue usando `ExpedientesView` y ésa queda).
+
+Lo que NO se tocó, a propósito: el contrato de la API. `rf.summary` sigue en
+`frontend/src/api/client.js` aunque se quede sin quien lo llame, porque recortar
+un cliente es un cambio de contrato y no hace falta para dar de baja una
+pantalla. Los datos del operador tampoco se tocan.
+
+Pruebas: 3 guardas nuevas en `brandbar.spec.js` - **rojas antes** (el menú
+ofrecía `/dashboard`, el enrutador la registraba, y el view y el StatCard
+seguían en el fuente) -, una por archivo editado a mano. 5 adaptadas con la
+intención escrita en el test: las que usaban `/dashboard` como «otra sección
+cualquiera» (navegación, marca, lockup y pie) ahora usan `/expedientes`, y el
+piso de enlaces baja de 4 a 3.
+
+De yapa, dos guardas que el build del 0.30.32 había dejado obsoletas y que
+aparecieron recién al correr la suite contra ese build:
+
+- `theme.spec` exigía que el CSS generara `bg-sky-700`. Ese era su único uso
+  en todo el fuente (un botón de `EspectroView`), así que el CSS dejó de
+  generarla y la guarda estaba pidiendo una ausencia. Salió de la lista; el
+  acento sky sigue cubierto por `text-sky-400` y por la cuenta de clases sky.
+- `chart-loading.spec` exigía un chunk propio para `Chart.vue`. Con la baja de
+  Espectro, Rollup ya no lo separa - un solo importador dinámico lo deja
+  adentro del chunk de la calculadora -, así que la guarda ahora mide el peso
+  del chunk que lo lleva: 16 KB, con plotly siempre en su chunk de 1000 KB. Lo
+  que la guarda protegía, que el wrapper no arrastre la librería, sigue
+  midiéndose igual.
+
+El MANUAL y el README pasan de cuatro secciones a tres, con las secciones
+renumeradas, y los comentarios de `App.vue` y `styles.css` que nombraban
+pantallas ya borradas quedaron corregidos.
+
+**482 frontend (34 archivos) - build V - backend sin cambios.**

@@ -86,12 +86,7 @@
         :style="{ width: `${systemStore.sidebarWidth}px` }"
       >
         <nav class="gis-tabs">
-          <!-- Icon over a short label, so all five fit and all five read.
-               Measured before: the strip needed 312px and the sidebar has 215,
-               and because the buttons could shrink they did, so the last one —
-               Expediente — was pushed entirely out of sight. The full name is
-               still on the button as a title and as the accessible name, so
-               abbreviating the visible label costs nothing but width. -->
+          <!-- Icon over a short label, so all five fit and all five read. -->
           <button
             v-for="tab in sideTabs"
             :key="tab.id"
@@ -110,6 +105,7 @@
         <div class="gis-sidebar-body">
           <ToolOptions v-if="systemStore.leftPanel === 'tools'" />
           <LayerPanel v-else-if="systemStore.leftPanel === 'layers'" />
+          <ObjectsPanel v-else-if="systemStore.leftPanel === 'objects'" />
           <FlightPanel v-else-if="systemStore.leftPanel === 'flights'" />
           <AirportPanel
             v-else-if="systemStore.leftPanel === 'airports'"
@@ -123,7 +119,6 @@
             @zoom="zoomToAirports()"
             @measure="armAirportMeasure"
           />
-          <ExpedientePanel v-else-if="systemStore.leftPanel === 'expediente'" />
         </div>
 
         <!-- Drag handle: the map is the point, so the operator decides how
@@ -147,23 +142,23 @@
           <!-- Distance readout while measuring -->
           <div
             v-if="measure.active && measure.segment_count > 0"
-            class="pointer-events-auto absolute top-3 left-3 rounded-lg border border-amber-500/40 bg-slate-950/95 px-3 py-2 text-xs shadow-xl"
+            class="pointer-events-auto absolute top-3 left-3 rounded-lg border border-amber-500/40 bg-panel-hondo px-3 py-2 text-xs shadow-xl"
           >
             <div class="mb-1 text-[10px] uppercase tracking-widest text-amber-400">
               Medición
             </div>
             <div class="font-mono text-amber-200 text-sm">{{ measure.total_label }}</div>
-            <div class="mt-0.5 text-[10px] text-slate-500">
+            <div class="mt-0.5 text-[10px] text-texto-tenue">
               {{ measure.points.length }} puntos · {{ measure.segment_count }} tramos
             </div>
-            <div v-if="measure.area_note" class="text-[10px] text-slate-500">
+            <div v-if="measure.area_note" class="text-[10px] text-texto-tenue">
               Área ≈ {{ measure.area_note.toFixed(2) }} km²
             </div>
             <ul v-if="measure.segments.length" class="mt-1.5 space-y-0.5">
               <li
                 v-for="seg in measure.segments"
                 :key="seg.index"
-                class="font-mono text-[10px] text-slate-400"
+                class="font-mono text-[10px] text-texto-tenue"
               >
                 {{ String.fromCharCode(65 + seg.index) }}→{{ String.fromCharCode(66 + seg.index) }}
                 {{ seg.label }} · {{ seg.bearing.toFixed(0) }}°
@@ -179,7 +174,7 @@
           <!-- Draft preview readout -->
           <div
             v-if="draftPreview"
-            class="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 rounded-lg border border-blue-500/40 bg-slate-950/95 px-3 py-2 text-xs shadow-xl"
+            class="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 rounded-lg border border-blue-500/40 bg-panel-hondo px-3 py-2 text-xs shadow-xl"
           >
             <div class="text-[10px] uppercase tracking-widest text-blue-400 mb-1">
               {{ draftPreview.label }}
@@ -194,12 +189,12 @@
           <!-- Object quick actions -->
           <div
             v-if="mapStore.selected"
-            class="pointer-events-auto absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/95 px-2 py-1.5 shadow-xl"
+            class="pointer-events-auto absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg border border-borde-fuerte bg-panel-hondo px-2 py-1.5 shadow-xl"
           >
-            <span class="text-[11px] text-slate-300 max-w-[16rem] truncate">
+            <span class="text-[11px] text-texto-medio max-w-[16rem] truncate">
               {{ mapStore.selected.name || typeName(mapStore.selected.type) }}
             </span>
-            <span class="w-px h-4 bg-slate-700" />
+            <span class="w-px h-4 bg-borde" />
             <button
               class="gis-mini-btn"
               title="Medir desde este objeto hasta el cursor"
@@ -218,9 +213,9 @@
           <!-- Loading -->
           <div
             v-if="mapStore.loading"
-            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/40"
+            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-velo-suave"
           >
-            <div class="rounded-lg bg-slate-950/95 px-4 py-2 text-sm text-slate-300 shadow-xl">
+            <div class="rounded-lg bg-panel-hondo px-4 py-2 text-sm text-texto-medio shadow-xl">
               Cargando objetos…
             </div>
           </div>
@@ -286,14 +281,14 @@
     <!-- Help -->
     <div
       v-if="showHelp"
-      class="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-950/80 p-6"
+      class="fixed inset-0 z-[1300] flex items-center justify-center bg-velo p-6"
       @click.self="showHelp = false"
     >
-      <div class="max-w-2xl rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <h2 class="mb-3 text-lg font-semibold text-slate-100">AeroRF — ayuda rápida</h2>
-        <div class="grid gap-4 text-sm text-slate-300 md:grid-cols-2">
+      <div class="max-w-2xl rounded-xl border border-borde-fuerte bg-panel p-6 shadow-2xl">
+        <h2 class="mb-3 text-lg font-semibold text-texto">AeroRF — ayuda rápida</h2>
+        <div class="grid gap-4 text-sm text-texto-medio md:grid-cols-2">
           <div>
-            <h3 class="mb-1 font-semibold text-slate-200">Atajos</h3>
+            <h3 class="mb-1 font-semibold text-texto">Atajos</h3>
             <ul class="space-y-1 text-xs">
               <li><kbd>ESC</kbd> — cancelar la herramienta activa</li>
               <li><kbd>Enter</kbd> — confirmar el dibujo en curso</li>
@@ -302,7 +297,7 @@
             </ul>
           </div>
           <div>
-            <h3 class="mb-1 font-semibold text-slate-200">Capas de datos</h3>
+            <h3 class="mb-1 font-semibold text-texto">Capas de datos</h3>
             <ul class="space-y-1 text-xs">
               <li><b>Histórico</b> — track del vuelo en OpenSky</li>
               <li><b>En vivo</b> — vector de estado actual</li>
@@ -349,23 +344,21 @@ import { AirportLayer, AIRPORT_LAYER_KEY } from '@/map/airports'
 import { useMapStore, typeName } from '@/stores/map'
 import { useFlightsStore } from '@/stores/flights'
 import { useSystemStore } from '@/stores/system'
-import { useExpedientesStore } from '@/stores/expedientes'
 
 import CoordinateBar from '@/components/gis/CoordinateBar.vue'
 import ContextMenu from '@/components/gis/ContextMenu.vue'
 import FlightPanel from '@/components/gis/FlightPanel.vue'
 import InspectorPanel from '@/components/gis/InspectorPanel.vue'
 import LayerPanel from '@/components/gis/LayerPanel.vue'
+import ObjectsPanel from '@/components/gis/ObjectsPanel.vue'
 import Timeline from '@/components/gis/Timeline.vue'
 import ToolOptions from '@/components/gis/ToolOptions.vue'
-import ExpedientePanel from '@/components/gis/ExpedientePanel.vue'
 import AirportPanel from '@/components/gis/AirportPanel.vue'
 
 const router = useRouter()
 const mapStore = useMapStore()
 const flightsStore = useFlightsStore()
 const systemStore = useSystemStore()
-const expedientesStore = useExpedientesStore()
 
 const mapContainer = ref(null)
 const showHelp = ref(false)
@@ -419,9 +412,9 @@ const tools = computed(() =>
 const sideTabs = [
   { id: 'tools', label: 'Herramientas', short: 'Herram.', icon: '\u270E' },
   { id: 'layers', label: 'Capas', short: 'Capas', icon: '\u25A9' },
+  { id: 'objects', label: 'Objetos', short: 'Objetos', icon: '\u25A3' },
   { id: 'flights', label: 'Vuelos', short: 'Vuelos', icon: '\u2708' },
   { id: 'airports', label: 'Aeropuertos', short: 'Aerop.', icon: '\u2316' },
-  { id: 'expediente', label: 'Expediente', short: 'Exped.', icon: '\u25A3' },
 ]
 
 // ─── Panel resizing ──────────────────────────────────────────────────────────
@@ -532,7 +525,6 @@ onMounted(async () => {
     systemStore.checkBackend(),
     flightsStore.probeBackend(),
     mapStore.bootstrap(),
-    expedientesStore.fetchExpedientes(),
   ])
 
   flightsStore.loadWatchlist()
@@ -765,7 +757,13 @@ function handleDraftConfirm() {
 async function handleToolComplete(payload) {
   draftPreview.value = null
   const defaults = {
-    point: { name: `Punto ${new Date().toLocaleTimeString('es-AR')}`, category: 'Referencia' },
+    point: {
+      name: `Punto ${new Date().toLocaleTimeString('es-AR')}`,
+      category: 'Referencia',
+      // La fuente elegida en las opciones viaja como `icon`: sin esto el
+      // backend guarda el valor por defecto y la elección se pierde.
+      icon: mapStore.toolOptions.fuente || 'point',
+    },
     annotation: { name: 'Anotación', category: 'Referencia' },
     circle: { name: 'Círculo' },
     radial: { name: 'Radial' },
@@ -776,11 +774,18 @@ async function handleToolComplete(payload) {
     measurement: { name: 'Medición' },
   }
 
-  await mapStore.createObject({
+  const creado = await mapStore.createObject({
     ...defaults[payload.type],
     ...payload,
   })
   systemStore.setPanel('tools')
+  // El objeto recién dibujado queda seleccionado y el inspector abierto:
+  // se dibuja para detallar, y sin esto al operador le toca buscar el
+  // objeto a mano en la lista antes de poder escribir una sola palabra.
+  if (creado) {
+    mapStore.select(creado.id)
+    if (!systemStore.inspectorOpen) systemStore.toggleInspector()
+  }
 }
 
 function saveMeasurement() {
@@ -1281,10 +1286,8 @@ watch(
 
 /* A tab is an icon over a short label, in a column.
  *
- * `flex: 1 1 0` is what let the five buttons shrink below the width their text
- * needed — which is how Expediente ended up off the edge rather than merely
- * cramped. The width is now `flex: 0 0 auto` and the label is `nowrap`: five
- * tabs that fit, instead of five that try to and one that does not.
+ * The width is `flex: 0 0 auto` and the label is `nowrap`: five tabs that fit,
+ * instead of five that try to and one that does not.
  */
 .gis-tab {
   flex: 0 1 auto;

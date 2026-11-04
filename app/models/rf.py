@@ -186,7 +186,7 @@ class RFEvent(Base):
         Integer, ForeignKey("eventos_rf.id", ondelete="SET NULL"), nullable=True
     )
 
-    object = relationship("MapObject")
+    object = relationship("MapObject", back_populates="rf_event")
 
     def __repr__(self) -> str:
         return f"<RFEvent {self.id} obj={self.object_id} {self.frequency_mhz} MHz>"

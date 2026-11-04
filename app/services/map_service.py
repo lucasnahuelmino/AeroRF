@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import delete, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Query, Session, selectinload
 
 from app.core.geo import (
     circle_points,
@@ -49,6 +49,7 @@ from app.models.constants import (
     TYPE_RF_EVENT,
     TYPE_RF_SOURCE,
 )
+from app.models.expediente import Expediente
 from app.models.layer import Layer
 from app.models.map_object import MapObject
 from app.models.measurement import Measurement
@@ -64,6 +65,12 @@ _HISTORY_SKIP = {
     "fecha_actualizacion",
     "id",
 }
+
+#: Same idea for a type-specific satellite: its own identity columns (`id`,
+#: `object_id`) are plumbing, not values the operator edits. Handing those to
+#: the generic diff is what produced rows saying the parent link had been
+#: deleted (F2-02).
+_SATELLITE_SKIP = _HISTORY_SKIP | {"object_id"}
 
 
 class MapServiceError(ValueError):
@@ -83,6 +90,25 @@ def _scalar(value: Any) -> Optional[str]:
     return str(value)
 
 
+def _mismo_valor(old: Any, new: Any, old_s: str, new_s: str) -> bool:
+    """True when the value did not really change.
+
+    Comparing the rendered strings alone is not enough: `25.0` and `25`
+    render differently but are the same number, so re-sending an integer for
+    a decimal column would write a history row claiming a change that never
+    happened. `old_s`/`new_s` are the pre-rendered strings (they are what
+    history stores, so rendering them twice would be waste).
+    """
+    if old_s == new_s:
+        return True
+    if (
+        isinstance(old, (int, float)) and not isinstance(old, bool)
+        and isinstance(new, (int, float)) and not isinstance(new, bool)
+    ):
+        return float(old) == float(new)
+    return False
+
+
 def _record_history(
     db: Session,
     obj: MapObject,
@@ -97,7 +123,7 @@ def _record_history(
             continue
         new = getattr(obj, field, None)
         old_s, new_s = _scalar(old), _scalar(new)
-        if old_s == new_s:
+        if _mismo_valor(old, new, old_s, new_s):
             continue
         row = ObjectHistory(
             object_id=obj.id,
@@ -112,6 +138,56 @@ def _record_history(
     return rows
 
 
+def record_typed_history(
+    db: Session,
+    obj: MapObject,
+    satellite,
+    prefix: str,
+    before_satellite: dict[str, Any],
+    before_object: dict[str, Any],
+    comment: str | None = None,
+    user: str | None = None,
+) -> list[ObjectHistory]:
+    """Diff a type-specific satellite **and** its parent object (F2-02).
+
+    Both diffs are here for one reason: both are changes the operator caused,
+    and only one of them was being recorded correctly.
+
+    The satellite one compares its **own** snapshot against itself. The
+    generic `_record_history` was being handed `{"rf.power_dbm": 40}` and then
+    did `getattr(obj, "rf.power_dbm")` over the *MapObject*, which carries no
+    such attribute — so every field came back `None`: the history claimed the
+    frequency and the kind had been deleted, while the real change (40 → 41)
+    went unrecorded.
+
+    `before_object` covers the parent's own edits made in the same breath:
+    `update_antenna` copies `azimuth_deg` onto the object and
+    `update_reference` may copy `radius`, and neither used to reach a diff.
+    """
+    rows: list[ObjectHistory] = []
+
+    for field, old in before_satellite.items():
+        if field in _SATELLITE_SKIP:
+            continue
+        new = getattr(satellite, field, None) if satellite is not None else None
+        old_s, new_s = _scalar(old), _scalar(new)
+        if _mismo_valor(old, new, old_s, new_s):
+            continue
+        row = ObjectHistory(
+            object_id=obj.id,
+            field=f"{prefix}.{field}",
+            old_value=old_s,
+            new_value=new_s,
+            comment=comment,
+            user=user,
+        )
+        db.add(row)
+        rows.append(row)
+
+    rows.extend(_record_history(db, obj, before_object, comment=comment, user=user))
+    return rows
+
+
 def _snapshot(obj: MapObject) -> dict[str, Any]:
     return {c.name: getattr(obj, c.name, None) for c in obj.__table__.columns}
 
@@ -122,7 +198,8 @@ def validate_type(object_type: str) -> str:
     t = (object_type or "").strip().lower()
     if t not in OBJECT_TYPES:
         raise MapServiceError(
-            f"Unknown object type {object_type!r}. Valid types: {', '.join(OBJECT_TYPES)}"
+            f"Tipo de objeto desconocido: {object_type}. "
+            f"Tipos válidos: {', '.join(OBJECT_TYPES)}"
         )
     return t
 
@@ -133,7 +210,8 @@ def validate_status(status: Optional[str]) -> Optional[str]:
     s = str(status).strip()
     if s not in OBJECT_STATES:
         raise MapServiceError(
-            f"Unknown status {status!r}. Valid states: {', '.join(OBJECT_STATES)}"
+            f"Estado desconocido: {status}. "
+            f"Estados válidos: {', '.join(OBJECT_STATES)}"
         )
     return s
 
@@ -188,10 +266,13 @@ def create_object(
     """Create one map object with its type-specific payload and history."""
     otype = validate_type(object_type)
 
+    if expediente_id is not None:
+        _existe_referencia(db, Expediente, expediente_id, "el expediente")
+
     if latitude is not None and longitude is not None:
         if not valid_latlon(latitude, longitude):
             raise MapServiceError(
-                f"Invalid WGS84 coordinate: lat={latitude}, lon={longitude}"
+                f"Coordenada WGS84 inválida: lat={latitude}, lon={longitude}"
             )
 
     # Normalise units once, at the edge, so the database only ever holds
@@ -279,6 +360,18 @@ def create_object(
     return obj
 
 
+def _existe_referencia(
+    db: Session, modelo, identificador: int, etiqueta: str
+) -> None:
+    """Una FK no inventa su destino: si el registro no existe, no se escribe.
+
+    Antes esto llegaba al commit y estallaba en ``IntegrityError`` → 500;
+    ahora el operador ve cuál de los dos referentes falta (F2-05).
+    """
+    if db.query(modelo.id).filter(modelo.id == identificador).first() is None:
+        raise MapServiceError(f"No existe {etiqueta} {identificador}.")
+
+
 def _resolve_layer_id(
     db: Session,
     layer_id: Optional[int],
@@ -286,6 +379,7 @@ def _resolve_layer_id(
     otype: str,
 ) -> Optional[int]:
     if layer_id is not None:
+        _existe_referencia(db, Layer, layer_id, "la capa")
         return layer_id
     if layer_key:
         layer = db.query(Layer).filter(Layer.key == layer_key).first()
@@ -402,20 +496,21 @@ def get_object(db: Session, object_id: int) -> Optional[MapObject]:
     )
 
 
-def list_objects(
+def _filtered_objects_query(
     db: Session,
     types: Optional[Iterable[str]] = None,
     layer_id: Optional[int] = None,
     layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
     expediente_id: Optional[int] = None,
     status: Optional[str] = None,
     visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
     bbox: Optional[tuple[float, float, float, float]] = None,
     search: Optional[str] = None,
-    limit: int = 1000,
-    offset: int = 0,
-) -> list[MapObject]:
-    """Filtered listing used by the map's initial load and the inspector."""
+) -> Query[MapObject]:
+    """Build the shared filter query for object lists and counts."""
     q = db.query(MapObject).options(
         selectinload(MapObject.layer),
         selectinload(MapObject.rf_source),
@@ -431,12 +526,20 @@ def list_objects(
         q = q.filter(MapObject.layer_id == layer_id)
     if layer_key:
         q = q.join(Layer, MapObject.layer_id == Layer.id).filter(Layer.key == layer_key)
+    if layer_missing is True:
+        q = q.filter(MapObject.layer_id.is_(None))
+    elif layer_missing is False:
+        q = q.filter(MapObject.layer_id.isnot(None))
     if expediente_id is not None:
         q = q.filter(MapObject.expediente_id == expediente_id)
     if status:
         q = q.filter(MapObject.status == validate_status(status))
     if visible is not None:
         q = q.filter(MapObject.visible == visible)
+    if category:
+        q = q.filter(MapObject.category == category)
+    if source:
+        q = q.filter(MapObject.source == source)
 
     if bbox is not None:
         lat_min, lon_min, lat_max, lon_max = bbox
@@ -451,17 +554,90 @@ def list_objects(
 
     if search:
         pattern = f"%{search.strip()}%"
-        q = q.filter(
-            or_(
-                MapObject.name.ilike(pattern),
-                MapObject.description.ilike(pattern),
-                MapObject.category.ilike(pattern),
-                MapObject.label.ilike(pattern),
-            )
+        term = search.strip()
+        numeric_id = int(term) if term.isdecimal() else None
+        text_match = or_(
+            MapObject.name.ilike(pattern),
+            MapObject.description.ilike(pattern),
+            MapObject.category.ilike(pattern),
+            MapObject.label.ilike(pattern),
         )
+        if numeric_id is not None and _is_storable_id(numeric_id):
+            q = q.filter(or_(MapObject.id == numeric_id, text_match))
+        else:
+            q = q.filter(text_match)
 
-    q = q.order_by(MapObject.z_index, MapObject.id)
-    return q.limit(max(1, min(limit, 5000))).offset(max(0, offset)).all()
+    return q
+
+
+def list_objects(
+    db: Session,
+    types: Optional[Iterable[str]] = None,
+    layer_id: Optional[int] = None,
+    layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
+    expediente_id: Optional[int] = None,
+    status: Optional[str] = None,
+    visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    search: Optional[str] = None,
+    limit: int = 1000,
+    offset: int = 0,
+) -> list[MapObject]:
+    """Filtered listing used by the map and object administrator."""
+    return (
+        _filtered_objects_query(
+            db,
+            types=types,
+            layer_id=layer_id,
+            layer_key=layer_key,
+            layer_missing=layer_missing,
+            expediente_id=expediente_id,
+            status=status,
+            visible=visible,
+            category=category,
+            source=source,
+            bbox=bbox,
+            search=search,
+        )
+        .order_by(MapObject.z_index, MapObject.id)
+        .limit(max(1, min(limit, 5000)))
+        .offset(max(0, offset))
+        .all()
+    )
+
+
+def count_objects(
+    db: Session,
+    types: Optional[Iterable[str]] = None,
+    layer_id: Optional[int] = None,
+    layer_key: Optional[str] = None,
+    layer_missing: Optional[bool] = None,
+    expediente_id: Optional[int] = None,
+    status: Optional[str] = None,
+    visible: Optional[bool] = None,
+    category: Optional[str] = None,
+    source: Optional[str] = None,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    search: Optional[str] = None,
+) -> int:
+    """Count all objects matching the same filters as ``list_objects``."""
+    return _filtered_objects_query(
+        db,
+        types=types,
+        layer_id=layer_id,
+        layer_key=layer_key,
+        layer_missing=layer_missing,
+        expediente_id=expediente_id,
+        status=status,
+        visible=visible,
+        category=category,
+        source=source,
+        bbox=bbox,
+        search=search,
+    ).order_by(None).count()
 
 
 # ─── Update (spec §8, §40) ───────────────────────────────────────────────────
@@ -480,6 +656,24 @@ MUTABLE_FIELDS = {
 _UNIT_FIELDS = {"radius_unit", "length_unit"}
 
 
+def require_unlocked(obj: MapObject, patch: dict[str, Any]) -> None:
+    """Raise unless ``patch`` may touch a locked object.
+
+    A locked object refuses every edit *except* unlocking itself — otherwise
+    it could never be reopened, which would make the lock a one-way trap.
+
+    It lives here, outside `update_object`, because the gate has to run
+    **before** anything is written: the four RF views used to write their
+    satellite and commit it first, and only then reach `update_object`
+    (F2-01) — a locked object's frequency could be edited by a body that
+    carried nothing but RF fields.
+    """
+    if obj.locked and not (set(patch) == {"locked"} and patch["locked"] is False):
+        raise MapServiceError(
+            f"El objeto {obj.id} está bloqueado. Desbloquéalo antes de editar."
+        )
+
+
 def update_object(
     db: Session,
     object_id: int,
@@ -490,23 +684,46 @@ def update_object(
     """Apply a partial update, recording every changed field in history."""
     obj = get_object(db, object_id)
     if obj is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
 
     before = _snapshot(obj)
     unknown = set(patch) - MUTABLE_FIELDS
     if unknown:
         raise MapServiceError(
-            f"Unknown field(s): {', '.join(sorted(unknown))}. "
-            f"Editable: {', '.join(sorted(MUTABLE_FIELDS))}"
+            f"Campo(s) desconocido(s): {', '.join(sorted(unknown))}. "
+            f"Editables: {', '.join(sorted(MUTABLE_FIELDS))}"
         )
 
-    # A locked object refuses every edit *except* unlocking itself —
-    # otherwise it could never be reopened, which would make the lock a
-    # one-way trap.
-    if obj.locked and not (set(patch) == {"locked"} and patch["locked"] is False):
-        raise MapServiceError(
-            f"Object {object_id} is locked. Unlock it before editing."
+    require_unlocked(obj, patch)
+
+    # Primero se valida el patch completo y recién después se escribe: un
+    # null en una columna NOT NULL no puede significar «borrar el valor»
+    # (se escribía y SQLite respondía con IntegrityError → 500), y una FK
+    # apuntando a lo que no existe tampoco llega hasta el commit (F2-05).
+    for campo, valor in patch.items():
+        columna = MapObject.__table__.columns.get(campo)
+        if valor is None and columna is not None and not columna.nullable:
+            raise MapServiceError(
+                f"El campo {campo} no admite null: es obligatorio."
+            )
+    if patch.get("layer_id") is not None:
+        _existe_referencia(db, Layer, patch["layer_id"], "la capa")
+    if patch.get("expediente_id") is not None:
+        _existe_referencia(
+            db, Expediente, patch["expediente_id"], "el expediente"
         )
+
+    # Rechazar una geometría rota antes de guardarla, igual que en el alta
+    # (F2-06): `create_object` ya la validaba y el update era la puerta que
+    # quedó abierta — el docstring de `validate_geometry` hasta prometía
+    # estar en ambos caminos. Un anillo malo guardado «feliz» no rompía el
+    # commit: hacía que el objeto desapareciera del mapa como «sin
+    # geometría derivable», sin decirle al operador por qué.
+    if patch.get("geometry") is not None:
+        try:
+            gjs.validate_geometry(patch["geometry"])
+        except gjs.GeometryError as exc:
+            raise MapServiceError(str(exc)) from exc
 
     for field, value in patch.items():
         if value is None and field not in {"description", "label", "name"}:
@@ -523,7 +740,7 @@ def update_object(
             lon = value if field == "longitude" else obj.longitude
             if lat is not None and lon is not None and not valid_latlon(lat, lon):
                 raise MapServiceError(
-                    f"Invalid WGS84 coordinate: lat={lat}, lon={lon}"
+                    f"Coordenada WGS84 inválida: lat={lat}, lon={lon}"
                 )
         setattr(obj, field, value)
 
@@ -568,7 +785,7 @@ def move_object(
 ) -> MapObject:
     """Reposition an object (drag on the map)."""
     if not valid_latlon(latitude, longitude):
-        raise MapServiceError(f"Invalid WGS84 coordinate: {latitude}, {longitude}")
+        raise MapServiceError(f"Coordenada WGS84 inválida: {latitude}, {longitude}")
     return update_object(
         db, object_id,
         {"latitude": latitude, "longitude": longitude},
@@ -587,7 +804,7 @@ def duplicate_object(
     """Copy an object, optionally offset so both are visible (spec §8)."""
     src = get_object(db, object_id)
     if src is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
 
     new_props = dict(src.properties or {})
     # Copy vertex-level shapes so the duplicate is independent.
@@ -631,6 +848,9 @@ def duplicate_object(
         antenna=_payload_dict(src.antenna),
         reference=_payload_dict(src.reference),
         measurement=_payload_dict(src.measurement),
+        # El evento era el único satélite que el duplicado se quedaba sin
+        # copiar: `event=` existía en `create_object` desde el origen.
+        event=_payload_dict(src.rf_event),
     )
     return new_obj
 
@@ -650,26 +870,32 @@ def _payload_dict(satellite) -> Optional[dict]:
 def delete_object(
     db: Session, object_id: int, cascade: bool = False, user: Optional[str] = None
 ) -> None:
-    """Delete one object, refusing when it still has dependants.
+    """Delete one object, refusing when it still has protectors.
 
     Notes and history cascade with the object (they cannot exist without
-    it). An object referenced by an expediente, or carrying a linked
-    flight/track relation, is refused unless ``cascade=True``, so an
-    operator cannot quietly destroy part of a case file.
+    it). A **locked** object, an object that belongs to an expediente, or
+    one that is part of a parent/child group, is refused unless
+    ``cascade=True``, so an operator cannot quietly destroy part of a case
+    file or slip past the lock that already blocks editing (F2-04).
     """
     obj = _find_by_id(db, object_id)
     if obj is None:
         return
 
+    # F2-04: el candado faltaba. El expediente y el padre ya bloqueaban,
+    # pero un objeto cerrado se borraba sin más, aunque editar estuviera
+    # vetado — dos protecciones distintas para el mismo objeto.
     blockers: list[str] = []
+    if obj.locked and not cascade:
+        blockers.append("está bloqueado")
     if obj.expediente_id and not cascade:
-        blockers.append(f"belongs to expediente {obj.expediente_id}")
+        blockers.append(f"pertenece al expediente {obj.expediente_id}")
     if obj.parent_id and not cascade:
-        blockers.append(f"is a child of object {obj.parent_id}")
+        blockers.append(f"es hijo del objeto {obj.parent_id}")
     if blockers:
         raise MapServiceError(
-            f"Object {object_id} cannot be deleted: {'; '.join(blockers)}. "
-            "Pass cascade=true to remove it anyway."
+            f"No se puede borrar el objeto {object_id}: {'; '.join(blockers)}. "
+            "Pasa cascade=true para borrarlo igual."
         )
 
     otype = obj.type
@@ -682,16 +908,66 @@ def delete_object(
 
 
 def clear_layer(db: Session, layer_id: int, cascade: bool = False) -> int:
-    """Remove every object in a layer. Requires ``cascade=True``."""
+    """Borra los objetos **libres** de una capa. Requiere ``cascade=True``.
+
+    F2-04: el ``delete()`` masivo iba filtrado sólo por ``layer_id`` y se
+    llevaba bloqueados, vinculados a un expediente y, con ellos, las notas
+    y el historial que los ``ON DELETE CASCADE`` destruían sin vuelta
+    atrás. Lo protegido queda donde está:
+
+    * ``locked`` — el candado protege el borrado igual que protege la
+      edición;
+    * ``expediente_id`` — arrancar así una pieza de un caso;
+    * ``parent_id``, o ser el padre de otro objeto — no se parte un grupo.
+
+    Devuelve cuántos borró. Los que quedan los cuenta la ruta, que es
+    quien decide si la capa puede borrarse o si hay que contestar 409.
+    """
     if not cascade:
         raise MapServiceError(
-            "clear_layer requires cascade=true; it deletes every object in the layer."
+            "clear_layer requiere cascade=true: borra los objetos libres de la capa."
         )
-    count = db.query(MapObject).filter(MapObject.layer_id == layer_id).delete(
-        synchronize_session=False
+
+    candidatos = (
+        db.query(
+            MapObject.id, MapObject.locked, MapObject.expediente_id,
+            MapObject.parent_id,
+        )
+        .filter(MapObject.layer_id == layer_id)
+        .all()
     )
+    # Un padre no se va solo: si su hijo se queda, el `ON DELETE SET NULL`
+    # le borraría el vínculo en silencio.
+    padres = {
+        pid
+        for (pid,) in db.query(MapObject.parent_id)
+        .filter(MapObject.parent_id.isnot(None))
+        .distinct()
+    }
+    libres = [
+        oid
+        for oid, locked, expediente_id, parent_id in candidatos
+        if not locked
+        and expediente_id is None
+        and parent_id is None
+        and oid not in padres
+    ]
+
+    count = 0
+    if libres:
+        count = (
+            db.query(MapObject)
+            .filter(MapObject.id.in_(libres))
+            .delete(synchronize_session=False)
+        )
     db.commit()
-    object_log.warning("layer.cleared", "layer cleared", layer_id=layer_id, removed=count)
+    object_log.warning(
+        "layer.cleared",
+        "layer cleared",
+        layer_id=layer_id,
+        removed=count,
+        kept=len(candidatos) - count,
+    )
     return count
 
 
@@ -705,9 +981,9 @@ def add_note(
 ) -> ObjectNote:
     """Append a note. There is no update path, by design."""
     if not (text or "").strip():
-        raise MapServiceError("A note cannot be empty.")
+        raise MapServiceError("La nota no puede quedar vacía.")
     if _find_by_id(db, object_id) is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
 
     note = ObjectNote(object_id=object_id, text=text.strip(), user=user)
     db.add(note)
@@ -770,7 +1046,7 @@ def add_annotation(
 ) -> Annotation:
     obj = _find_by_id(db, object_id)
     if obj is None:
-        raise MapServiceError(f"Object {object_id} not found")
+        raise MapServiceError(f"No existe el objeto {object_id}.")
     ann = Annotation(
         object_id=object_id,
         text=(text or "").strip(),

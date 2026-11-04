@@ -1,6 +1,6 @@
 # Manual de uso — AeroRF
 
-Guía de las cinco secciones y las diez herramientas del mapa. Para quien opera
+Guía de las tres secciones y las diez herramientas del mapa. Para quien opera
 la herramienta, no para quien la mantiene.
 
 > Para instalar y para el diseño interno, ver **[README.md](README.md)** y
@@ -33,7 +33,7 @@ altura al mapa.
 | Elemento | Qué hace |
 |---|---|
 | Marca **AeroRF** | Vuelve al mapa, que es la pantalla principal. |
-| **Mapa · Panel · Expedientes · Calculadora RF · Espectro** | Navegación. El elemento activo lleva un filo celeste. |
+| **Mapa · Expedientes · Calculadora RF** | Navegación. El elemento activo lleva un filo celeste. |
 | **Tres puntos** | Estado: backend, OpenSky, canal de vuelos en vivo. Verde = bien, ámbar = atención, gris = inactivo. Pasá el cursor sobre cada uno para el detalle. |
 | **ENACOM** | Lockup institucional: Dirección Nacional de Control y Fiscalización. |
 
@@ -72,8 +72,11 @@ cantidad de objetos. El bloqueo impide editar lo que contiene.
 **Vuelos.** Búsqueda en OpenSky, lista de seguimiento de hasta 5 aeronaves,
 grabación de trayectorias y reproducción.
 
-**Aeropuertos.** 67 aeródromos de 8 países, con filtro por país y distancia
-desde un aeropuerto a cualquier punto del mapa.
+**Aeropuertos.** Lo publicado (105 aeródromos de 8 países) sumado a los
+sitios de su propia lista —EAVA, CCTE, aeroclubs—, con filtro por país y
+distancia desde un aeropuerto a cualquier punto del mapa. Los aeropuertos
+se dibujan con un avión: para cambiar el dibujo basta con reemplazar
+`frontend/public/iconos/aeropuerto.svg` (mismo nombre, ver `LEEME.txt`).
 
 **Expediente.** Vincular los objetos del mapa a un expediente en curso.
 
@@ -103,6 +106,14 @@ de la herramienta activa.
 | **Seleccionar** | Clic en un objeto para inspeccionarlo. Clic en vacío para deseleccionar. | — |
 | **Punto** | Un clic en el mapa. | Un punto. |
 | **Anotación** | Un clic, después escribí el texto. | Una nota geolocalizada. |
+
+**La fuente del punto.** Al elegir **Punto**, las opciones muestran
+**Fuente del punto**: Sin fuente (punto simple), FM, TPRS u Otra fuente. La
+fuente se dibuja con su propio icono en el mapa, y también se cambia después
+desde el inspector, sobre un punto ya dibujado. Los dibujos viven en
+`frontend/public/iconos/` (`fm.svg`, `tprs.svg`, `otro.svg`): para cambiar
+uno, reemplace el archivo conservando el nombre (instrucciones en
+`LEEME.txt`).
 
 ### Herramientas de forma
 
@@ -137,18 +148,7 @@ lector entender la otra.
 
 ---
 
-## Sección 2 — Panel
-
-Estado del sistema en un vistazo: cuántos objetos hay en el mapa, cuántos
-expedientes están abiertos, cuántas fuentes y eventos RF, cuántas aeronaves
-están en seguimiento.
-
-Si OpenSky no está configurado, aparece arriba un aviso que explica qué
-configurar. El resto de la herramienta funciona igual sin eso.
-
----
-
-## Sección 3 — Expedientes
+## Sección 2 — Expedientes
 
 Un expediente es un caso de investigación: un conjunto de objetos del mapa,
 notas, mediciones y Radio_events, con su historial.
@@ -165,23 +165,29 @@ y el nuevo. No se puede perder: es lo que sostiene una denuncia.
 
 ---
 
-## Sección 4 — Calculadora RF
+## Sección 3 — Calculadora RF
 
 Motor de cálculo de frecuencias, sin mapa. Para el trabajo de gabinete.
 
 - **Armónicos:** hasta qué frecuencia llega un equipo, y a qué nivel.
 - **Intermodulación:** qué combinaciones de dos frecuencias generan una tercera
   no deseable, y cuál de ellas cae dentro de una banda aeronáutica.
-- **Bandas aeronáuticas:** referencia de las bandas banda de vuelo.
+- **Bandas aeronáuticas:** referencia de las bandas de vuelo.
 
-Los resultados se pueden copiar al expediente como texto.
+### Guardar un resultado en un expediente
 
----
+1. Haga el cálculo y seleccione el resultado que le interesa.
+2. En **Análisis detallado**, elija el **expediente de destino** en el
+   desplegable. Si la lista está vacía, cree primero un expediente desde
+   **Expedientes**.
+3. Pulse **Guardar en Expediente**. El aviso de abajo confirma en qué
+   expediente quedó y con qué número de evento. Si algo falla, el aviso lo
+   dice en rojo y no se guardó nada.
 
-## Sección 5 — Espectro
-
-Análisis espectral de las mediciones registradas. Carga un archivo de captura y
-muestra su contenido espectral. Para las mediciones que llegan del instrumental.
+Los resultados guardados aparecen en **Expedientes → detalle → Análisis RF →
+Guardados en este expediente**. Se guardan en la base, así que siguen ahí
+cuando vuelve a entrar, a diferencia de **Resultados del último cálculo**, que
+es lo que arrojó el cálculo de esta sesión y se pierde al salir.
 
 ---
 
@@ -242,15 +248,25 @@ medida, y AeroRF no lo guarda.
 
 **¿Dónde queda lo que dibujo?**
 Todo objeto del mapa se guarda en la base de datos, con su historial. Los
-aeropuertos **no**: son datos de referencia publicados, y se redibujan desde un
-archivo en cada arranque. Por eso no puede editarlos ni borrarlos, y es
-intencional: un punto de referencia no es una medición suya.
+aeropuertos y los sitios de su lista **no**: son datos de referencia —
+publicados y su propia lista — y se redibujan desde los archivos en cada
+arranque. Por eso no puede editarlos ni borrarlos, y es intencional: un
+punto de referencia no es una medición suya.
+
+**¿Y si borro algo por error?**
+AeroRF guarda una copia de la base de datos en la carpeta `respaldos`, dentro de
+la carpeta del proyecto, **cada vez que arranca** y antes de escribir nada. Se
+conservan las 10 más recientes; las más viejas se reemplazan solas. Para volver
+a un estado anterior: cierre AeroRF, renombre el `aerorf.db` actual y ponga en su
+lugar la copia que quiera, quitándole la fecha del nombre. La copia se hace con
+el propio SQLite, de modo que incluye lo último escrito aunque el servidor
+estuviera corriendo.
 
 **Los datos de OpenSky no coinciden con lo que veo en el radar.**
 La resolución de los tracks de OpenSky no es de un punto por segundo. Un vuelo
-típico tiene un punto cada decenas de segundos, y y más separados cuando el avión no cambia de
-rumbo. La respuesta de la API indica cuántos puntos hay y cada cuánto: lea ese
-dato antes de concluir que falta información.
+típico tiene un punto cada decenas de segundos, y más separados cuando el avión
+no cambia de rumbo. La respuesta de la API indica cuántos puntos hay y cada
+cuánto: lea ese dato antes de concluir que falta información.
 
 **¿AeroRF guarda mis búsquedas?**
 Guarda los objetos que usted crea, con su historial. Las consultas a OpenSky

@@ -1,14 +1,14 @@
 <template>
   <div class="p-2 space-y-4">
     <!-- Active tool + hint -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
       <div class="mb-1 flex items-center gap-2">
         <span class="text-sm">{{ TOOL_META[mapStore.activeTool]?.icon }}</span>
-        <h3 class="text-xs font-semibold uppercase tracking-widest text-slate-300">
+        <h3 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">
           {{ TOOL_META[mapStore.activeTool]?.label || 'Seleccionar' }}
         </h3>
       </div>
-      <p class="text-[11px] leading-relaxed text-slate-400">
+      <p class="text-[11px] leading-relaxed text-texto-tenue">
         {{ mapStore.toolHint || 'Seleccione una herramienta de la barra superior.' }}
       </p>
       <button
@@ -21,8 +21,8 @@
     </section>
 
     <!-- Unit choice (spec §10, §13, §36) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
         Unidades
       </h3>
       <div class="grid grid-cols-3 gap-1">
@@ -37,14 +37,14 @@
           {{ unit.id.toUpperCase() }}
         </button>
       </div>
-      <p class="mt-2 text-[10px] text-slate-500">
+      <p class="mt-2 text-[10px] text-texto-tenue">
         1 NM = 1,852 km = 1852 m
       </p>
     </section>
 
     <!-- Circle radius (spec §10, §36) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
         Radio del círculo
       </h3>
       <!--
@@ -66,7 +66,7 @@
           type="number"
           min="0.01"
           step="0.5"
-          class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100"
+          class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-xs text-texto"
           @change="applyRadius"
         />
         <span class="text-xs font-semibold text-blue-300 uppercase">
@@ -85,7 +85,7 @@
           {{ preset }}
         </button>
       </div>
-      <p class="mt-2 rounded bg-slate-950/60 px-2 py-1 font-mono text-[11px] text-emerald-300">
+      <p class="mt-2 rounded bg-on-ink-wash px-2 py-1 font-mono text-[11px] text-emerald-300">
         {{ radiusValue }} {{ mapStore.toolOptions.unit.toUpperCase() }}
         = {{ equivalent(mapStore.toolOptions.radius) }} km
       </p>
@@ -100,12 +100,12 @@
     -->
     <section
       v-if="mapStore.activeTool === 'circle' || mapStore.activeTool === 'radial'"
-      class="rounded-lg border border-slate-800 bg-slate-900/60 p-2"
+      class="rounded-lg border border-borde bg-on-ink-wash p-2"
     >
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
         Tamaño
       </h3>
-      <label class="flex items-start gap-2 text-[11px] text-slate-300">
+      <label class="flex items-start gap-2 text-[11px] text-texto-medio">
         <input
           type="checkbox"
           :checked="mapStore.toolOptions.useTyped"
@@ -114,7 +114,7 @@
         />
         <span>
           Usar el valor del panel
-          <span class="mt-0.5 block text-[10px] leading-snug text-slate-500">
+          <span class="mt-0.5 block text-[10px] leading-snug text-texto-tenue">
             {{
               mapStore.toolOptions.useTyped
                 ? 'Un clic y listo. La herramienta sigue armada para el siguiente.'
@@ -125,9 +125,38 @@
       </label>
     </section>
 
+    <!--
+      La fuente del punto (0.30.31). El valor del selector es el campo
+      `icon` del objeto y también el nombre del archivo en `public/iconos/`:
+      cambiar el dibujo es reemplazar el archivo, sin tocar código. Sólo
+      aparece con la herramienta punto —la fuente es asunto del punto que se
+      va a dibujar— y queda elegida para el próximo.
+    -->
+    <section
+      v-if="mapStore.activeTool === 'point'"
+      class="rounded-lg border border-borde bg-on-ink-wash p-2"
+    >
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
+        Fuente del punto
+      </h3>
+      <select
+        :value="mapStore.toolOptions.fuente || 'point'"
+        class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-xs text-texto"
+        @change="mapStore.setToolOption('fuente', $event.target.value)"
+      >
+        <option value="point">Sin fuente (punto simple)</option>
+        <option value="fm">FM</option>
+        <option value="tprs">TPRS</option>
+        <option value="otro">Otra fuente</option>
+      </select>
+      <p class="mt-1 text-[10px] leading-snug text-texto-tenue">
+        El dibujo vive en public/iconos: cambiarlo es reemplazar el archivo.
+      </p>
+    </section>
+
     <!-- Radial (spec §11, §37) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
         Radial
       </h3>
       <!--
@@ -143,7 +172,7 @@
         {{ liveRadial.azimuth.toFixed(1) }}° {{ liveRadial.compass }} ·
         {{ liveRadial.value }}
       </p>
-      <label class="mb-1 block text-[10px] text-slate-500">Azimut (° desde el norte)</label>
+      <label class="mb-1 block text-[10px] text-texto-tenue">Azimut (° desde el norte)</label>
       <div class="mb-2 flex items-center gap-2">
         <input
           v-model.number="azimuth"
@@ -151,7 +180,7 @@
           min="0"
           max="360"
           step="1"
-          class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100"
+          class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-xs text-texto"
           @change="applyAzimuth"
         />
         <span class="w-9 text-right font-mono text-[11px] text-purple-300">
@@ -167,7 +196,7 @@
         class="mb-2 w-full accent-purple-500"
         @input="applyAzimuth(Number($event.target.value))"
       />
-      <label class="mb-1 block text-[10px] text-slate-500">
+      <label class="mb-1 block text-[10px] text-texto-tenue">
         Longitud ({{ mapStore.toolOptions.unit.toUpperCase() }})
       </label>
       <div class="flex items-center gap-2">
@@ -176,7 +205,7 @@
           type="number"
           min="0.01"
           step="0.5"
-          class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100"
+          class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-xs text-texto"
           @change="applyLength"
         />
         <span class="text-xs font-semibold text-purple-300 uppercase">
@@ -186,11 +215,11 @@
     </section>
 
     <!-- Quick create from the last click (spec §7 method B) -->
-    <section class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+    <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
         Crear en posición manual
       </h3>
-      <p class="mb-2 text-[10px] text-slate-500">
+      <p class="mb-2 text-[10px] text-texto-tenue">
         Método B: introducir latitud y longitud a mano en vez de hacer clic.
       </p>
       <div class="mb-2 grid grid-cols-2 gap-1.5">
@@ -199,14 +228,14 @@
           type="number"
           step="0.000001"
           placeholder="Latitud"
-          class="rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+          class="rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
         />
         <input
           v-model.number="manualLon"
           type="number"
           step="0.000001"
           placeholder="Longitud"
-          class="rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-[11px] text-slate-100"
+          class="rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 font-mono text-[11px] text-texto"
         />
       </div>
       <div class="grid grid-cols-2 gap-1">
@@ -224,8 +253,8 @@
     </section>
 
     <!-- Object census -->
-    <section v-if="mapStore.stats" class="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-300">
+    <section v-if="mapStore.stats" class="rounded-lg border border-borde bg-on-ink-wash p-2">
+      <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
         Objetos por tipo
       </h3>
       <ul class="space-y-1">
@@ -234,11 +263,11 @@
           :key="type"
           class="flex items-center justify-between text-[11px]"
         >
-          <span class="flex items-center gap-1.5 text-slate-400">
+          <span class="flex items-center gap-1.5 text-texto-tenue">
             <i class="h-2 w-2 rounded-full" :style="{ background: colorOf(type) }" />
             {{ typeName(type) }}
           </span>
-          <span class="font-mono text-slate-200">{{ count }}</span>
+          <span class="font-mono text-texto">{{ count }}</span>
         </li>
       </ul>
     </section>
@@ -424,7 +453,7 @@ async function createManually(preset) {
     antenna: { ...base, type: 'antenna', antenna: { kind: 'Omnidireccional' } },
     rf_event: { ...base, type: 'rf_event', event: { classification: 'Emisión no identificada' } },
     annotation: { ...base, type: 'annotation' },
-    point: { ...base, type: 'point' },
+    point: { ...base, type: 'point', icon: mapStore.toolOptions.fuente || 'point' },
   }
 
   const created = await mapStore.createObject(payloads[preset.type])

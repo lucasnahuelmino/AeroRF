@@ -11,7 +11,7 @@
     of the app: the map engine holds Leaflet, the components hold the DOM.
   -->
   <div class="flex flex-col gap-3 p-2">
-    <label class="flex items-center gap-2 text-[11px] text-slate-300">
+    <label class="flex items-center gap-2 text-[11px] text-texto-medio">
       <input
         type="checkbox"
         :checked="visible"
@@ -21,7 +21,7 @@
       Mostrar capa
     </label>
 
-    <label class="flex items-center gap-2 text-[11px] text-slate-300">
+    <label class="flex items-center gap-2 text-[11px] text-texto-medio">
       <input
         type="checkbox"
         :checked="labels"
@@ -34,7 +34,7 @@
     <!-- What the two symbol families mean. The layer now carries every
          aerodrome in the country, so a blue dot and an amber dot have to be
          told apart, and the difference is the source's own classification. -->
-    <ul class="space-y-1 border-t border-slate-800 pt-2 text-[10px] text-slate-500">
+    <ul class="space-y-1 border-t border-borde pt-2 text-[10px] text-texto-tenue">
       <li class="flex items-center gap-1.5">
         <span class="inline-block h-2 w-2 rounded-full border border-sky-400 bg-sky-500/50" />
         Con tráfico: EZE, AEP y regionales con vuelo regular
@@ -46,12 +46,12 @@
       <li>Referencia publicada, no medida por AeroRF.</li>
     </ul>
 
-    <div class="border-t border-slate-800 pt-2">
+    <div class="border-t border-borde pt-2">
       <div class="mb-1 flex items-center justify-between">
-        <span class="text-[10px] uppercase tracking-widest text-slate-500">
+        <span class="text-[10px] uppercase tracking-widest text-texto-tenue">
           Países
         </span>
-        <span class="text-[10px] text-slate-500">{{ drawn }}/{{ total }}</span>
+        <span class="text-[10px] text-texto-tenue">{{ drawn }}/{{ total }}</span>
       </div>
       <div class="flex flex-wrap gap-1">
         <button
@@ -61,7 +61,7 @@
           :class="
             active.has(c.code)
               ? 'border-blue-500 bg-blue-600/25 text-blue-200'
-              : 'border-slate-700 text-slate-500 hover:text-slate-300'
+              : 'border-borde-fuerte text-texto-tenue hover:text-texto-medio'
           "
           :title="`${c.label}: ${c.count} aeródromos`"
           @click="emit('toggle-country', c.code)"
@@ -69,22 +69,22 @@
           {{ c.code }}
         </button>
       </div>
-      <p v-if="active.size" class="mt-1.5 text-[10px] text-slate-500">
+      <p v-if="active.size" class="mt-1.5 text-[10px] text-texto-tenue">
         Filtro activo. Desmarcando todos se muestran todos.
       </p>
     </div>
 
-    <div class="border-t border-slate-800 pt-2">
-      <span class="text-[10px] uppercase tracking-widest text-slate-500">
+    <div class="border-t border-borde pt-2">
+      <span class="text-[10px] uppercase tracking-widest text-texto-tenue">
         Distancia desde aeropuerto
       </span>
-      <p class="mb-1.5 mt-1 text-[10px] text-slate-500">
+      <p class="mb-1.5 mt-1 text-[10px] text-texto-tenue">
         Código ICAO o IATA, después un clic en el punto de destino.
       </p>
       <div class="flex gap-1">
         <input
           v-model="code"
-          class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-1.5 py-1 font-mono text-[11px] uppercase text-slate-200 outline-none focus:border-blue-500"
+          class="min-w-0 flex-1 rounded border border-borde-fuerte bg-panel-hondo px-1.5 py-1 font-mono text-[11px] uppercase text-texto outline-none focus:border-blue-500"
           placeholder="SAEZ"
           maxlength="4"
           @keyup.enter="arm"
@@ -107,19 +107,19 @@
 
       <div
         v-if="result"
-        class="mt-1.5 rounded bg-slate-950/60 p-1.5 text-[10px]"
+        class="mt-1.5 rounded bg-on-ink-wash p-1.5 text-[10px]"
       >
-        <div class="font-mono text-slate-200">
+        <div class="font-mono text-texto">
           {{ result.airport.icao }} → {{ result.km.toFixed(2) }} km
         </div>
-        <div class="text-slate-500">
+        <div class="text-texto-tenue">
           {{ result.nm.toFixed(2) }} NM · rumbo {{ result.bearing.toFixed(0) }}°
           {{ result.bearing_cardinal }}
         </div>
       </div>
     </div>
 
-    <p class="text-[10px] leading-snug text-slate-600">
+    <p class="text-[10px] leading-snug text-texto-invisible">
       Puntos de referencia publicados, no mediciones de AeroRF.
     </p>
   </div>

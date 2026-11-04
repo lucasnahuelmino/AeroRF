@@ -1,11 +1,11 @@
 <template>
-  <div class="bg-slate-800 border border-slate-700 rounded-lg p-6">
+  <div class="bg-panel-alto border border-borde-fuerte rounded-lg p-6">
     <h3 class="text-lg font-semibold mb-4">{{ title }}</h3>
     <div class="space-y-3">
       <div
         v-for="(result, idx) in results"
         :key="idx"
-        class="p-4 bg-slate-700 rounded border-l-4"
+        class="p-4 bg-on-ink-wash rounded border-l-4"
         :class="getScoreClass(result.score)"
       >
         <div class="flex justify-between items-start mb-2">
@@ -13,7 +13,7 @@
             <div class="font-mono text-lg font-semibold" :class="getFormulaClass(result.score)">
               {{ result.formula }}
             </div>
-            <div class="text-sm text-slate-400 mt-1">{{ result.tipo }}</div>
+            <div class="text-sm text-texto-tenue mt-1">{{ result.tipo }}</div>
           </div>
           <div class="text-right">
             <div class="text-2xl font-bold text-success">{{ result.score }}%</div>
@@ -22,18 +22,18 @@
 
         <div class="grid grid-cols-3 gap-3 text-sm mb-2">
           <div>
-            <span class="text-slate-400">Resultado:</span>
+            <span class="text-texto-tenue">Resultado:</span>
             <div class="font-semibold text-sky-600">{{ (result.result_mhz ?? result.resultado)?.toFixed(3) }} MHz</div>
           </div>
           <div>
-            <span class="text-slate-400">Error:</span>
+            <span class="text-texto-tenue">Error:</span>
             <div :class="(result.error_khz ?? 0) < 5 ? 'text-success' : 'text-warning'">
               {{ (result.error_khz ?? 0)?.toFixed(2) }} kHz
             </div>
           </div>
           <div>
-            <span class="text-slate-400">Proximidad:</span>
-            <div class="text-slate-200">{{ Math.round(((result.proximity ?? result.score_breakdown?.proximity ?? 0) * 100)) }}%</div>
+            <span class="text-texto-tenue">Proximidad:</span>
+            <div class="text-texto">{{ Math.round(((result.proximity ?? result.score_breakdown?.proximity ?? 0) * 100)) }}%</div>
           </div>
         </div>
 
@@ -45,7 +45,7 @@
         </button>
       </div>
 
-      <div v-if="results.length === 0" class="text-center py-8 text-slate-400">
+      <div v-if="results.length === 0" class="text-center py-8 text-texto-tenue">
         No hay resultados. Ingresa parámetros y calcula.
       </div>
     </div>
@@ -66,7 +66,7 @@ defineEmits(['select'])
 const getScoreClass = (score) => {
   if (score >= 85) return 'border-success bg-green-900/20'
   if (score >= 70) return 'border-warning bg-yellow-900/20'
-  return 'border-slate-600'
+  return 'border-borde-fuerte'
 }
 
 const getFormulaClass = (score) => {

@@ -28,6 +28,7 @@ import {
 } from '@/data/airports'
 import { haversine } from '@/map/geo'
 import { MapEngine } from '@/map/MapEngine'
+import { useAirport } from '@/composables/useAirport'
 
 // ─── The data ───────────────────────────────────────────────────────────────
 
@@ -224,7 +225,15 @@ describe('AirportLayer on the map', () => {
   })
 
   it('draws every aerodrome into the airports category', () => {
-    expect(layer.markers.size).toBe(AIRPORTS.length)
+    // Lo que la capa dibuja es la unión: lo publicado, más los sitios de la
+    // lista del operador que no caen junto a un aeropuerto publicado (≤ 2 km,
+    // la misma regla que usa map/airports.js). Un EAVA o un CCTE no existe en
+    // el archivo publicado, y sin sumarlo la mitad de su lista no aparece.
+    const sitios = useAirport().airport.flatMap((g) => g.options)
+    const sueltos = sitios.filter(
+      (s) => !AIRPORTS.some((a) => haversine(a.lat, a.lon, s.latitude, s.longitude) <= 2000),
+    )
+    expect(layer.markers.size).toBe(AIRPORTS.length + sueltos.length)
     expect(engine.categoryLayers.has(AIRPORT_LAYER_KEY)).toBe(true)
   })
 
@@ -240,20 +249,32 @@ describe('AirportLayer on the map', () => {
   })
 
   it('filters by country, and an empty filter means all of them', () => {
+    // Antes la cuenta se comparaba contra el archivo publicado; ahora la capa
+    // dibuja también los sitios del operador (todos argentinos), así que lo
+    // que se protege es lo mismo: el filtro AR deja todo lo argentino y
+    // quita lo extranjero, y el filtro vacío devuelve lo que había.
+    const total = layer.count
     layer.setCountries(['AR'])
     const arOnly = new Set([...layer.markers.values()].map((m) => m.airport.country))
     expect(arOnly).toEqual(new Set(['AR']))
-    expect(layer.markers.size).toBeLessThan(AIRPORTS.length)
+    expect(layer.count).toBeLessThan(total)
 
     layer.setCountries([])
-    expect(layer.markers.size).toBe(AIRPORTS.length)
+    expect(layer.count).toBe(total)
   })
 
   it('reports how many it drew, for the panel counter', () => {
-    expect(layer.count).toBe(AIRPORTS.length)
+    const sitios = useAirport().airport.flatMap((g) => g.options)
+    const sueltos = sitios.filter(
+      (s) => !AIRPORTS.some((a) => haversine(a.lat, a.lon, s.latitude, s.longitude) <= 2000),
+    )
+    expect(layer.count).toBe(AIRPORTS.length + sueltos.length)
+    // Los sitios sueltos son todos argentinos, por eso sólo cambian el total
+    // cuando el filtro incluye AR.
     layer.setCountries(['AR', 'CL'])
-    const expected = AIRPORTS.filter((a) => ['AR', 'CL'].includes(a.country)).length
-    expect(layer.count).toBe(expected)
+    const esperado =
+      AIRPORTS.filter((a) => ['AR', 'CL'].includes(a.country)).length + sueltos.length
+    expect(layer.count).toBe(esperado)
   })
 
   it('labels the symbols as reference data, not as observations', () => {
@@ -275,14 +296,19 @@ describe('AirportLayer on the map', () => {
 
   it('draws the minor aerodromes differently from the major ones', () => {
     // Two symbol families, so a regional strip does not disappear under a hub
-    // and the operator can tell at a glance which is which.
+    // and the operator can tell at a glance which is which. La familia ahora
+    // es el tamaño del icono de avión, no el color del círculo: el círculo
+    // quedó para lo que no es aeródromo.
     const major = layer.markers.get('SAEZ')
     const minor = AIRPORTS.find((a) => !isMajor(a) && a.kind !== 'heliport')
     const minorMarker = layer.markers.get(minor.key)
     expect(minorMarker, 'el aeropuerto menor debe estar dibujado').toBeTruthy()
-    expect(major.options.color, 'el color distingue las dos familias')
-      .not.toBe(minorMarker.options.color)
-    expect(major.options.radius).toBeGreaterThan(minorMarker.options.radius)
+    expect(major.options.icon, 'ambos son marcadores de imagen').toBeTruthy()
+    expect(minorMarker.options.icon, 'el menor también lleva icono').toBeTruthy()
+    expect(
+      major.options.icon.options.iconSize[0],
+      'el tamaño distingue las dos familias',
+    ).toBeGreaterThan(minorMarker.options.icon.options.iconSize[0])
   })
 
   it('labels an aerodrome that has no ICAO code at all', () => {
@@ -298,6 +324,91 @@ describe('AirportLayer on the map', () => {
   it('fits the map to the aerodromes', () => {
     expect(() => layer.fitTo()).not.toThrow()
     expect(() => layer.fitTo({ country: 'AR' })).not.toThrow()
+  })
+})
+
+// ─── La lista del operador en el mapa ───────────────────────────────────────
+
+/**
+ * El composable `useAirport` es la lista que el operador cargó para ver en el
+ * mapa (aeropuertos, sitios EAVA/ACC, CCTE, aeroclubs). La capa la dibuja
+ * **además** de lo publicado: nada de lo que ya estaba se pierde, y un sitio
+ * que coincide con un aeropuerto publicado se dibuja una sola vez.
+ *
+ * El icono vive en `public/iconos/aeropuerto.svg`: el marcador sólo nombra la
+ * ruta, así que cambiar la imagen es reemplazar el archivo.
+ */
+describe('la lista del operador en el mapa', () => {
+  let container
+  let engine
+  let layer
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    container.id = 'map-airports-sitios'
+    document.body.appendChild(container)
+    engine = new MapEngine({ container: 'map-airports-sitios' })
+    engine.init()
+    layer = new AirportLayer(engine).init()
+  })
+
+  afterEach(() => {
+    layer?.destroy()
+    engine?.destroy()
+    container?.remove()
+  })
+
+  it('dibuja los sitios de la lista que no son aeropuertos publicados', () => {
+    // El CCTE CABA está a más de 6 km de cualquier aeropuerto publicado: es
+    // un sitio de la lista, no un aeródromo. Sin esto la capa dibuja sólo lo
+    // del archivo publicado y esos sitios no aparecen nunca.
+    expect(
+      layer.markers.has('OTRO - CCTE CABA'),
+      'el sitio de la lista debe estar en el mapa',
+    ).toBe(true)
+    // Y un sitio que sí coincide con un aeropuerto publicado se dibuja con
+    // ese aeropuerto (una sola vez), y el popup lleva todos los que caen
+    // ahí: SAAV tiene «SANTA FE» y «EAVA SAUCE VIEJO» a la vez.
+    expect(layer.markers.has('EZEIZA - EAVA SAUCE VIEJO')).toBe(false)
+    expect(layer.markers.get('SAAV')?.airport.sitios).toEqual([
+      'SANTA FE',
+      'EAVA SAUCE VIEJO',
+    ])
+  })
+
+  it('dibuja cada aeropuerto con el icono de avión, por la ruta reemplazable', () => {
+    const eze = layer.markers.get('SAEZ')
+    expect(eze, 'EZEIZA debe seguir dibujado').toBeTruthy()
+    const html = eze.options.icon?.options?.html
+    expect(html, 'el aeropuerto debe ser un marcador de imagen, no un círculo').toBeTruthy()
+    expect(html).toContain('/iconos/aeropuerto.svg')
+  })
+
+  it('tiene el archivo del icono en public/iconos para poder reemplazarlo', async () => {
+    // Ruta relativa al cwd: vitest corre desde `frontend/`, que es de donde
+    // el navegador serviría el archivo.
+    const fs = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const archivo = resolve('public/iconos/aeropuerto.svg')
+    expect(fs.existsSync(archivo), 'falta public/iconos/aeropuerto.svg').toBe(true)
+  })
+
+  it('la lista del operador no tiene valores duplicados ni coordenadas fuera de rango', () => {
+    // La advertencia del encabezado de este archivo vale también para la
+    // lista cargada a mano: un identificador repetido o una coordenada mal
+    // copiada se ve exactamente igual que un dato válido.
+    const sitios = useAirport().airport.flatMap((g) => g.options)
+    expect(sitios.length).toBeGreaterThan(50)
+    const vistos = new Set()
+    for (const s of sitios) {
+      expect(s.value, 'sitio sin identificador').toBeTruthy()
+      expect(vistos.has(s.value), `identificador duplicado: ${s.value}`).toBe(false)
+      vistos.add(s.value)
+      expect(s.latitude, `${s.value} lat`).toBeGreaterThanOrEqual(-90)
+      expect(s.latitude, `${s.value} lat`).toBeLessThanOrEqual(90)
+      expect(s.longitude, `${s.value} lon`).toBeGreaterThanOrEqual(-180)
+      expect(s.longitude, `${s.value} lon`).toBeLessThanOrEqual(180)
+    }
   })
 })
 

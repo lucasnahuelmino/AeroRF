@@ -435,12 +435,604 @@ querés conservarla hay que moverla. `aerorf.db` no está trackeado por git.
 
 ---
 
+## 0.30.5 - La base en el mismo sitio, con respaldo y con versión
+
+**Estado:** completada · auditoría de Claude, ítem **P0-06**, primero porque lo
+elegiste vos.
+
+### Por qué este y no otro
+
+La auditoría pone P0-06 en sexto lugar y no puede ir ahí: P0-01 quiere
+`nullable=False` y P0-03 quiere limpiar filas ya guardadas, y **los dos
+necesitan esto primero** —una versión de esquema y un respaldo previo— para no
+romper cada base que ya está instalada.
+
+### Qué estaba mal
+
+El default era `sqlite:///./aerorf.db`: una ruta **relativa**, resuelta contra
+el directorio desde el que arrancara el proceso. `start.bat`, `uvicorn` desde
+otra carpeta y el IDE cada uno creaba su propio `aerorf.db`, y lo guardado en
+uno no existía en el otro. Ése es el «se perdieron los expedientes»: **no se
+perdió ninguna fila, la app miraba a otra parte.**
+
+Antes de tocar nada busqué todas las `aerorf*.db` del disco: **sólo hay una**.
+No se había partido en dos todavía — esto es para que no lo haga.
+
+También vi un `-wal` de 4 MB junto a un `.db` de 647 KB y dije que eran
+transacciones sin llegar al archivo. **No lo eran**: los conteos eran
+idénticos con y sin él, eran imágenes de páginas. Aquí queda corregido. Lo que
+un respaldo ingenuo sí pierde es lo que se escribe con el servidor corriendo,
+que es cuando se respalda: por eso el respaldo va por la API de SQLite y no por
+un `copyfile`.
+
+### Qué quedó
+
+- Ruta **anclada a la raíz** en vez de al directorio de trabajo. No moví el
+  archivo: la ubicación no era el defecto, moverlo habría sido otro riesgo.
+- **Respaldo automático en cada arranque**, antes de escribir nada, en
+  `respaldos/` (ignorado por git), con rotación (`RESPALDOS_CONSERVAR`, 10).
+- **`VERSION_ESQUEMA` + `MIGRACIONES`.** La versión no avanza si el paso falla
+  —sentencias y sello en la misma transacción— y una base de una AeroRF más
+  nueva no se toca, con el aviso en español.
+- Un respaldo fallido **se registra y se arranca igual**; una app que no levanta
+  porque no pudo copiar es peor que una que levanta sin copiar.
+
+### Seis reverts, once guardas que mordieron
+
+| revert | qué falló |
+|---|---|
+| vuelta a la ruta relativa | 2 — *«ruta relativa, seguiría al directorio de trabajo: aerorf.db»* |
+| `Connection.backup` → `shutil.copyfile` | 1 — *«el respaldo no trajo la fila escrita en el WAL»* |
+| no lanzar con base más nueva | 2 — `DID NOT RAISE` |
+| sello de versión que no avanza | 2 — `assert 0 == 1` |
+| rotación que no borra | 2 — *«sobrevivieron los equivocados»* |
+| `init_db` sin mantenimiento | 2 — *«esperaba un respaldo y hay 0»* |
+
+La prueba del WAL demuestra el defecto, no sólo el arreglo: deja la fila en el
+WAL a propósito, compara la copia del archivo (0 filas) con el respaldo (1) y
+revienta si alguien vuelve al `copyfile`.
+
+### Dos cosas de la auditoría, decididas por vos
+
+- **P0-02 — borrar un expediente con objetos GIS vinculados: bloquear con 409.**
+  Igual que ya pasa al revés, donde borrar un objeto vinculado sí está bloqueado.
+- **El modelo de despliegue sigue sin decidir**, así que el middleware de
+  `Origin` va acotado a los orígenes de CORS configurados: sirve tanto si cada
+  técnico tiene su PC como si hay servidor compartido.
+
+---
+
+## 0.30.6 - El WebSocket se rendía en modo anónimo
+
+**Estado:** completada · auditoría de Claude, ítem **P0-04**
+
+### Lo que pasaba
+
+Salvo credenciales, `GET /flights/live` respondía **200** y el WebSocket
+mandaba `not_configured` y no consultaba nunca. Medido con dos instancias a la
+vez sobre la misma base; la cuenta de peticiones es la prueba: en el log de la
+instancia anónima hay **0** líneas `auth=oauth2` y **una sola** petición a
+`states/all`, que es la de la ruta REST.
+
+### Por qué
+
+`ws.py` hacía `if not service.configured`, que pregunta «¿hay credenciales?».
+Lo que importa es «¿puedo consultar estados?», que es `can_query_states` — y
+OpenSky sirve `/states/all` a llamadas anónimas. **La ruta REST ya lo tenía
+bien** (`flights.py::_service_or_503`: `configured or can_query_states`); el
+canal de WebSocket era el único que no.
+
+También le cambié el mensaje: decía «defina `OPENSKY_CLIENT_ID`…», que era
+inútil donde lo que faltaba era activar lo anónimo.
+
+### Un detalle de medición que vale la pena no volver a cometer
+
+En PowerShell `$env:X = ""` **borra** la variable. `.env` la rellenaba con
+`override=False` y la primera «reproducción» salió *con credenciales* sin que
+se notara. Lo que funcionó fue dejarla presente pero en blanco, que `_env`
+trata como ausente. El `hello` lo anunciaba (`opensky_configured`) y así se
+descartó el falso negativo.
+
+### Guardas
+
+Cinco en `tests/test_p004_websocket_anonimo.py`, llamando a `Hub._tick` con
+falsos: sin servidor, sin esperas y sin gastar crédito.
+
+- **Antes del arreglo**: `assert 0 == 1` — «estados de salida
+  `['not_configured']`».
+- **Después**: 5 en verde.
+- Entre ellas: que **la compuerta siga cerrada** cuando de verdad no hay forma
+  de consultar (si no, la lectura obvia sería borrar el chequeo y dejar el feed
+  mudo), y que la lista vacía siga ganando al chequeo de credenciales —lo que
+  evita la consulta global de 4 créditos.
+
+En vivo, con el arreglo: `opensky_configured=False`, **0** `not_configured`, y
+el WebSocket pidió `states/all?icao24=e06543&icao24=e0b354`.
+
+### Tres cosas que encontré al verificar
+
+1. **`lost` se reenvía cada 10 s y cuelga al propio test.**
+   `test_feed_does_not_flood` mide 22 s con un `while True` cuyo timeout es de
+   22 s por lectura: un frame cada 10 s hace que nunca expire. **Con vigilante:
+   sigue corriendo a los 150 s, sin salida.** La causa es del servidor, no del
+   test: el aviso de aeronave perdida se repite sin deduplicar, justo lo que
+   la §48 prohíbe. Va en su commit.
+2. **`test_idle_when_nothing_is_tracked` exige lista vacía y hay 2**
+   (`ARG1646`, `LVKMT`, del 02/10): falla en su precondición, no en lo que
+   mide. **No se borra**; hay que adaptarlo o saltarlo si la lista no está
+   vacía.
+3. **`ws.py:446` manda `Unknown action: ...` en inglés**, y el aviso de
+   arranque dice «flight features disabled» cuando en modo anónimo sí
+   funcionan.
+
+Los dos rojos de integración salieron contra el **código original**: el
+backend del 8010 se arrancó a las 10:35, antes del arreglo, y sin `--reload`.
+
+---
+
+## 0.30.7 - El botón que decía «guardado» y no guardaba
+
+P0-11, con la forma que eligió el operador (**selector de expediente en la
+calculadora**).
+
+**El defecto**, texto completo y sin suavizar:
+
+```js
+const storeResult = () => {
+  alert('Resultado guardado (próximamente integrado con expediente)')
+}
+```
+
+**Lo que había que saber antes de cablearlo**: eran dos arquitecturas RF
+paralelas y el botón apuntaba a la fácil de confundir.
+
+- **`eventos_rf`** (español) tiene los campos exactos del cálculo — `formula`,
+  `tipo_producto`, `error_khz`, `score_probabilidad`, `expediente_id` —, no
+  tiene coordenadas, **tenía `GET /expedientes/{id}/eventos` y no tenía
+  escritura**. Las cuatro tablas RF estaban en **0 filas**.
+- **`rf_events`** (inglés) es el acompañante de `MapObject`: exige lat/lon y
+  **sí** tiene `POST /rf/events`, que es el `client.js.rf.createEvent` que
+  **nadie llamaba**.
+
+Un armónico calculado no es un punto del mapa, así que `createEvent` habría
+sido guardar en la tabla equivocada. El guardado va a `eventos_rf`.
+
+**Lo que se hizo**: `POST /expedientes/{id}/eventos` (URL manda; 404 y 400 en
+español), `expedientes.crearEvento` en el mismo commit, desplegable de destino
+en la calculadora, aviso en la página que distingue éxito de error, y
+**«Guardados en este expediente»** en el detalle, aparte de **«Resultados del
+último cálculo»**, que es memoria de sesión.
+
+**Guardas**: 6 de backend + 5 de frontend. Por reversión, quitado el endpoint
+**6 de 6 fallan**; restaurada la vista original de git **5 de 5 fallan**.
+
+**En vivo, contra una base temporal** (no contra `aerorf.db`: no hay `DELETE`
+de `eventos_rf` y una fila de prueba no se podría deshacer sin borrar el
+expediente): `201` al guardar, `1` fila en el `GET` que antes daba `0`, `404`
+«No existe el expediente 999999», `400` «El expediente del cuerpo (501) no
+coincide con el de la ruta (1)», y el `400` **no escribió nada**.
+
+**Un error mío que vale anotar**: el primer chequeo del `×` (U+00D7) lo hice en
+PowerShell y salió `C3 83 C2 97`, o sea mojibake — parecía que el servidor
+corrompía la fórmula. Repetido en Python: **`32 20 C3 97 20 38 38 2E 35`
+idéntico en ida y vuelta**. PowerShell 5.1 leyó mi comando como CP1252. El
+código estaba bien; el instrumento no.
+
+**Hallazgos nuevos, sin tocar** (cada uno con su commit):
+
+- **`GET /expedientes` corta en 10** (`limit: int = 10`) y **nadie pagina**:
+  los cinco llamadores de `fetchExpedientes()` van sin parámetro y
+  `ExpedientesView` no pagina. Leído en el código, **no reproducido** — con un
+  solo expediente en la base no se puede ver fallar.
+- **`toolbar.spec.js` falló una vez al cargar** (441/453, 12 sin correr);
+  sola 12/12 y la corrida siguiente 453/453. Mismo síntoma que el flake ya
+  registrado; **sin repro y sin atribución posible**.
+
+---
+
 ## Lo que queda pendiente
 
-- **Migrar las plantillas** de `slate-N` a nombres semánticos y borrar el puente
-  de 0.30.0. Decidido por vos. Es lo que hace que los nombres dejen de mentir:
-  `bg-slate-900` ahora es azul, y un desarrollador que lo escriba mañana obtiene
-  `--panel` sin saber por qué. Es el cambio más grande que queda y va solo.
+### La cola de la auditoría de Claude
+
+**Hechos: P0-06, P0-04, P0-11, el `lost` de 0.30.8, la precondición de
+`test_idle` de 0.30.9, P0-02 en 0.30.19, P0-07 en 0.30.20, P0-09 en
+0.30.21, P0-01 + P0-03 en 0.30.22, los últimos textos en inglés en
+0.30.23, el chequeo de capas del smoke en 0.30.24, `.env.example`
+documentado en 0.30.25, los `async def` sin nada de async en 0.30.26 y
+la correlación temporal en 0.30.27; de la fase 2, F2-01 a F2-08
+(0.30.10–0.30.18, con sus entradas más abajo).**
+
+- **P0-02** en 0.30.19 — borrar un expediente con objetos GIS
+  vinculados contesta **409** con los ids en el detalle, en español, y
+  **no borra nada**: antes el `ON DELETE SET NULL` (con
+  `foreign_keys=ON`) devolvía 200 y desvinculaba en silencio — el
+  expediente se iba y los objetos quedaban huérfanos de caso. El
+  sentido inverso ya estaba bloqueado; ahora los dos. El camino bueno
+  (sin vínculos) sigue en 200, y la recuperación es la API pública:
+  `PUT /map/objects/{id}` con `expediente_id: null`. Pasaron a español
+  el 404 y el mensaje de éxito de la misma ruta, y `describeError`
+  aprendió el 409 (regla de contrato: cliente en el mismo commit). 4
+  rojas antes, repetido el bloqueo **por revertida**.
+
+- **P0-07** en 0.30.20 — middleware de `Origin`/`Host` montado y
+  **acotado a `CORS_ORIGINS`**, como decidió el operador: el guard lee
+  la misma lista que `CORSMiddleware`, así que nunca se contradicen y
+  sirve tanto con PC por técnico como con servidor compartido. Cierra
+  dos huecos distintos: el CSRF de sitio (Origin: CORS niega *leer*, el
+  guard niega *hacer*) y el DNS rebinding (Host: el rebinding no manda
+  Origin). `ALLOWED_HOSTS` nuevo en `.env.example` — loopback +
+  `testserver`, más los hostnames aprendidos de los orígenes —, ASGI
+  puro para cubrir también el scope `websocket`, y 403 con `detail` en
+  español. 6 guardas, **3 rojas** antes (origin evil, host evil y el
+  websocket sin módulo), la del cableado repetida **por revertida**, y
+  en vivo contra el 8010: evil → 403, `5199` → 200.
+
+- **P0-09** en 0.30.21 — inyección de fórmulas en el CSV: las celdas
+  que arrancaban con `=` `+` `-` `@` (y las invisibles, tabulador y
+  retorno) salían tal cual y la hoja de cálculo las ejecutaba — desde
+  un `HYPERLINK` al sitio del atacante hasta los DDE. El blindado va
+  **por valor, no por columna**: sólo strings, y un string legible
+  como número (`-34.6`, `-62.5`) se queda como está — justamente la
+  trampa que avisa el ítem. En los dos escritores (`to_csv` y
+  `track_to_csv`, este con el callsign de OpenSky). 4 guardas: **3
+  rojas** antes, la de latitudes negativas verdes desde el arranque
+  (cara que el arreglo tiene prohibida romper) y la del CSV repetida
+  **por revertida**.
+
+- **P0-01 + P0-03** en 0.30.22 — el número de expediente ya no se
+  puede perder. **P0-01**: `nullable=False` en el modelo, y la API
+  dejó de fabricar el problema — `PUT` con `null` explicitado pasaba
+  por `exclude_unset`, **commiteaba** y recién la respuesta reventaba
+  en 500 (fila sucia y error en inglés, en ese orden); ahora validador
+  en la schema → **422** en español y el número guardado intacto, lo
+  mismo para el vacío. **P0-03**: SQLite no sabe `ALTER COLUMN`, así
+  que la migración **2** reconstruye la tabla — primero
+  `CREATE TABLE IF NOT EXISTS` de forma vieja (una base recién creada
+  la atraviesa con cero filas), después el llenado: `SIN-NUMERO-{id}`
+  en las filas `NULL`/vacías, **sin borrar ninguna** (mediciones,
+  eventos y vínculos siguen enteros; el marcador dice la ausencia sin
+  inventar un número de causa), `INSERT` con lista de columnas
+  explícita, `DROP`+`RENAME` e índices con los nombres de siempre. En
+  vivo contra la base real: respaldo previo, `user_version 1 → 2`,
+  el expediente idéntico y `notnull = 1`. Colaterales honestos: el
+  aserto de `test_p006` que fijaba versión `0` tras un paso roto pasó
+  a `VERSION_ESQUEMA - 1` (la intención —nunca reclamar el paso que
+  revienta— queda más fuerte), y el log de «adoptado como versión 1»
+  ahora dice «llevado a la versión {VERSION}». 7 guardas, **6 rojas**
+  antes, repetidas **por revertida**.
+
+- **Los últimos textos en inglés del backend** en 0.30.23 — la cola
+  los anotó uno por uno (ws, el aviso de arranque, `expedientes.py`,
+  «future timestamps», correlación, mapa) y el barrido encontró unas
+  40 frases en 12 archivos: la misma falta once veces, así que se cierra
+  **como un solo ítem**. El aviso de arranque además **mentía** («flight
+  features disabled»: en modo anónimo el tráfico en vivo sí funciona y
+  lo que se cae es el historial — ahora lo dice así y nombra
+  `OPENSKY_ALLOW_ANONYMOUS`). La ruta de ICAO24 tenía una **quinta
+  copia** del mensaje que el guardia de `test_error_icao24` no miraba
+  (escanea `flight_service.py`); ahora pasa por el mismo ayudante. En
+  `map` los tres matchers `if "not found" in str(exc)` cambiaron junto
+  con el servicio, **después del grep**: la frase vivía en
+  `map_service`. 49 guardas — 12 en vivo y 37 portero de código —,
+  **49 rojas** antes y **49 rojas por revertida**; colateral: 2 pins
+  adaptados en `test_map_objects` (misma intención, otro idioma). Fuera
+  de alcance, con la razón escrita: `geo.require_latlon` (nadie lo
+  llama), el `except → 500 str(exc)` de `rf_expediente` (otra clase de
+  defecto), texto de httpx/SQLite/OpenSky y los logs por petición.
+
+- **El chequeo de capas del smoke** en 0.30.24 — `smoke_e2e.py` esperaba
+  `count == 15` desde antes de que entraran `lines` y `polygons`
+  (26/09): su único rojo de los 77/78 era expectativa vieja, no
+  regresión, y **fallaba hasta en base limpia**. Los dos literales de la
+  línea (rótulo y valor) pasan a 17, con guarda nueva
+  (`tests/test_smoke_capas.py`, la del valor roja antes) que pisa el
+  número del script con `len(DEFAULT_LAYERS)`: si mañana se agrega una
+  capa, la guarda queda roja hasta que el smoke la diga. **78/78** en
+  base temporal.
+
+- **`.env.example` documenta `CACHE_TTL_TRACKS_LIVE_S`** en 0.30.25 —
+  la omisión del 0.30.2 que la auditoría había anotado (el caché de 30 s
+  de `fresh=true` existía en `config.py` y no estaba en el ejemplo). La
+  línea entró con comentario en español y en el orden de `config.py`.
+  La guarda es **por campo** (`tests/test_env_example_documentado.py`,
+  la de la variable roja antes): recorre `Settings` y exige que cada
+  campo con `default_factory` — la señal de «lee env» — esté en el
+  ejemplo; un settings nuevo tendrá su prueba roja esperando. Exclusiones
+  razonadas en el guardia: `max_tracked_aircraft` es default plano de la
+  spec (ponerlo en el ejemplo mentiría) y `VITE_PORT` lo lee el frente.
+
+- **`async def` sin nada de async** en 0.30.26 — el P1 que Claude dejó
+  «no medido». Medido: `POST /rf/calculate` congelaba el event loop
+  **~4 ms con 12 candidatas y ~75–116 ms con 48** (el motor es
+  combinatorio) — durante esos ms no giraban ni el WebSocket ni el
+  sondeo. El prerrequisito de SQLite ya estaba cumplido y quedó
+  fijado: `check_same_thread=False` en toda conexión (`database.py`).
+  El barrido con `ast` sobre `app/` encontró **9** `async def` sin
+  `await`/`async with`/`async for`; **8 pasan a `def`** (los 3 de
+  `rf.py`, `_service_or_503`, los dos manejadores de errores —
+  Starlette los soporta vía `run_in_threadpool`, verificado en el
+  origen — y `ws.stop`/`ws._record` con sus dos únicos call sites) y
+  `lifespan` queda exento por `@asynccontextmanager`. Los handlers de
+  vuelos/correlación siguen async **de verdad** (esperan OpenSky);
+  mover sus llamaditas de base al threadpool sería otra pieza, medida
+  primero. Guarda `tests/test_async_sin_trabajo_sincrono.py` (55
+  pruebas, las de los 8 rojas antes) que barre `app/` función por
+  función: cualquier async en máscara nuevo tendrá su roja esperando.
+
+- **Correlación temporal de verdad** en 0.30.27 — el último P1 de la cola,
+  con su orden respetado. (1) *Redacción:* los dos payload anunciaban
+  «espacial y temporal» comparando con las posiciones de **hoy**; ahora
+  cada respuesta **declara** `comparacion`, `observado_en`,
+  `ventana_temporal_s` y `fuera_de_ventana`, y la vista por aeronave se
+  declara `espacial` — como ya decían MANUAL y GisShell. (2) *La
+  comparación:* con `observed_at`, cada coincidencia lleva `delta_t_s` y
+  sólo cuenta dentro de la ventana de 600 s (`app/core/correlacion.py`,
+  único dueño de la regla para las dos rutas); lo que queda en el radio
+  fuera de la ventana se **reporta**, no se esconde; sin fecha la
+  respuesta se declara espacial y el control de las bandas nunca se
+  tocó. (3) *Créditos:* las tres rutas piden la **caja** del radio
+  máximo alrededor del objeto — ~4 sq-deg, tramo de 1 crédito — en vez
+  del estado global, y la de vuelos no gasta la llamada con objeto
+  inválido. Traducido de paso el 400 en inglés que `flights/correlate`
+  mandaba al cliente, con su pin nuevo en el portero. Guarda
+  `tests/test_correlacion_temporal.py`: **10 rojas antes + 1 control
+  verde**, rojas también por revertida (11 con el pin).
+
+- **Plantillas semánticas, sin mentir** en 0.30.28 — el puente de 0.30.0
+  murió: **652 reemplazos en 22 plantillas**, `slate-N` → nombre
+  semántico (`bg-panel`, `text-texto-medio`, `border-borde`…), con reglas
+  de rol donde la misma clase cumplía papeles distintos — los 12 inputs a
+  `panel-hondo` («campos, zonas hundidas»), las cajas claras dentro de
+  tarjetas a `on-ink-wash` (si no, invisibles sobre `panel-alto`), los
+  divisores de 1px a `borde` y los fondos de diálogo translúcidos a dos
+  tokens nuevos `--velo`/`--velo-suave`. Las 28 reglas del puente
+  borradas de `styles.css`; los 20 nombres semánticos viven una sola vez
+  en `tailwind.config.js`, cada uno `var(--token)`. Guarda nueva
+  `tests/sin_slate.spec.js` (cero `slate-N` en el fuente; roja antes con
+  652) y `tokens.spec`/`theme.spec` adaptados, con la intención de cada
+  test escrita en el test. De paso: los placeholders con sintaxis v2 (sin
+  `text-`, muertos desde siempre) ahora se pintan.
+
+- **El círculo se selecciona solo** en 0.30.29 — al terminar de dibujar,
+  `handleToolComplete` deja el objeto nuevo **seleccionado** y abre el
+  inspector si estaba cerrado: se dibuja para detallar, y antes el panel
+  seguía diciendo «seleccione un objeto» con el círculo recién puesto.
+  Prueba en `drawing-flow.spec.js` con el harness existente (inspector
+  arrancando cerrado a propósito): **roja antes** (`selectedId: null →
+  7`), verde después.
+
+- **La capa de aeropuertos dibuja su lista, con avión descargable** en
+  0.30.30 — `src/composables/useAirport.js` guarda los 116 sitios que
+  cargó el operador y `map/airports.js` dibuja la **unión**: lo publicado
+  más los sitios sueltos de su lista. Un sitio a ≤ 2 km de un aeropuerto
+  publicado se dibuja una sola vez con ese aeropuerto y el popup lista
+  todos los que caen ahí (SAAV lleva «SANTA FE» y «EAVA SAUCE VIEJO»);
+  los 40 sin aeropuerto cerca quedan como círculo ámbar con su grupo,
+  marcados «Sitio de la lista del operador». El símbolo de aeropuerto es
+  `public/iconos/aeropuerto.svg` sobre un disco claro (los SVG descargados
+  vienen negros y el mapa es oscuro), 4 iconos de Font Awesome Free 6.7.2
+  (CC BY 4.0) con `LEEME.txt`: cambiar un dibujo es reemplazar el
+  archivo. Pruebas nuevas en `airports.spec.js` (CCTE CABA ausente,
+  marcador sin `options.icon`): **rojas antes**; 4 adaptadas con la
+  intención escrita en cada una. **470 frontend, build ✓, backend sin
+  cambios**; verificado en vivo en 5199 con la capa encendida.
+
+- **El punto sabe qué fuente es, y el icono lo decide el archivo** en
+  0.30.31 — al armar la herramienta Punto, las opciones ofrecen *Fuente
+  del punto* (Sin fuente, FM, TPRS, Otra fuente) y la elección viaja
+  como campo `icon`, que el backend ya guardaba sin que nadie lo
+  escribiera. `MapEngine` dibuja `public/iconos/<valor>.svg` sobre el
+  disco claro cuando reconoce el valor; cualquier otro —el `point` por
+  defecto— sigue siendo el círculo de siempre. La fuente también se
+  cambia desde el inspector sobre un punto existente, y la creación
+  manual la lleva. **6 rojas antes**, en `stored-shapes`, `components`
+  y `drawing-flow` (detalle del rojo: `setTool` sin toolManager no mueve
+  `activeTool`, lo mueve GisShell — el test del panel lo pone directo,
+  que es el contrato del componente). **476 frontend (34 archivos),
+  build ✓, backend sin cambios**; en vivo en 5199: la sección y sus
+  cuatro opciones en el DOM, cero errores de consola.
+
+- **Espectro se fue entero** en 0.30.32 — baja total pedida por el
+  operador: menú (`BrandBar`), ruta (la dirección vieja cae en el
+  catch-all y vuelve al mapa) y vista (`EspectroView.vue` borrada).
+  `Chart`/plotly quedan porque la Calculadora RF grafica con el mismo
+  componente, y el backend de espectrogramas queda intacto: la baja es
+  de la pantalla, no de los datos. **3 guardas rojas antes** en
+  `brandbar.spec.js` — una por archivo editado a mano — y 3 adaptadas
+  con la intención escrita en el test (lista de secciones y piso de
+  enlaces: 5 → 4). **479 frontend (34 archivos), build ✓, backend sin
+  cambios.**
+
+- **Panel se fue entero** en 0.30.33 — segunda baja total pedida por el
+  operador, con el mismo patrón del ítem 2: `BrandBar` sin la sección,
+  `/dashboard` fuera del enrutador (la dirección vieja cae en el
+  catch-all y vuelve al mapa) y `DashboardView.vue` borrada del fuente.
+  Se fue también `StatCard.vue`, su único consumidor —se grepeó antes:
+  `DataTable` la sigue usando `ExpedientesView` y ésa queda—. Lo que NO
+  se tocó: el contrato de la API (`rf.summary` queda en el cliente sin
+  quien lo llame) ni los datos. **3 guardas rojas antes** en
+  `brandbar.spec.js` (menú, ruta, fuente) y 5 adaptadas con la intención
+  escrita: las pruebas que usaban `/dashboard` como «otra sección
+  cualquiera» ahora usan `/expedientes`, y el piso de enlaces baja
+  4 → 3. De yapa quedaron reparadas dos guardas que el **build del
+  0.30.32 dejó obsoletas sin que nadie volviera a correr la suite**:
+  `theme.spec` pedía `bg-sky-700`, que sólo usaba un botón de
+  `EspectroView` (esa clase salió de la lista), y `chart-loading.spec`
+  exigía chunk propio para `Chart.vue`, que Rollup ya no separa porque la
+  baja de Espectro le dejó un solo importador dinámico (ahora se mide el
+  peso del chunk que lo lleva: 16 KB, con plotly siempre en su chunk de
+  1000 KB). **482 frontend (34 archivos), build ✓, backend sin cambios.**
+
+**Cola del paquete A** (auditoría de Claude; un ítem, una rama, un
+commit, con su prueba roja): 1 círculo seleccionado solo ✔ (0.30.29);
+2 Espectro ✔ (0.30.32); 3 Panel ✔ (0.30.33); 4 **expediente →
+campo de nota por objeto** (no se borra: se transforma); 5 reestructura
+de los paneles laterales; 6 **exportar PNG, KMZ y PDF** más imprimir;
+7 reordenar los botones de la barra. Respuestas del operador ya dadas
+para el 3, 4 y 6.
+
+Lo demás, con el criterio acordado: rama nueva, un commit por ítem, prueba que
+falle antes y pase después, y **preguntar antes de tocar nada de «Decisiones
+pendientes»**.
+
+### Fase 2 de Claude (los F2)
+
+**Hechos:**
+
+- **F2-01** en 0.30.10 — el candado se salteaba por los campos RF en las
+  cuatro rutas tipadas. Reproducido (5 rojas, 2 verdes), arreglado con
+  `require_unlocked` **antes** de escribir el satélite, una sola transacción y
+  `rollback` si algo falla; el mensaje del candado pasó a español.
+- **F2-02** en 0.30.11 — el historial inventaba: `getattr(obj, "rf.k")` sobre
+  el objeto en vez del satélite daba `None`, así que decía que se borraron la
+  frecuencia y el tipo y el cambio real (40 → 41) no aparecía. Arreglado con
+  `record_typed_history`, que difumina el satélite contra su propio snapshot
+  **y** al objeto padre (el `azimuth` y el `radius` copiados ahí mismo se
+  iban sin registrar). 7 rojas antes, 8 verdes después.
+
+- **F2-03** en 0.30.12 — el payload de `rf_events` no se serializaba: ni la
+  respuesta del mapa, ni el GeoJSON, ni el CSV (`export_service` ya leía
+  `props["event"]` y salía vacío), ni el duplicado. Arreglado con la relación
+  `MapObject.rf_event` (la única que faltaba), `props["event"]` en
+  `object_to_feature`, `event=` en `duplicate_object` y el Inspector pasando
+  a leer `p.event.*`. 4 rojas antes, 7 verdes después; +1 en frontend,
+  verificada por revertida. **La decisión de arquitectura: no unificar**
+  (la comparación campo por campo queda abajo, como referencia) y
+  `calculated_evento_id` **sigue sin escribirse** por decisión del
+  operador: queda declarado hasta que exista un caso de uso real.
+
+- **F2-04** en 0.30.13 — el borrado no miraba nada: `clear_layer` borraba
+  por `layer_id` a secas (sin `locked`, sin `expediente_id`) y el cascade
+  destruía notas, historial y anotaciones; `delete_object` bloqueaba
+  expediente e hijo pero **no el candado**. **Decisión del operador:
+  borrado físico con los filtros** (no baja lógica): lo libre se borra, lo
+  protegido no se toca, y si tras limpiar queda algo,
+  `DELETE /map/layers/{id}` **no borra la capa** y contesta 409 — con
+  `Layer.objects` sin cascade, borrarla dejaría `layer_id = NULL` en los
+  supervivientes. Mensajes de esa ruta en español. 4 rojas antes, 6 verdes
+  después.
+
+- **F2-05** en 0.30.15 — las entradas inválidas llegaban hasta SQLite y
+  estallaban en 500: `layer_id` y `expediente_id` inexistentes (FK),
+  `null` en columnas NOT NULL (`visible` al actualizar), `kind` inválido
+  validado **dentro** del handler, y `opacity`/`object_id` convertidos con
+  `float()`/`int()` sobre el cuerpo crudo. Arreglado en tres capas:
+  chequeo de referencias y de nulidad **antes** de escribir (`map_service`),
+  traductor global de validación (422 con `msg` en español, pisa el
+  inglés de FastAPI) y red de `IntegrityError` → 400 para lo que no tenga
+  chequeo propio. Los 14 mensajes de los validadores de `schemas_gis.py`
+  pasaron a español: el traductor los muestra tal cual. 11 verdes; el
+  rojo-antes quedó registrado (7 de 8 en la primera corrida, y el corte de
+  `correlation` verificado por revertida: sin él, `ValueError` otra vez).
+  Detalle en 0.30.15.
+
+- **F2-06** en 0.30.16 — el update escribía `geometry` sin validar:
+  `create_object` llamaba a `gjs.validate_geometry` (y el docstring de
+  esa función prometía estar en el alta **y** el update), pero el PUT no
+  lo hacía. El PUT contestaba **200**, guardaba el anillo roto y el
+  objeto después desaparecía del mapa como «sin geometría derivable»,
+  sin avisar por qué. Arreglado con el mismo chequeo, junto a los
+  pre-cheques de F2-05, **antes** de tocar la fila: o entra todo el
+  patch, o no entra nada. 1 roja antes (200 y `fields=geometry` en el
+  log), 3 verdes después; la roja repetida **por revertida**.
+
+- **F2-07** en 0.30.17 — «un `BackoffController` para los tres pools»:
+  la estructura existía desde el commit inicial, pero nadie la había
+  **medido**. La guarda nueva cruza los pools en las dos direcciones
+  (429 en tracks → el feed no consulta; 429 en states → las trazas no
+  se piden) y pasa: el gate ya cruzaba. Lo que no pasaba era el 429 que
+  no pertenece a ningún pool, el de la **renovación del token**: se
+  disfrazaba de `OpenSkyNotConfigured` («no configurado», en inglés),
+  el frente se apagaba y el feed seguía renovando cada 10 s contra un
+  endpoint que estaba limitando la cuenta. Arreglado con
+  `OpenSkyRateLimited` → `backoff.trip()` sobre el gate compartido →
+  `RateLimitedError` en español, el mismo camino que un 429 de datos.
+  2 verdes de arranque (ya cruzaban) + 1 roja (el token), repetida
+  **por revertida**.
+
+- **F2-08** en 0.30.18 — el import ya no dice que lo tecleaste tú: la
+  tercera y ultima de la F2. Un archivo importado aparecia en el
+  Inspector como «Introducido por el usuario» — la procedencia mentia
+  sobre el origen del dato. Arreglado en las **tres bocas a la vez**:
+  constante `PROVENANCE_IMPORTED` + `PROVENANCE_VALUES` (el validador
+  rechazaba el valor con 422), `import_geojson` pasa `source=`, y
+  etiqueta tanto en `PROVENANCE_LABELS_ES` (vocabulario/leyenda) como
+  en `MapEngine.provenanceLabel`, que tiene tabla propia y pintaba el
+  crudo en inglés. Sin migración, como decia el item: las filas viejas
+  conservan su `"user"` (reetiquetar historia seria inventar datos).
+  Guarda: 3 backend + 3 frontend, **4 rojas** antes de tocar nada, la
+  del import repetida **por revertida**.
+
+Faltan, en el orden del anexo (F2-03 ya no está: el bug quedó en 0.30.12 y
+la decisión de no unificar, confirmada — la tabla se mantiene como
+referencia):
+
+- **Anexo de F2-03 — comparación campo por campo de las dos arquitecturas**
+  (hecha; el bug quedó en 0.30.12 y la decisión fue **no unificar**, además
+  de **dejar `calculated_evento_id` como está**):
+
+  | | **A — `eventos_rf`** (legacy SIARI) | **B — `rf_events`** (spec §34) |
+  |---|---|---|
+  | dueño | `expediente_id` → el **documento** | `object_id` → el **objeto del mapa** (CASCADE) |
+  | qué es | **salida calculada**: `formula`, `tipo_producto`, `error_khz`, `score_probabilidad`, `proximidad` | **evento medido/reportado**: `level_dbm`, `classification`, `event_kind`, `provenance` |
+  | frecuencia | `frecuencia_resultado_mhz` + `freq_1_mhz`, `freq_2_mhz` | `frequency_mhz` + `bandwidth_khz` |
+  | tiempo | `timestamp` | `event_at` (duplicado de `observed_at` del padre) |
+  | posición | **no tiene** | la tiene, vía su `MapObject` |
+  | quién escribe | `rf_service` (motor) y el botón de P0-11 | el Inspector del mapa |
+  | en la API | `GET/POST /expedientes/{id}/eventos`, `/candidates` | `GET/POST/PUT /rf/events` |
+
+  **Recomendación: no unificar.** Son dueños distintos (documento vs.
+  dibujo), semánticas distintas (producto intermodulado vs. medición) y ya
+  están enlazadas por `rf_events.calculated_evento_id → eventos_rf.id`. Una
+  tabla única tendría ~10 columnas nulas sin sentido en un lado y rompería
+  el `ORDER BY score_probabilidad` del motor y el cascade del mapa. **El
+  modelo ya lo dice en su docstring** («kept untouched for the RF engine»).
+  Lo único flojo de ese enlace: `calculated_evento_id` **está declarado y
+  nadie lo escribe** (3 apariciones: modelo, schema y changelog) —
+  **resuelto: se queda como está.** Decisión del operador en esta fase:
+  no se inventa el vínculo, y se elimina el día que haya un caso de uso real
+  (o nunca).
+- **Decisión de Épsilon: el historial ya contaminado de F2-02** — y antes de
+  decidir, **contarlo** (`field LIKE 'rf.%' AND new_value IS NULL`).
+
+**Correcciones que le hice a la fase 2** (verificadas contra el código): los
+números «reales» que da están desactualizados (**482 + 30 / 453**, no 452/438);
+«86 endpoints» hoy son **88** (66 paths, medido con `openapi()`); 19 tablas sí;
+`update_reference` **sí** tiene el candado salteable (no lo había leído) y además
+cambia `db_obj.radius` sin historial; y **el repo es público** (`"private":
+false`), con `r1.txt`…`r6.txt` y `siari.db` en el historial — **el `.env`
+nunca entró**, sólo `.env.example`.
+
+**Encontrado al verificar P0-04 y P0-11, sin tocar** — cada uno con su repro, cada uno
+con su commit propio:
+
+- **Nadie lee `lost`.** El inundador se arregló en 0.30.8 (se deduplica y
+  `test_feed_does_not_flood` volvió a pasar), pero el frontend **no tiene
+  manejador**: una búsqueda por `frontend/src` da una sola coincidencia y es
+  prosa. El marcador de una aeronave que se fue sigue quedando en pantalla,
+  que era justo lo que el comentario del código quería evitar. O se agrega el
+  manejo, o se quita el frame — **decisión del operador**, porque cambia cómo
+  se ve el mapa.
+- **`GET /expedientes` corta en 10 y nadie pagina** — los cinco llamadores van
+  sin parámetro y la pantalla de expedientes muestra a lo sumo 10 sin decirlo.
+- **`toolbar.spec.js` flaky, tres veces.** Una al cargar en corrida completa
+  (441/453), sola 12/12 y 453/453 después; después 4 pruebas en 3 archivos
+  distintos en una corrida que tardó 210 s, con los mismos 3 archivos en verde
+  (37/37) y la completa en verde (453/453). **Sin repro.**
+- **El E2E contra `aerorf.db` deja basura.** La corrida de la verificación de
+  F2-01 dejó 3 aviones falsos (`abc001`-`abc003`), 8 objetos en el mapa, una
+  fuente enganchada a un expediente y un `EXP-SMOKE-001`. Todo se repuso por la
+  API pública y se volvió a leer de la base (2 aviones, 2 objetos, 1 expediente,
+  `eventos_rf` en 0), pero desde ahora **se corre contra una base temporal**:
+  `DATABASE_URL` descartable en un puerto aparte. La prueba de ese método dio
+  **77 de 78**, con la única falla del chequeo de capas de arriba.
+- **Pendiente menor (0.30.27):** `estimate_states_credits` no modela el
+  caso **global** — la rama `None` es la de lo serial —, así que por ahora
+  sólo se afirma que la caja de 50 nm cae en su tramo de 1 crédito, no
+  cuánto ahorra la caja frente a pedir el cielo entero.
+
+### Las que ya venían
+
 - **Tipografías: decidido, no implementado.** Vos elegiste adoptar las de
   `rni-app-4.0` (Space Grotesk, IBM Plex Sans, IBM Plex Mono) **y subir el
   peldaño**: IBM Plex Sans no tiene mayúsculas tan esbeltas como las del panel de
@@ -451,13 +1043,13 @@ querés conservarla hay que moverla. `aerorf.db` no está trackeado por git.
   cuestan nada y no frenan a nadie: **verificar antes de guardar** (un error de
   teclado no puede romper la instalación de todos) y **acotar a loopback**, que
   mientras el servidor escuche en `127.0.0.1` no le quita facilidad a nadie.
-- **Rotar `OPENSKY_CLIENT_SECRET`.** Sigue en claro en el historial de
-  conversación de las últimas sesiones. Está en `.env`, ignorado por git, y en
-  ningún archivo versionado. Hay que generar una clave nueva en OpenSky y
-  reemplazar la vieja; eso requiere entrar a la cuenta, así que no se puede hacer
-  desde acá.
-- **Un mensaje en inglés en una ruta:** «OpenSky does not accept future
-  timestamps.», en las líneas 298 y 767 de `app/api/routes/flights.py`.
+- **Rotar `OPENSKY_CLIENT_SECRET`.** **Hecho el 2026-10-05.** El operador
+  generó la clave nueva en OpenSky y la pasó por la sesión; se reemplazó
+  el valor en `.env` (ignorado por git, nunca versionado — en el repo
+  sólo está el placeholder vacío de `.env.example`), se reinició el
+  backend 8010 y se pidió un token real al proveedor con la clave nueva:
+  **Bearer, 1800 s**. La clave vieja queda en claro en el historial de
+  conversación de las sesiones anteriores, pero ya no abre nada.
 - **`npm run lint` no funciona**: no hay configuración de ESLint en el
   repositorio, en ninguna rama ni en ningún commit. Figuraba como limpio y era
   falso. La comprobación real es el build.
@@ -485,10 +1077,45 @@ no la remoción.
 
 | Suite | Estado |
 |---|---|
-| Frontend (vitest) | **448 pasan**, 30 archivos |
-| Python (no integración) | **452 pasan**, 7 deseleccionadas |
+| Frontend (vitest) | **453 pasan**, 31 archivos |
+| Python (no integración) | **497 pasan**, 7 deseleccionadas |
+| Integration (`-m integration`) | **7 pasan** contra el 8010 |
 | `tests/geo_parity.mjs` | 675 pasan |
-| Build | limpio |
+| `tests/smoke_e2e.py` (base temporal) | **77 de 78** |
+| Build | limpio (`✓ built in 1m 30s`) |
+
+**Observado y sin explicar, tres veces.** La primera corrida de vitest de esta
+sesión falló **1 archivo de 30**; no volvió en **10 corridas seguidas** y el
+detalle se perdió por un filtro mal puesto en la salida. La segunda, ya con
+31 archivos, falló **`toolbar.spec.js` al cargar** (441 de 453, 12 pruebas sin
+correr): pasó sola 12/12 y la corrida siguiente dio **453/453**. La tercera,
+durante la verificación de 0.30.9: **4 pruebas en 3 archivos** en una corrida
+de 210 s (lo normal, 55 s), y los mismos 3 archivos solos dieron **37/37 en
+10 s** y la completa **453/453 en 99 s**. Mismo síntoma, distinto archivo,
+**sin repro y sin atribución posible** — en particular, no se puede decir que
+sea por ningún commit ni que no lo sea; en la tercera no había ni un solo
+archivo de frontend tocado. Si vuelve a fallar, no lo atribuya a la
+casualidad: capture la salida entera la primera vez.
+
+**Sobre la suite de integración** (`pytest -m integration`, 7 pruebas): no entra
+en la cifra de arriba. Se corrió **contra el backend del 8010 levantado con el
+código de 0.30.9**, y quedó en **7 pasan, 0 caen** en **28 s**:
+
+- `test_feed_does_not_flood` **pasa**. Antes se colgaba — sin salida a los 150 s
+  — porque `lost` llegaba cada 10 s y el timeout de 22 s por lectura nunca
+  expiraba. Arreglado el inundador, el test se cae en silencio y termina.
+  **(04/10: volvió a colgarse — pero ahora por `states` cada 10 s, con
+  OpenSky configurado y una aeronave real transmitiendo. La dedupe de
+  `lost` no alcanzaba: el test seguía midiendo *silencio* y no *tiempo*.
+  En **0.30.14** la ventana pasó a ser de tiempo total, así que el corte
+  ya no depende del entorno.)**
+- `test_idle_when_nothing_is_tracked` **pasa desde 0.30.9**: la precondición se
+  arregla sola en la prueba (vacía la lista por la API pública y la restaura en
+  un `finally`), en vez de saltarse. **Costo conocido: `added_at` no se puede
+  restaurar**, porque ni `GET /flights/tracked` ni `update_selection` lo
+  exponen — cada corrida lo mueve a la fecha de hoy. Lo demás (`icao24`,
+  `callsign`, `slot`, `color` y los tres flags) vuelve idéntico, y se comprobó
+  leyendo la base después de la corrida.
 
 Base de objetos: **0**. Los tres del operador fueron borrados; lo que se veia eran capas que no se quitaban.
 una anotación (id 3). 
@@ -501,5 +1128,5 @@ una anotación (id 3).
 | `README.md` | Entrada al proyecto |
 | `MANUAL.md` | Guía de uso para el operador |
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
-| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.4) |
+| `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.11) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |

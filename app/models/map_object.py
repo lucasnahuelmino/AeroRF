@@ -185,6 +185,13 @@ class MapObject(Base):
         "Measurement", back_populates="object", uselist=False,
         cascade="all, delete-orphan", lazy="selectin",
     )
+    #: El evento RF (spec §34). Era la única sin relación en este lado:
+    #: `RFEvent.object` era de una sola vía, así que ni el Inspector ni la
+    #: exportación podían llegar al payload (F2-03).
+    rf_event = relationship(
+        "RFEvent", back_populates="object", uselist=False,
+        cascade="all, delete-orphan", lazy="selectin",
+    )
     annotations = relationship(
         "Annotation", back_populates="object",
         cascade="all, delete-orphan", order_by="Annotation.timestamp",

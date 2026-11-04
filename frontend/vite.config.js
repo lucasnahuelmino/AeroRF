@@ -50,8 +50,9 @@ export default defineConfig({
     },
   },
   build: {
-    // Plotly (~3.5 MB) is only needed by the spectrum view, which is
-    // lazy-loaded; splitting it keeps the initial bundle small.
+    // Plotly (~3.5 MB) sólo lo usa la calculadora RF —vía Chart.vue—, y lo
+    // carga bajo demanda: así el bundle inicial sigue chico. La vista de
+    // Espectro, que también lo usaba, se dio de baja en 0.30.32.
     rollupOptions: {
       output: {
         manualChunks: {

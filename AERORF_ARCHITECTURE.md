@@ -171,7 +171,7 @@ alrededor de eso:
 | Recorte de la ventana al límite del endpoint | `_clamp()` |
 | Un solo refresh de token bajo concurrencia | `asyncio.Lock` en `TokenManager` |
 | Un solo request upstream bajo concurrencia | *single-flight* en `TTLCache` |
-| Pausa total ante 429 | `BackoffController` compartido por los tres pools |
+| Pausa total ante 429 | `BackoffController` compartido por los tres pools **y** por la renovación del token (0.30.17): un tope en `auth` cierra el gate igual que un tope en `/tracks` |
 | `upstream_calls` cuenta ejecuciones reales | Envuelve la factory, no la petición |
 
 **Sobre las trayectorias.** OpenSky documenta que `/tracks` es
@@ -189,7 +189,7 @@ datos a cualquier exportación.
 
 ### 3.6 Procedencia
 
-Cinco valores, aplicados a cada dato y conservados de extremo a extremo
+Seis valores, aplicados a cada dato y conservados de extremo a extremo
 (spec §58):
 
 | Valor | Significado | Ejemplo |
@@ -199,6 +199,7 @@ Cinco valores, aplicados a cada dato y conservados de extremo a extremo
 | `live` | Vector de estado actual | Posición en vivo |
 | `calculated` | Derivado por AeroRF | Distancia, correlación, círculo |
 | `user` | Tecleado por el operador | Radio, azimut, descripción |
+| `imported` | Importado de un archivo GeoJSON | Capa importada (0.30.18) |
 
 El origen se etiqueta en el modelo (`MapObject.source`,
 `AircraftTrack.source`, `RFSource.provenance`), viaja en la respuesta de
@@ -216,6 +217,14 @@ capas, y en las exportaciones.
 - `RedactingFilter` es la segunda barrera, applied a cada registro.
 - No existe ruta de código desde la API hasta las cadenas de secreto.
 - Test dedicado: `/system/config` no contiene ninguna clave de secreto.
+- **Middleware de `Origin`/`Host` (P0-07, 0.30.20)** — acotado a los
+  orígenes de `CORS_ORIGINS`: el mismo `.env` que gobierna CORS, así los
+  dos nunca se contradicen. CORS niega la *lectura* de la respuesta; el
+  guard niega la *petición* (formularios y XHR de otro sitio) y cierra
+  el hueco que CORS no cubre: el DNS rebinding, que **no** manda
+  `Origin` y entra por el `Host` (`ALLOWED_HOSTS` + los hostnames de
+  los orígenes). 403 con `{"detail"}` en español, y ASGI puro — también
+  mira el scope `websocket`.
 
 ### 3.8 Logging
 
@@ -253,6 +262,60 @@ es `SAAR`. Eso se verificó contra la fuente.
 
 `tools/build_airports.py` informa los códigos que pidió y no encontró, para que
 un vacío nunca sea silencioso.
+
+**La capa dibuja además la lista del operador (0.30.30).** El composable
+`frontend/src/composables/useAirport.js` contiene los 116 sitios que él cargó
+(0.30.30: aeropuertos, EAVA/ACC, CCTE, aeroclubs). No es generado, así que
+`tests/airports.spec.js` le aplica las mismas salvaguardas que el archivo
+publicado — identificadores únicos y coordenadas en rango — porque un dato mal
+copiado se ve igual que uno válido. La unión se calcula una sola vez al cargar
+el módulo: un sitio a ≤ 2 km de un aeropuerto publicado se dibuja **una vez**
+con ese aeropuerto (el popup lista todos los que caen ahí), y los sitios sin
+aeropuerto cerca quedan como círculo, marcados «Sitio de la lista del
+operador». Tampoco se persisten, por las mismas razones de arriba.
+
+El símbolo de aeropuerto es una imagen — `frontend/public/iconos/aeropuerto.svg`,
+con `fm.svg`/`tprs.svg`/`otro.svg` para las fuentes de punto — y el código sólo
+nombra la ruta: cambiar el dibujo es reemplazar el archivo, sin tocar código.
+Los originales vienen de Font Awesome Free 6.7.2 (CC BY 4.0) y su procedencia
+está en `public/iconos/LEEME.txt`.
+
+**La fuente del punto se elige y se dibuja (0.30.31).** El campo `icon` es de
+los más viejos del backend —guardado y devuelto desde antes de que existiera
+cualquier UI que lo escribiera—; lo que faltaba era la opción y el dibujo. El
+selector *Fuente del punto* de las opciones de la herramienta (al crear el
+punto) y del inspector (sobre un punto existente) escriben `fm`/`tprs`/`otro`
+vía `updateObject`, sin contrato nuevo; `MapEngine` dibuja
+`public/iconos/<valor>.svg` en una rama del mismo `_buildLayer` cuando el
+objeto es un punto y reconoce el valor, y cualquier otro —el `point` por
+defecto, las filas viejas— sigue siendo el círculo de siempre: lo que el
+operador no pidió no cambia de aspecto. El chip del disco claro es la misma
+regla CSS que el avión (`.aerorf-punto-icono`).
+
+### 3.10 Errores: ninguna entrada del operador devuelve 500
+
+`app/api/errors.py` registra tres handlers (`install_error_handlers`,
+llamado desde `app.main`):
+
+| handler | cuándo entra | respuesta |
+|---|---|---|
+| `RequestValidationError` | la validación de FastAPI/Pydantic; **pisa** la del framework | **422**, `msg` traducido |
+| `pydantic.ValidationError` | validación hecha **dentro** del handler (las rutas con `body: dict`) — sin esto salía 500 | **422**, `msg` traducido |
+| `sqlalchemy.exc.IntegrityError` | lo que Pydantic dejó pasar y SQLite frenó (FK, NOT NULL) | **400** genérico en español; la causa real, al log |
+
+El traductor mapea el `type` de Pydantic a texto en español, y para
+`value_error` toma el mensaje del validador — que ya está en español
+(`schemas_gis.py`) — y devuelve `[{type, loc, msg}]`: `describeError`
+del frontend une `loc: msg` y lo pinta en pantalla. `type` conserva el
+código original porque es un identificador para máquinas; `msg`, que sí
+se lee, nunca sale en inglés.
+
+La red de `IntegrityError` es un piso, no el diseño. Los casos que el
+operador encuentra a diario — `layer_id` o `expediente_id` inexistentes,
+`null` en una columna NOT NULL — tienen chequeo propio en `map_service`
+**antes** de escribir, con el mensaje que nombra lo que falta («No existe
+la capa 999999.»). Validar el patch completo antes de tocar la fila
+también evita escrituras parciales: o entra todo, o no entra nada.
 
 ## 4. Frontend
 
@@ -335,10 +398,13 @@ no son el mapa puedan leerlo.
 El cliente envía `{"action": "track", "icao24": [...]}` para acotar el
 feed a lo que realmente sigue, lo que reduce el tráfico de forma
 sensible. El servidor compara cada estado con el último enviado y **solo
-transmite si algo cambió**: un avión estacionado no genera tráfico. Los
-mensajes de estado (`not_configured`, `throttled`) se envían **una vez**,
-no en cada tick, porque un Feed que se repite cada 10 s es exactamente lo
-que el spec §48 prohíbe.
+transmite si algo cambió**: un avión estacionado no genera tráfico. Lo
+mismo vale para los mensajes que no son posiciones: los de estado
+(`not_configured`, `throttled`) salen **una vez por condición**, y el de
+aeronave perdida (`lost`) **una vez por caída** — se deduplica contra el
+último aviso y se olvida cuando la aeronave vuelve, de modo que una caída
+posterior también se anuncie y su estado vuelva a mandarse. Un feed que se
+repite cada 10 s es exactamente lo que el spec §48 prohíbe.
 
 > **Dependencia no evidente:** uvicorn no trae soporte WebSocket. Sin
 > `uvicorn[standard]` o `websockets`, responde *«Unsupported upgrade
@@ -412,24 +478,59 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `tests/test_opensky_contract.py` (25) | **Contrato contra una captura real** de OpenSky | `pytest tests/test_opensky_contract.py` |
 | `tests/test_opensky_anonymous.py` (20) | Modo sin credenciales: qué funciona y qué no | `pytest tests/test_opensky_anonymous.py` |
 | `tests/test_geojson.py` (35) | Conversión bidireccional, orden de coordenadas, features | `pytest tests/test_geojson.py` |
-| `tests/test_map_objects.py` (100) | CRUD, notas, historial, estados, bloqueo, consultas espaciales, grabación, lista de seguimiento | `pytest tests/test_map_objects.py` |
+| `tests/test_map_objects.py` (70) | CRUD, notas, historial, estados, bloqueo, consultas espaciales, grabación, lista de seguimiento | `pytest tests/test_map_objects.py` |
 | `tests/test_opensky_flights_contract.py` (24) | **Contrato real** de `/tracks/*` y `/flights/*`: camelCase, altitudes imposibles, resolución | `pytest tests/test_opensky_flights_contract.py` |
-| `tests/test_opensky_anonymous.py` (20) | Modo sin credenciales | `pytest tests/test_opensky_anonymous.py` |
 | `tests/walkthrough_real.py` (43) | **Recorrido §57 contra OpenSky real** — gasta créditos | `python tests/walkthrough_real.py` (backend activo) |
-| `tests/test_websocket.py` (7) | Ciclo de vida, suscripción, anti-inundación | `pytest tests/test_websocket.py` (backend activo) |
+| `tests/test_websocket.py` (7) | Ciclo de vida, suscripción, anti-inundación; la última **vacía y restaura la lista de seguimiento** para poder asertar `idle` | `pytest tests/test_websocket.py` (backend activo) |
 | `app/rf_engine/test_rf_engine.py` (30) | Motor RF heredado | `pytest app/rf_engine` |
 | `tests/geo_parity.mjs` (675) | Paridad JS ↔ Python | `node tests/geo_parity.mjs` |
 | `tests/smoke_e2e.py` (78) | Recorrido completo por HTTP real | `python tests/smoke_e2e.py` |
 | `frontend/tests/geo.spec.js` (36) | Geodesia del navegador: unidades, rumbos, azimuth, formato | `npm run test:geo` |
 | `tests/test_geometry_validation.py` (21) | Geometria validada al escribir, lectura defensiva, orden de coordenadas, import de `func` a nivel de modulo | `pytest tests/test_geometry_validation.py` |
+| `tests/test_error_icao24.py` (34) | Mensaje en español al rechazar una dirección de aeronave inválida, y que el texto en inglés de antes no sobrevive en el código | `pytest tests/test_error_icao24.py` |
+| `tests/test_busqueda_por_archivo.py` (20) | Buscar por callsign cuando la aeronave no está volando: el archivo propio resuelve callsign → ICAO24 | `pytest tests/test_busqueda_por_archivo.py` |
+| `tests/test_trayectoria_viva.py` (16) | Por qué la trayectoria en vivo se congelaba: el TTL de la caché contra el intervalo de sondeo | `pytest tests/test_trayectoria_viva.py` |
+| `tests/test_p006_base_y_respaldo.py` (14) | **P0-06**: ruta de la base anclada a la raíz y no al directorio de trabajo, respaldo que atraviesa el WAL donde un `copyfile` no llega, y versión de esquema que no avanza si el paso falla | `pytest tests/test_p006_base_y_respaldo.py` |
+| `tests/test_p004_websocket_anonimo.py` (5) | **P0-04**: que el WebSocket consulte en modo anónimo en vez de rendirse, que la compuerta siga cerrada sin forma de consultar, y que la lista vacía gane al chequeo de credenciales | `pytest tests/test_p004_websocket_anonimo.py` |
+| `tests/test_p011_guardar_en_expediente.py` (6) | **P0-11**: que guardar y volver a leer por el `GET` que ya existía dé algo, que ningún campo cambie en el ida y vuelta, que los dos expedientes no se mezclen, y que 404 y 400 salgan en español sin escribir nada | `pytest tests/test_p011_guardar_en_expediente.py` |
+| `tests/test_lost_sin_inundar.py` (5) | **§48**: que el frame `lost` salga una vez por caída y no uno por tick, que deduplicar no lo silencie para siempre, que al volver se reenvíe su estado aunque no haya cambiado, y que el aviso siga en español | `pytest tests/test_lost_sin_inundar.py` |
+| `tests/test_f201_candado_rf.py` (7) | **Fase 2, F2-01**: que las cuatro rutas tipadas no se salten el candado, que un 400 no deje media escritura atrás, que lo desbloqueado siga editándose y que el candado pueda abrirse | `pytest tests/test_f201_candado_rf.py` |
+| `tests/test_f202_historial_tipado.py` (8) | **Fase 2, F2-02**: que el historial de los atributos tipados lleve sólo cambios reales con los dos valores, que no diga que borró lo que sigue ahí, que registre el `azimuth`/`radius` que se copian al objeto y que `25.0` y `25` no cuenten como cambio | `pytest tests/test_f202_historial_tipado.py` |
+| `tests/test_f203_evento_serializado.py` (7) | **Fase 2, F2-03**: que el payload de `rf_events` salga en la respuesta del mapa, en el GeoJSON, en las dos columnas del CSV y en el duplicado; y que un evento sin payload no invente uno, que una fuente no lleve bloque de evento y que borrar el evento siga cascadendo | `pytest tests/test_f203_evento_serializado.py` |
+| `tests/test_f204_borrado_filtrado.py` (6) | **Fase 2, F2-04**: que el limpiado masivo se lleve lo libre y deje lo cerrado, lo vinculado y los grupos enteros; que el borrado de a uno respete el candado y siga bloqueando por expediente; y que sin `cascade` no se borre una fila | `pytest tests/test_f204_borrado_filtrado.py` |
+| `tests/test_flight_history.py` (12) | Histórico de vuelos sin instante: elegir el vuelo del informe y no el último que voló el avión | `pytest tests/test_flight_history.py` |
+| `tests/test_trajectory_contract.py` (7) | Contrato de `loadTrack`: la clave duplicada que devolvía la lista de seguimiento en vez de la ruta | `pytest tests/test_trajectory_contract.py` |
+| `tests/test_track_dedup.py` (6) | Que pedir el mismo vuelo dos veces no meta la trayectoria dos veces | `pytest tests/test_track_dedup.py` |
 | `frontend/tests/objects.spec.js` (11) | Traduccion `latlngs` -> `geometry`, cierre de anillo, acumulacion de lineas | `npm run test:objects` |
 | `frontend/tests/airports.spec.js` (31) | Unicidad de los datos, capa conmutable, filtro, medicion desde aeropuerto | `npm run test:airports` |
 | `frontend/tests/layout.spec.js` (15) | **Proporciones del shell**, leidas del CSS construido: mapa flexible, paneles plegables, area de las herramientas, logo acotado | `npm run test:layout` |
-| `frontend/tests/components.spec.js` (43) | **Montaje real en jsdom**: el shell completo, los 8 paneles, `MapEngine`, `ToolManager`, `MeasureEngine`, `AircraftRenderer` | `npm run test:components` |
+| `frontend/tests/components.spec.js` (67) | **Montaje real en jsdom**: el shell completo, los 8 paneles, `MapEngine`, `ToolManager`, `MeasureEngine`, `AircraftRenderer`, y el payload del evento F2-03 leído de `properties.event` | `npm run test:components` |
 | `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
+| `frontend/tests/p011-guardar.spec.js` (5) | **P0-11**: que el botón esté inactivo sin destino, que lo que se manda sean los campos de `EventoRF` con el mapeo medido en vivo, que un error se muestre como error, y que un fallo de carga no se finja «no hay expedientes» | `npx vitest run tests/p011-guardar.spec.js` |
 
-**Total: 357 unitarias + 7 integracion + 675 de paridad + 448 de frontend + 78 E2E + 43 recorrido real.**
+**Total: 510 de Python sin integración (22 archivos) + 7 de integración + 30
+del motor RF heredado + 675 de paridad + 454 de frontend (31 archivos) + 78 E2E + 43 de
+recorrido real.**
+
+El 510 se mide con `pytest -m "not integration"` y el 454 con `npm test` desde
+`frontend/`; el 7 de integración son los de
+`test_websocket.py`, que van con `-m integration` y hoy quedan **los 7 en
+verde (28 s)** contra el backend de 8010 con 0.30.13: `test_feed_does_not_flood`
+**pasa** —se cuelgaba porque el servidor reenviaba `lost` cada 10 s sin
+deduplicar, y ese es ahora `tests/test_lost_sin_inundar.py` sin servidor ni
+reloj—, y `test_idle` **pasa desde 0.30.9**: su precondición de lista vacía la
+arma la propia prueba (vacía por la API pública y restaura en un `finally`),
+en lugar de saltarse. **Costo: `added_at` no vuelve al valor anterior**, porque
+ni `GET /flights/tracked` ni `update_selection` lo exponen; todo lo demás sí
+(`icao24`, `callsign`, `slot`, `color`, `show_track`, `show_marker`,
+`selected`). **Los
+30 de
+`app/rf_engine/test_rf_engine.py` no los recoge un `pytest` a secas**:
+`pytest.ini` dice `testpaths = tests`, así que ese directorio queda fuera por
+defecto y hay que pedirlo a mano con `pytest app/rf_engine` — lo comprobé:
+pasan los 30, pero hasta ahora nadie los estaba ejecutando. (Antes esta línea
+decía «357 unitarias», un número que ya no reproducía.)
 
 ### 7.1 Segunda capa: montar los componentes de verdad
 

@@ -32,6 +32,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.errors import install_error_handlers
+from app.api.origin_guard import install_origin_guard
 from app.core.config import get_settings
 from app.core.logging import log, setup_logging
 from app.database.database import init_db
@@ -67,10 +69,14 @@ async def lifespan(app: FastAPI):
         opensky="configured" if settings.has_opensky_credentials else "not configured",
     )
     if not settings.has_opensky_credentials:
+        # «Flight features disabled» era falso: en modo anónimo el
+        # tráfico en vivo sí funciona (OpenSky lo sirve sin cuenta); lo
+        # que se cae sin credenciales es el historial de vuelos.
         log.warning(
             "app.opensky_missing",
-            "OpenSky credentials absent — flight features disabled, "
-            "map and RF features unaffected. See .env.example.",
+            "Credenciales de OpenSky ausentes: el historial de vuelos "
+            "quedará deshabilitado y el tráfico en vivo dependerá de "
+            "OPENSKY_ALLOW_ANONYMOUS. Ver .env.example.",
         )
     yield
     log.info("app.shutdown", "shutting down")
@@ -99,6 +105,12 @@ app = FastAPI(
     license_info={"name": "Internal use only"},
 )
 
+# ─── Errores en español (F2-05) ──────────────────────────────────────────────
+# Pisa el 422 en inglés de FastAPI, atrapa la validación que las rutas con
+# `body: dict` hacen dentro del handler (eso salía 500) y traduce cualquier
+# IntegrityError a un 400 legible. Ver app/api/errors.py.
+install_error_handlers(app)
+
 # ─── CORS ────────────────────────────────────────────────────────────────────
 # Tighten CORS_ORIGINS in production to the real domain.
 app.add_middleware(
@@ -108,6 +120,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Origin/Host (P0-07) ─────────────────────────────────────────────────────
+# Acotado a los orígenes de CORS configurados: cualquier origen que
+# CORSMiddleware (arriba) sirve, éste lo deja llegar — los dos leen el
+# mismo .env y nunca se contradicen. CORS niega la *lectura*; el guard
+# niega la *petición* (formularios, XHR de otro sitio) y cierra el hueco
+# que CORS no cubre: el DNS rebinding, que no manda Origin y entra por
+# el Host. Ver app/api/origin_guard.py.
+install_origin_guard(app)
 
 # ─── Routers ─────────────────────────────────────────────────────────────────
 API = settings.api_prefix

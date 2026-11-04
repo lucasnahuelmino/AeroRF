@@ -2,7 +2,7 @@
   <footer class="gis-statusbar">
     <!-- Cursor coordinates (spec §5) -->
     <div class="flex items-center gap-2">
-      <span class="text-[10px] uppercase tracking-widest text-slate-500">Cursor</span>
+      <span class="text-[10px] uppercase tracking-widest text-texto-tenue">Cursor</span>
       <span class="font-mono text-xs text-emerald-300 tabular-nums">
         {{ mapStore.cursorText }}
       </span>
@@ -16,11 +16,11 @@
       </button>
     </div>
 
-    <span class="w-px h-3.5 bg-slate-800" />
+    <span class="w-px h-3.5 bg-borde" />
 
     <!-- Format switcher (spec §5: configurable decimal / DMS) -->
     <div class="flex items-center gap-1">
-      <span class="text-[10px] uppercase tracking-widest text-slate-500">Formato</span>
+      <span class="text-[10px] uppercase tracking-widest text-texto-tenue">Formato</span>
       <button
         v-for="fmt in formats"
         :key="fmt.id"
@@ -33,12 +33,12 @@
       </button>
     </div>
 
-    <span class="w-px h-3.5 bg-slate-800" />
+    <span class="w-px h-3.5 bg-borde" />
 
     <!-- Last click, offered to the tools (spec §5) -->
     <div class="hidden md:flex items-center gap-2">
-      <span class="text-[10px] uppercase tracking-widest text-slate-500">Último clic</span>
-      <span class="font-mono text-[11px] text-slate-400 tabular-nums">
+      <span class="text-[10px] uppercase tracking-widest text-texto-tenue">Último clic</span>
+      <span class="font-mono text-[11px] text-texto-tenue tabular-nums">
         {{ lastClickText }}
       </span>
     </div>
@@ -46,27 +46,27 @@
     <div class="flex-1" />
 
     <!-- Object counts (spec §38) -->
-    <div v-if="mapStore.stats" class="hidden lg:flex items-center gap-3 text-[10px] text-slate-500">
+    <div v-if="mapStore.stats" class="hidden lg:flex items-center gap-3 text-[10px] text-texto-tenue">
       <span>
         Objetos
-        <b class="text-slate-300">{{ mapStore.stats.total }}</b>
+        <b class="text-texto-medio">{{ mapStore.stats.total }}</b>
       </span>
       <span>
         Ocultos
-        <b class="text-slate-300">{{ mapStore.stats.hidden }}</b>
+        <b class="text-texto-medio">{{ mapStore.stats.hidden }}</b>
       </span>
       <span v-for="(n, type) in topTypes" :key="type" class="flex items-center gap-1">
         <i class="w-1.5 h-1.5 rounded-full" :style="{ background: typeColor(type) }" />
-        <b class="text-slate-300">{{ n }}</b>
+        <b class="text-texto-medio">{{ n }}</b>
       </span>
     </div>
 
-    <span class="w-px h-3.5 bg-slate-800" />
+    <span class="w-px h-3.5 bg-borde" />
 
     <!-- UTC time: investigation records are timestamped in UTC -->
     <div class="flex items-center gap-2">
-      <span class="text-[10px] uppercase tracking-widest text-slate-500">UTC</span>
-      <span class="font-mono text-[11px] text-slate-300 tabular-nums">{{ utcTime }}</span>
+      <span class="text-[10px] uppercase tracking-widest text-texto-tenue">UTC</span>
+      <span class="font-mono text-[11px] text-texto-medio tabular-nums">{{ utcTime }}</span>
     </div>
   </footer>
 </template>

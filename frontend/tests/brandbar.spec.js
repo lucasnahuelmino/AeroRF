@@ -69,13 +69,15 @@ vi.mock('@/api/client', () => {
   }
 })
 
+// Los stubs de /espectro y /dashboard se quitaron con las bajas totales de
+// las secciones (0.30.32 y 0.30.33): esta lista imita el enrutador real, y
+// el enrutador real ya no registra esas rutas. Las guardas de las dos bajas
+// están al final del archivo.
 const ROUTES = [
   { path: '/', name: 'Map', component: { template: '<div class="gis-map" />' } },
   { path: '/map', name: 'Mapa', component: { template: '<div class="gis-map" />' } },
-  { path: '/dashboard', name: 'Panel', component: { template: '<div />' } },
   { path: '/expedientes', name: 'Expedientes', component: { template: '<div />' } },
   { path: '/calculadora', name: 'CalculadoraRF', component: { template: '<div />' } },
-  { path: '/espectro', name: 'Espectro', component: { template: '<div />' } },
 ]
 
 async function mountApp({ path = '/' } = {}) {
@@ -101,7 +103,10 @@ describe('the section menu', () => {
   })
 
   it('renders on every other section', async () => {
-    for (const path of ['/dashboard', '/expedientes', '/calculadora', '/espectro', '/map']) {
+    // /espectro y /dashboard se quitaron de la lista con las bajas totales
+    // de las secciones (0.30.32 y 0.30.33): las rutas ya no existen, los
+    // enlaces tampoco. Las guardas de esas bajas están al final del archivo.
+    for (const path of ['/expedientes', '/calculadora', '/map']) {
       const { w } = await mountApp({ path })
       expect(w.find('.brandbar').exists(), `sin menu en ${path}`).toBe(true)
       w.unmount()
@@ -111,7 +116,10 @@ describe('the section menu', () => {
   it('links to every section', async () => {
     const { w } = await mountApp({ path: '/' })
     const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
-    for (const p of ['/', '/dashboard', '/expedientes', '/calculadora', '/espectro']) {
+    // La lista es la de las secciones que quedan: Espectro (0.30.32) y
+    // Panel (0.30.33) se dieron de baja total, y las guardas al final del
+    // archivo comprueban que no vuelvan a aparecer.
+    for (const p of ['/', '/expedientes', '/calculadora']) {
       expect(hrefs, `falta el enlace a ${p}`).toContain(p)
     }
     w.unmount()
@@ -123,7 +131,9 @@ describe('the section menu', () => {
     const { w } = await mountApp({ path: '/' })
     const nav = w.find('.brandbar-nav').element
     // The links are in the document, not behind a click.
-    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(5)
+    // Tres enlaces desde las bajas de Espectro (0.30.32) y Panel (0.30.33):
+    // Mapa, Expedientes y Calculadora RF.
+    expect(nav.querySelectorAll('a').length).toBeGreaterThanOrEqual(3)
     expect(w.find('.brandbar-nav [aria-expanded]').exists()).toBe(false)
     w.unmount()
   })
@@ -146,10 +156,13 @@ describe('the section menu', () => {
 
   it('navigates when a link is followed', async () => {
     const { w, router } = await mountApp({ path: '/' })
-    const link = w.findAll('.brandbar-link').find((a) => a.attributes('href') === '/dashboard')
+    // El destino representativo era /dashboard; con la baja total de Panel
+    // (0.30.33) la sección de prueba pasa a ser Expedientes. Lo que mide la
+    // prueba es que el clic navega, no qué sección existe.
+    const link = w.findAll('.brandbar-link').find((a) => a.attributes('href') === '/expedientes')
     await link.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/dashboard')
+    expect(router.currentRoute.value.path).toBe('/expedientes')
     w.unmount()
   })
 })
@@ -158,7 +171,7 @@ describe('the section menu', () => {
 
 describe('the brand', () => {
   it('is visible and returns to the map', async () => {
-    const { w, router } = await mountApp({ path: '/dashboard' })
+    const { w, router } = await mountApp({ path: '/expedientes' })
     const brand = w.find('.brandbar-brand')
     expect(brand.exists(), 'sin marca').toBe(true)
     // The logo is bigger than the 22px it used to be, so it reads as a brand
@@ -175,7 +188,7 @@ describe('the brand', () => {
 
 describe('the institutional lockup', () => {
   it('names ENACOM and its full title', async () => {
-    const { w } = await mountApp({ path: '/dashboard' })
+    const { w } = await mountApp({ path: '/expedientes' })
     const lock = w.find('.brandbar-enacom')
     expect(lock.exists(), 'sin lockup institucional').toBe(true)
     // The mark is the institution's own file now, so the name ENACOM is carried
@@ -213,7 +226,7 @@ describe('the institutional lockup', () => {
 
 describe('the institutional footer', () => {
   it('names the Directorate and repeats the mark, smaller', async () => {
-    const { w } = await mountApp({ path: '/dashboard' })
+    const { w } = await mountApp({ path: '/expedientes' })
     const foot = w.find('.footerbar')
     expect(foot.exists(), 'sin pie institucional').toBe(true)
     expect(foot.text()).toContain('Dirección Nacional de Control y Fiscalización')
@@ -311,5 +324,82 @@ describe('the bar is thin', () => {
     const h = logo.match(/height:\s*(\d+(?:\.\d+)?)px/)
     const ch = bar[1].match(/height:\s*(\d+(?:\.\d+)?)px/)
     expect(Number(h[1])).toBeLessThan(Number(ch[1]))
+  })
+})
+
+// ─── La baja de Espectro ────────────────────────────────────────────────────
+
+describe('Espectro fue dado de baja', () => {
+  // El operador decidió la baja total de la sección (0.30.32): el menú, la
+  // ruta y la vista desaparecen. Tres guardas, porque son tres archivos que
+  // se editan a mano — un menú, un enrutador y un view — y en una baja lo
+  // que vuelve a romperse es exactamente eso: una entrada vieja que
+  // sobrevive porque nadie miró ese archivo.
+  it('no figura en el menú de secciones', async () => {
+    const { w } = await mountApp({ path: '/' })
+    const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
+    expect(hrefs, 'el menú volvió a ofrecer /espectro').not.toContain('/espectro')
+    expect(w.text(), 'el menú volvió a nombrar Espectro').not.toContain('Espectro')
+    w.unmount()
+  })
+
+  it('la ruta /espectro ya no está registrada', async () => {
+    const { default: router } = await import('@/router')
+    const r = router.resolve('/espectro')
+    expect(
+      r.matched.some((m) => m.path === '/espectro'),
+      'el enrutador todavía registra /espectro',
+    ).toBe(false)
+  })
+
+  it('la vista fue borrada del fuente', () => {
+    expect(
+      existsSync(join(here, '..', 'src', 'views', 'EspectroView.vue')),
+      'sigue src/views/EspectroView.vue: la baja total no se hizo',
+    ).toBe(false)
+  })
+})
+
+// ─── La baja de Panel ───────────────────────────────────────────────────────
+
+describe('Panel fue dado de baja', () => {
+  // Mismo motivo que Espectro (0.30.32) y misma estructura, un año después:
+  // el operador decidió la baja total de la sección Panel (0.30.33). Otra
+  // vez son archivos editados a mano donde una entrada vieja sobrevive sin
+  // que nada la contradiga — el menú, el enrutador y el view — más
+  // StatCard.vue, que se borró con la vista porque el Panel era su único
+  // consumidor (antes de borrar se grepeó).
+  it('no figura en el menú de secciones', async () => {
+    const { w } = await mountApp({ path: '/' })
+    const hrefs = w.findAll('.brandbar-link').map((a) => a.attributes('href'))
+    expect(hrefs, 'el menú volvió a ofrecer /dashboard').not.toContain('/dashboard')
+    // Sólo el menú: el panel izquierdo del mapa se llama «Panel Herramientas»
+    // y eso no es la sección Panel que se dio de baja.
+    const etiquetas = w.findAll('.brandbar-link').map((a) => a.text())
+    expect(
+      etiquetas.some((t) => t.includes('Panel')),
+      'el menú volvió a nombrar la sección Panel',
+    ).toBe(false)
+    w.unmount()
+  })
+
+  it('la ruta /dashboard ya no está registrada', async () => {
+    const { default: router } = await import('@/router')
+    const r = router.resolve('/dashboard')
+    expect(
+      r.matched.some((m) => m.path === '/dashboard'),
+      'el enrutador todavía registra /dashboard',
+    ).toBe(false)
+  })
+
+  it('la vista y su StatCard fueron borrados del fuente', () => {
+    expect(
+      existsSync(join(here, '..', 'src', 'views', 'DashboardView.vue')),
+      'sigue src/views/DashboardView.vue: la baja total no se hizo',
+    ).toBe(false)
+    expect(
+      existsSync(join(here, '..', 'src', 'components', 'StatCard.vue')),
+      'sigue src/components/StatCard.vue, sin consumidor desde la baja',
+    ).toBe(false)
   })
 })
