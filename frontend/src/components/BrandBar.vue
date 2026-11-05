@@ -160,7 +160,7 @@ function go(path) {
   -webkit-user-select: none;
 }
 
-.brandbar-shell { height: 48px; gap: 0.625rem; }
+.brandbar-shell { height: 48px; gap: 0.5rem; }
 
 /* ─── Brand ──────────────────────────────────────────────────────────────── */
 
@@ -210,7 +210,7 @@ function go(path) {
 .brandbar-nav {
   display: flex;
   align-items: stretch;
-  gap: 0.125rem;
+  gap: 0.0625rem;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -222,24 +222,33 @@ function go(path) {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0 0.625rem;
-  font-size: 0.75rem;
+  gap: 0.3125rem;
+  min-height: 34px;
+  margin: 7px 0;
+  padding: 0 0.45rem;
+  border-radius: 0.375rem;
+  background: transparent;
+  font-size: 0.6875rem;
   color: var(--texto-tenue);
   text-decoration: none;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
-  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  transition: color 0.12s, border-color 0.12s, background-color 0.12s;
   touch-action: manipulation;
 }
 .brandbar-link:hover { color: var(--texto); background: var(--panel-alto); }
 
 .brandbar-link-on {
-  color: var(--trazo-observado);
-  border-bottom-color: var(--trazo-observado);
+  color: var(--signal);
+  background: var(--panel);
+  border-bottom-color: var(--signal);
+}
+.brandbar-link:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
 }
 
-.brandbar-link-icon { font-size: 0.8125rem; line-height: 1; opacity: 0.85; }
+.brandbar-link-icon { font-size: 0.75rem; line-height: 1; opacity: 0.85; }
 
 /* The map owns the height budget, so its own tabs already name the panels.
  * Repeating "Mapa" there would be noise. */
@@ -314,7 +323,7 @@ function go(path) {
   .brandbar-name i { display: none; }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 560px) {
   .brandbar-link-text { display: none; }
   .brandbar-link { padding: 0 0.5rem; }
 }

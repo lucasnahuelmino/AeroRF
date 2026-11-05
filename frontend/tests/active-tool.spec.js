@@ -131,7 +131,7 @@ describe('the pressed tool', () => {
 
   it('marks the chosen tool in the contextual task view', async () => {
     await chooseTool('Círculo')
-    expect(w.find('.gis-workspace-active-tool').text()).toContain('Círculo')
+    expect(w.find('.gis-workspace-title').text()).toBe('Círculo')
     expect(map.activeTool).toBe('circle')
   })
 

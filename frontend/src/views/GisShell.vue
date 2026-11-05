@@ -1,29 +1,6 @@
 <template>
   <div class="gis-shell">
-    <!--
-      The section menu is BrandBar, rendered by App.vue above this. It is thin
-      here too, so the map keeps its height budget, and it is present on every
-      section, which is what makes the application navigable.
-    -->
-    <!-- ── Map workspace toolbar ─────────────────────────────────────────── -->
-    <header class="gis-toolbar">
-      <div class="gis-brand">
-        <span class="gis-mode-label">{{ modeLabel }}</span>
-      </div>
-      <div class="gis-actions">
-        <button
-          class="gis-icon-btn"
-          :title="workspaceToggleTitle"
-          :aria-label="workspaceToggleTitle"
-          @click="systemStore.toggleWorkspaceMode()"
-        >
-          ▤
-        </button>
-        <button class="gis-icon-btn" title="Ayuda" @click="showHelp = !showHelp">?</button>
-      </div>
-    </header>
-
-    <!-- ── Body: one contextual Workspace and the map ───────────────────── -->
+    <!-- The global BrandBar is the only header above the GIS workspace. -->
     <div
       class="gis-body"
       :class="[
@@ -69,9 +46,29 @@
         <template v-else>
           <header class="gis-workspace-header">
             <div class="gis-workspace-title-row">
-              <div class="min-w-0">
-                <p class="gis-workspace-kicker">AeroRF · Workspace</p>
-                <h2 class="gis-workspace-title">{{ workspaceHeading }}</h2>
+              <div class="gis-workspace-title-group">
+                <button
+                  v-if="systemStore.workspaceLevel !== 'home'"
+                  class="gis-workspace-back"
+                  type="button"
+                  :aria-label="`Volver a ${workspaceBackLabel}`"
+                  :title="`Volver a ${workspaceBackLabel}`"
+                  @click="goBackWorkspace"
+                >
+                  <span aria-hidden="true">‹</span>
+                </button>
+                <h2
+                  v-if="systemStore.workspaceLevel === 'category'"
+                  class="gis-workspace-title"
+                >
+                  {{ workspaceHeading }}
+                </h2>
+                <h2
+                  v-else-if="systemStore.workspaceLevel === 'task'"
+                  class="gis-workspace-title"
+                >
+                  {{ workspaceTaskLabel }}
+                </h2>
               </div>
               <div class="gis-workspace-controls">
                 <button
@@ -82,6 +79,15 @@
                   @click="systemStore.setWorkspaceSide(systemStore.workspaceSide === 'left' ? 'right' : 'left')"
                 >
                   ⇆
+                </button>
+                <button
+                  class="gis-icon-btn"
+                  type="button"
+                  title="Ayuda rápida"
+                  aria-label="Ayuda rápida"
+                  @click="showHelp = !showHelp"
+                >
+                  ?
                 </button>
                 <button
                   class="gis-icon-btn"
@@ -103,23 +109,21 @@
                 </button>
               </div>
             </div>
-            <nav class="gis-workspace-breadcrumb" aria-label="Ruta del Workspace">
-              <button type="button" @click="systemStore.openWorkspaceHome()">Workspace</button>
-              <template v-if="workspaceCategoryMeta">
-                <span aria-hidden="true">›</span>
-                <button
-                  v-if="systemStore.workspaceLevel === 'task'"
-                  type="button"
-                  @click="systemStore.openWorkspaceCategory(workspaceCategoryMeta.id)"
-                >
-                  {{ workspaceCategoryMeta.label }}
-                </button>
-                <span v-else aria-current="page">{{ workspaceCategoryMeta.label }}</span>
-              </template>
-              <template v-if="systemStore.workspaceLevel === 'task'">
-                <span aria-hidden="true">›</span>
-                <span aria-current="page">{{ workspaceTaskLabel }}</span>
-              </template>
+            <nav
+              v-if="systemStore.workspaceLevel === 'task'"
+              class="gis-workspace-breadcrumb"
+              aria-label="Ruta del Workspace"
+            >
+              <button
+                type="button"
+                @click="systemStore.openWorkspaceCategory(workspaceCategoryMeta.id)"
+              >
+                {{ workspaceCategoryMeta?.label }}
+              </button>
+              <span aria-hidden="true">›</span>
+              <span aria-current="page">
+                {{ workspaceTaskLabel }}
+              </span>
             </nav>
           </header>
 
@@ -230,7 +234,6 @@
               <div class="gis-workspace-active-tool-heading">
                 <span class="gis-workspace-tool-icon" aria-hidden="true">{{ activeToolMeta.icon }}</span>
                 <div class="min-w-0 flex-1">
-                  <h3>{{ activeToolMeta.label }}</h3>
                   <p>{{ mapStore.activeTool === 'select' ? 'Lista para seleccionar' : 'Herramienta activa en el mapa' }}</p>
                 </div>
                 <button
@@ -293,6 +296,16 @@
       <!-- Map -->
       <main class="gis-map-area">
         <div ref="mapContainer" class="gis-map" />
+        <button
+          v-if="systemStore.workspaceMode === 'closed'"
+          class="gis-workspace-reopen"
+          :class="`gis-workspace-reopen-${systemStore.workspaceSide}`"
+          type="button"
+          @click="systemStore.setWorkspaceMode('open')"
+        >
+          <span aria-hidden="true">▤</span>
+          Abrir Workspace
+        </button>
 
         <!-- Map overlays -->
         <div class="pointer-events-none absolute inset-0">
@@ -619,19 +632,20 @@ const workspaceCategoryMeta = computed(() =>
 const workspaceTasksForCategory = computed(
   () => workspaceTasks[systemStore.workspaceCategory] || [],
 )
-const workspaceHeading = computed(
-  () => workspaceCategoryMeta.value?.label || 'Workspace',
-)
+const workspaceHeading = computed(() => workspaceCategoryMeta.value?.label || '')
 const workspaceTaskLabel = computed(() => {
   if (systemStore.workspaceSection === 'inspector') return 'Inspector'
   if (systemStore.workspaceSection === 'timeline') return 'Línea de tiempo'
-  if (systemStore.workspaceSection === 'tools') {
-    return `Configuración · ${activeToolMeta.value.label}`
-  }
+  if (systemStore.workspaceSection === 'tools') return activeToolMeta.value.label
   return workspaceTasksForCategory.value.find((task) => task.id === systemStore.workspaceTask)?.label
     || workspaceCategoryMeta.value?.label
     || 'Tarea'
 })
+const workspaceBackLabel = computed(() =>
+  systemStore.workspaceLevel === 'task'
+    ? workspaceCategoryMeta.value?.label || 'Categorías'
+    : 'Categorías',
+)
 const workspaceContextLabel = computed(() => {
   const context = systemStore.workspaceContext
   if (!context) return 'Sin contexto seleccionado'
@@ -645,12 +659,6 @@ const workspaceContextLabel = computed(() => {
 const activeToolMeta = computed(
   () => TOOL_META[mapStore.activeTool] || TOOL_META[TOOLS.SELECT],
 )
-const workspaceToggleTitle = computed(() => ({
-  open: 'Contraer Workspace',
-  collapsed: 'Expandir Workspace',
-  closed: 'Abrir Workspace',
-}[systemStore.workspaceMode]))
-
 const workspacePanelMap = {
   tools: ToolOptions,
   layers: LayerPanel,
@@ -708,6 +716,14 @@ function openWorkspaceTask(task) {
   })
 }
 
+function goBackWorkspace() {
+  if (systemStore.workspaceLevel === 'task') {
+    systemStore.openWorkspaceCategory(systemStore.workspaceCategory)
+  } else if (systemStore.workspaceLevel === 'category') {
+    systemStore.openWorkspaceHome()
+  }
+}
+
 function selectWorkspaceTool(id) {
   activateTool(id)
   systemStore.openWorkspaceTask('tools', { category: 'tools', task: 'tool-options' })
@@ -737,11 +753,6 @@ function startResize(event) {
   window.addEventListener('pointerup', stop)
   window.addEventListener('pointercancel', stop)
 }
-
-const modeLabel = computed(() => {
-  if (flightsStore.openskyConfigured) return 'GIS · Vuelos en vivo'
-  return 'GIS · Modo sin conexión OpenSky'
-})
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
 
@@ -1265,8 +1276,8 @@ watch(
 /* ─── Shell ─────────────────────────────────────────────────────────────────
  * Proportions, in order of importance:
  *   - the map takes every pixel the panels do not need
- *   - the toolbar is 46px: tall enough for a comfortable tool button with an
- *     categories and tasks have readable labels and comfortable hit areas
+ *   - the GIS starts immediately below the global navigation
+ *   - category and task rows have readable labels and comfortable hit areas
  *   - the single contextual Workspace is configurable by the operator:
  *     position, width, open/collapsed/closed mode.
  * ------------------------------------------------------------------------- */
@@ -1284,57 +1295,9 @@ watch(
   overflow: hidden;
 }
 
-.gis-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  height: 46px;
-  flex: 0 0 46px;
-  padding: 0 0.625rem;
-  background: var(--panel);
-  border-bottom: 1px solid var(--panel-alto);
-  z-index: 1100;
-  min-width: 0;
-  /* Every control in the bar is a button, not selectable text. Without this,
-     clicking the same tool twice selects its label, and the selection
-     highlight makes a working button look broken. */
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-}
-
-/* ─── Brand ──────────────────────────────────────────────────────────────── */
-
-.gis-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-right: 0.625rem;
-  border-right: 1px solid var(--panel-alto);
-  flex: 0 0 auto;
-}
-
-/* Keep the mode label readable without duplicating connection indicators from BrandBar. */
-.gis-mode-label {
-  font-size: 0.5625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--texto-tenue);
-  white-space: nowrap;
-}
-
-/* ─── Toolbar actions ──────────────────────────────────────────────────── */
-
-.gis-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex: 0 0 auto;
-}
-
 .gis-icon-btn {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -1380,11 +1343,12 @@ watch(
 
 .gis-workspace-header {
   flex: 0 0 auto;
-  padding: 0.85rem 0.8rem 0.65rem;
+  padding: 0.55rem 0.65rem;
   border-bottom: 1px solid var(--borde);
 }
 
 .gis-workspace-title-row,
+.gis-workspace-title-group,
 .gis-workspace-controls,
 .gis-workspace-active-tool-heading {
   display: flex;
@@ -1393,13 +1357,23 @@ watch(
 }
 
 .gis-workspace-title-row { justify-content: space-between; }
-.gis-workspace-controls { flex: 0 0 auto; gap: 0.15rem; }
-.gis-workspace-kicker {
-  margin-bottom: 0.15rem;
-  color: var(--signal);
-  font: 600 0.625rem var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.gis-workspace-title-group { min-width: 0; }
+.gis-workspace-controls { flex: 0 0 auto; gap: 0.1rem; }
+.gis-workspace-back {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--texto-medio);
+  font-size: 1.65rem;
+  line-height: 1;
+}
+.gis-workspace-back:hover { background: var(--panel-alto); color: var(--texto); }
+.gis-workspace-title-group:empty {
+  display: none;
 }
 .gis-workspace-title {
   overflow: hidden;
@@ -1414,7 +1388,7 @@ watch(
   align-items: center;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-top: 0.65rem;
+  margin-top: 0.35rem;
   color: var(--texto-tenue);
   font-size: 0.6875rem;
 }
@@ -1422,6 +1396,25 @@ watch(
   color: var(--texto-secundario, var(--texto-medio));
 }
 .gis-workspace-breadcrumb button:hover { color: var(--signal-on-ink); }
+.gis-workspace-reopen {
+  position: absolute;
+  top: 0.75rem;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0 0.65rem;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 0.375rem;
+  background: var(--panel);
+  color: var(--texto);
+  font-size: 0.75rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+}
+.gis-workspace-reopen:hover { background: var(--panel-alto); border-color: var(--signal); }
+.gis-workspace-reopen-left { left: 0.75rem; }
+.gis-workspace-reopen-right { right: 0.75rem; }
 
 .gis-workspace-home,
 .gis-workspace-submenu,
@@ -1625,7 +1618,7 @@ watch(
 .gis-resizer-l { left: -2px; }
 
 .gis-sidebar button:focus-visible,
-.gis-toolbar button:focus-visible {
+.gis-shell button:focus-visible {
   outline: 2px solid var(--signal-on-ink);
   outline-offset: 2px;
 }

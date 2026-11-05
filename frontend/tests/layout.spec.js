@@ -171,14 +171,23 @@ describe('Shell proportions', () => {
     expect(zeroed, 'el mapa no esta pegado a los cuatro bordes').toBe(true)
   })
 
-  it('keeps the toolbar short enough to stay out of the way', () => {
-    const bar = ruleFor(css, 'gis-toolbar')
-    expect(bar, 'falta .gis-toolbar').toBeTruthy()
-    // 46px: tall enough for an icon and a readable label.
-    const px = bar.match(/height:\s*(\d+(?:\.\d+)?)px/)
-    expect(px, 'la barra deberia tener una altura fija en px').toBeTruthy()
-    expect(Number(px[1])).toBeLessThanOrEqual(52)
-    expect(Number(px[1])).toBeGreaterThanOrEqual(40)
+  it('removes the secondary GIS bar and its reserved height', () => {
+    expect(css).not.toContain('.gis-toolbar')
+    expect(css).not.toContain('.gis-mode-label')
+    expect(css).not.toContain('GIS · Vuelos en vivo')
+    const shell = ruleFor(css, 'gis-shell')
+    expect(shell).toMatch(/height:\s*calc\([^}]*var\(--brandbar-h/)
+  })
+
+  it('keeps the Workspace header compact and exposes functional back navigation', () => {
+    const header = ruleFor(css, 'gis-workspace-header')
+    const back = ruleFor(css, 'gis-workspace-back')
+    expect(header, 'falta la cabecera compacta del Workspace').toBeTruthy()
+    expect(header).toMatch(/padding:\s*\.55rem\s+\.65rem/)
+    expect(back, 'falta el control de regreso contextual').toBeTruthy()
+    expect(back).toMatch(/width:\s*30px/)
+    expect(back).toMatch(/height:\s*30px/)
+    expect(css).not.toContain('gis-workspace-kicker')
   })
 
   it('uses a single contextual Workspace instead of a separate tool strip and tabs', () => {

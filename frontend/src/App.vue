@@ -27,9 +27,8 @@
  * ───────
  * Application shell.
  *
- * The previous version called `http://localhost:8000` directly, bypassing
- * the Vite proxy and hard-coding a port (audit P6). Status is now read from
- * the system store, which uses the shared API client.
+ * The global header lives in BrandBar so it can be compact on the GIS map and
+ * consistent across the document views without duplicating navigation.
  *
  * This component is now only the frame. The header lives in BrandBar so it
  * can be thin on the map and slightly taller on the document views without
@@ -50,8 +49,8 @@ const flightsStore = useFlightsStore()
 const mapStore = useMapStore()
 
 /**
- * The map owns the full viewport: it draws its own toolbar and manages its
- * own scrolling. Every other screen is a document that scrolls normally.
+ * The map owns the viewport below the global navigation and manages its own
+ * scrolling. Every other screen is a document that scrolls normally.
  */
 const isShell = computed(() => route.path === '/' || route.path === '/map')
 

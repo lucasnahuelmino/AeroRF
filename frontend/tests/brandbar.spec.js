@@ -275,6 +275,28 @@ describe('the bar is thin', () => {
     expect(body).toMatch(/user-select\s*:\s*none/)
   })
 
+  it('uses one compact, neutral treatment for every section link', () => {
+    const link = rule('brandbar-link')
+    const active = rule('brandbar-link-on')
+    expect(link, 'falta el estilo base del menú').toBeTruthy()
+    expect(active, 'falta el estado activo').toBeTruthy()
+    expect(link).toMatch(/font-size:\s*\.6875rem/)
+    expect(link).toMatch(/min-height:\s*34px/)
+    expect(link).toMatch(/padding:\s*0\s+\.45rem/)
+    expect(link).toMatch(/border-radius:\s*\.375rem/)
+    expect(link).toMatch(/background:\s*transparent/)
+    expect(link).toMatch(/color:\s*var\(--texto-tenue\)/)
+    expect(active).toMatch(/background:\s*var\(--panel\)/)
+    expect(active).toMatch(/color:\s*var\(--signal\)/)
+    expect(active).toMatch(/border-bottom-color:\s*var\(--signal\)/)
+    expect(css).toMatch(/\.brandbar-link[^{}]*:hover[^{}]*\{[^}]*background:var\(--panel-alto\)/)
+  })
+
+  it('keeps section names visible until a narrow mobile viewport', () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*560px\)[^{]*\{[^}]*\.brandbar-link-text/)
+    expect(css).not.toMatch(/@media\s*\(max-width:\s*860px\)[^{]*\{[^}]*\.brandbar-link-text/)
+  })
+
   it('shows a logo big enough to read as a brand', () => {
     // It was 22px, which is the size of a status dot. A brand mark has to be
     // recognisable at a glance, and the mark is a 128px raster, so the cost

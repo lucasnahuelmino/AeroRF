@@ -115,11 +115,10 @@ describe('the Workspace task controls', () => {
   })
 })
 
-describe('the map toolbar container', () => {
-  it('stays short enough to leave the map room', () => {
-    const bar = ruleFor(shellCss, 'gis-toolbar')
-    const h = px(bar, 'height')
-    expect(h).toBeLessThanOrEqual(52)
+describe('the map header', () => {
+  it('does not ship the removed secondary GIS toolbar', () => {
+    expect(shellCss).not.toContain('.gis-toolbar')
+    expect(shellCss).not.toContain('.gis-mode-label')
   })
 })
 
