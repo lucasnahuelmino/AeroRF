@@ -280,17 +280,13 @@ nombra la ruta: cambiar el dibujo es reemplazar el archivo, sin tocar código.
 Los originales vienen de Font Awesome Free 6.7.2 (CC BY 4.0) y su procedencia
 está en `public/iconos/LEEME.txt`.
 
-**La fuente del punto se elige y se dibuja (0.30.31).** El campo `icon` es de
-los más viejos del backend —guardado y devuelto desde antes de que existiera
-cualquier UI que lo escribiera—; lo que faltaba era la opción y el dibujo. El
-selector *Fuente del punto* de las opciones de la herramienta (al crear el
-punto) y del inspector (sobre un punto existente) escriben `fm`/`tprs`/`otro`
-vía `updateObject`, sin contrato nuevo; `MapEngine` dibuja
-`public/iconos/<valor>.svg` en una rama del mismo `_buildLayer` cuando el
-objeto es un punto y reconoce el valor, y cualquier otro —el `point` por
-defecto, las filas viejas— sigue siendo el círculo de siempre: lo que el
-operador no pidió no cambia de aspecto. El chip del disco claro es la misma
-regla CSS que el avión (`.aerorf-punto-icono`).
+**Marcadores de punto (2.4).** `pointMarkers.js` centraliza el catálogo y
+`PointMarkerPicker.vue` lo reutiliza en las opciones de creación y el
+Inspector. `MapEngine` resuelve el icono dentro del renderizado de puntos;
+identificadores ausentes o desconocidos usan el marcador general para que
+filas antiguas sigan visibles. La selección añade un halo temporal sin
+reemplazar el símbolo configurado. Los SVG y su atribución están en
+`frontend/public/iconos/LEEME.txt`.
 
 ### 3.10 Errores: ninguna entrada del operador devuelve 500
 
@@ -349,6 +345,15 @@ lo que se escribe. Un `if` en cada componente sería ocho lugares donde las dos
 La geometría se valida **al escribir**, no al leer. Leer asumía que lo almacenado
 estaba bien formado, así que un anillo con números planos producía un 500 en
 todo el listado: un objeto malo vaciaba el mapa.
+
+**Contrato de coordenadas y edición (2.4).** Las coordenadas de la raíz y el
+GeoJSON deben describir el mismo punto cuando una geometría puntual se mueve.
+La serialización para Leaflet puede derivar una referencia de un centro
+explícito o, solo para una geometría `Point`, de su GeoJSON; nunca usa el primer
+vértice de una línea o polígono como centro. Las líneas y polígonos exponen
+resúmenes de vértices, no una posición central inventada. El Inspector valida
+latitud/longitud WGS84 antes de guardar y habilita centrar/copiar únicamente
+cuando el objeto tiene una posición de referencia utilizable.
 
 ### 4.3 `map/geo.js` no importa Leaflet
 

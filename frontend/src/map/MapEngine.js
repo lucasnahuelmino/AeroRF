@@ -24,6 +24,7 @@ import 'leaflet/dist/leaflet.css'
 
 import { haversine, radialPoints, toMetres } from './geo'
 import { token } from '../assets/tokens'
+import { getPointMarker } from './pointMarkers'
 
 /** Buenos Aires / EZE — the initial view. */
 export const DEFAULT_CENTER = [-34.603722, -58.381592]
@@ -128,20 +129,6 @@ function centreDot(latlng, color) {
     fillOpacity: 1,
     interactive: false,
   })
-}
-
-/**
- * Iconos de las fuentes de punto, servidos desde `public/iconos/`.
- *
- * La clave es el valor del campo `icon` del objeto: el nombre del archivo
- * es el dato, así que cambiar el dibujo es reemplazar el archivo y no se
- * toca código. `point` —el valor por defecto— no está aquí a propósito:
- * el punto sin fuente sigue siendo el círculo de siempre.
- */
-const FUENTES_PUNTO = {
-  fm: '/iconos/fm.svg',
-  tprs: '/iconos/tprs.svg',
-  otro: '/iconos/otro.svg',
 }
 
 export class MapEngine {
@@ -277,7 +264,7 @@ export class MapEngine {
     // A second, low-contrast layer for context toggled from the UI.
     this.basemapRelief = L.tileLayer(
       'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-      { attribution: OSM_ATTRIBUTION, maxZoom: 17, opacity: 0.45 },
+      { attribution: OSM_ATTRIBUTION, maxZoom: 17, opacity: 0.45, crossOrigin: true },
     )
   }
 
@@ -297,6 +284,9 @@ export class MapEngine {
     map.on('click', (e) => {
       if (this._clickSuppressed) return
       this._emit('click', { latlng: e.latlng, originalEvent: e.originalEvent })
+    })
+    map.on('dblclick', (e) => {
+      this._emit('dblclick', { latlng: e.latlng, originalEvent: e.originalEvent })
     })
 
     map.on('contextmenu', (e) => {
@@ -581,21 +571,15 @@ export class MapEngine {
 
     switch (object.geometry_type) {
       case 'Point': {
-        // Un punto con fuente elegida (FM, TPRS, Otro) se dibuja con su
-        // imagen desde `public/iconos/`, sobre el mismo disco claro que el
-        // avión de aeropuerto: los SVG descargados vienen negros y el mapa
-        // es oscuro. Cualquier otro `icon` —el `point` por defecto, los
-        // valores viejos— sigue siendo el círculo de siempre: lo que el
-        // operador no pidió no cambia de aspecto.
-        const icono = object.type === 'point' ? FUENTES_PUNTO[object.icon] : undefined
-        if (icono) {
+        if (object.type === 'point') {
+          const marker = getPointMarker(object.icon)
           return L.marker(object.latlng, {
             bubblingMouseEvents: false,
             icon: L.divIcon({
               className: 'aerorf-punto-icono',
-              html: `<img src="${icono}" alt="">`,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12],
+              html: `<img src="${marker.icon}" alt="">`,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16],
             }),
           })
         }
@@ -959,11 +943,14 @@ export class MapEngine {
     // the weight it wrote came from `options`, which the last highlight had
     // already changed.
     if (this._highlighted != null && this._highlighted !== objectId) {
-      this._vectorLayers(this.featureLayers.get(String(this._highlighted))).forEach(
+      const previous = this.featureLayers.get(String(this._highlighted))
+      previous?.getElement?.()?.classList.remove('aerorf-marker-selected')
+      this._vectorLayers(previous).forEach(
         (child) => child.setStyle(this._baseStyle(child)),
       )
     }
     const target = this.featureLayers.get(String(objectId))
+    target?.getElement?.()?.classList.add('aerorf-marker-selected')
     this._vectorLayers(target).forEach((child) => {
       const base = this._baseStyle(child)
       child.setStyle({ color, weight: base.weight + 3, fillOpacity: 0.35 })
@@ -988,6 +975,7 @@ export class MapEngine {
   clearHighlight() {
     if (this._highlighted == null) return
     const layer = this.featureLayers.get(String(this._highlighted))
+    layer?.getElement?.()?.classList.remove('aerorf-marker-selected')
     this._vectorLayers(layer).forEach((child) => {
       child.setStyle(this._baseStyle(child))
     })

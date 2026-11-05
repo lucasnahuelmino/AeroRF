@@ -339,10 +339,7 @@ describe('ToolOptions', () => {
     w.unmount()
   })
 
-  it('ofrece la fuente del punto mientras la herramienta punto esta activa', async () => {
-    // Elegir FM/TPRS/Otro es una decision del punto que se va a dibujar: la
-    // seccion aparece solo con la herramienta punto, para que nadie ande
-    // buscando una fuente donde no la hay.
+  it('ofrece el catálogo de marcadores sólo mientras la herramienta punto está activa', async () => {
     const pinia = makePinia()
     const map = useMapStore()
     // `setTool` sólo arma la herramienta en el toolManager, que en los tests
@@ -352,16 +349,18 @@ describe('ToolOptions', () => {
     map.activeTool = 'point'
     const w = mountComponent(ToolOptions, { pinia })
     await flushPromises()
-    expect(w.text()).toContain('Fuente del punto')
-    const opciones = w.findAll('option').map((o) => o.text())
-    expect(opciones).toContain('FM')
-    expect(opciones).toContain('TPRS')
-    expect(opciones).toContain('Otra fuente')
+    expect(w.text()).toContain('Tipo de marcador')
+    for (const label of ['Marcador general', 'FM', 'TPRS', 'Antena RF', 'Radiobase celular', 'Repetidora', 'Estación de monitoreo', 'Punto de interés', 'Otro']) {
+      expect(w.text()).toContain(label)
+    }
+    const fm = w.findAll('button').find((button) => button.text().includes('FM'))
+    await fm.trigger('click')
+    expect(map.toolOptions.markerType).toBe('fm')
 
     map.activeTool = 'circle'
     await flushPromises()
-    expect(w.text(), 'la fuente no es asunto de los circulos').not.toContain(
-      'Fuente del punto',
+    expect(w.text(), 'el tipo de marcador sólo aplica a puntos').not.toContain(
+      'Tipo de marcador',
     )
     w.unmount()
   })
@@ -941,6 +940,42 @@ describe('ToolManager in jsdom', () => {
     expect(completed[0].properties.path.length).toBe(3)
   })
 
+  it('keeps Line active for consecutive drawings and Enter/Escape', () => {
+    tools.activate(TOOLS.LINE)
+    engine.map.fire('click', { latlng: { lat: -34.6, lng: -58.4 } })
+    engine.map.fire('click', { latlng: { lat: -34.5, lng: -58.3 } })
+    tools.finish()
+
+    expect(completed).toHaveLength(1)
+    expect(tools.active).toBe(TOOLS.LINE)
+    expect(tools.draft).toBeNull()
+    expect(tools._keyHandler).toBeTruthy()
+
+    engine.map.fire('click', { latlng: { lat: -34.4, lng: -58.2 } })
+    engine.map.fire('click', { latlng: { lat: -34.3, lng: -58.1 } })
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter' }))
+    expect(completed).toHaveLength(2)
+    expect(tools.active).toBe(TOOLS.LINE)
+
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(tools.active).toBeNull()
+    expect(tools._keyHandler).toBeNull()
+  })
+
+  it('finishes Line on double click without duplicating the endpoint', () => {
+    tools.activate(TOOLS.LINE)
+    const start = { lat: -34.6, lng: -58.4 }
+    const end = { lat: -34.5, lng: -58.3 }
+    engine.map.fire('click', { latlng: start, originalEvent: { detail: 1 } })
+    engine.map.fire('click', { latlng: end, originalEvent: { detail: 1 } })
+    engine.map.fire('click', { latlng: end, originalEvent: { detail: 2 } })
+    engine.map.fire('dblclick', { latlng: end })
+
+    expect(completed).toHaveLength(1)
+    expect(completed[0].properties.path).toHaveLength(2)
+    expect(tools.active).toBe(TOOLS.LINE)
+  })
+
   it('creates a circle with the radius in the operator unit (spec §10)', () => {
     tools.activate(TOOLS.CIRCLE, { unit: 'nm', radius: 20 })
     // First click places the centre. The pointer then sizes the circle;
@@ -1398,16 +1433,13 @@ describe('clicking an aircraft fills the inspector', () => {
     w.unmount()
   })
 
-  it('permite reclasificar la fuente de un punto desde el inspector', async () => {
-    // La fuente no se elige solo al crearla: un punto puesto sin fuente se
-    // reclasifica despues sin volver a dibujarlo, y el cambio va al mismo
-    // campo `icon` que el backend ya guarda y devuelve.
+  it('permite cambiar el marcador desde el inspector sin recrear el punto', async () => {
     const pinia = makePinia()
     const map = useMapStore()
     map.upsert({
       id: 33, type: 'point', name: 'Punto FM', status: 'Activo',
       geometry_type: 'Point', latlng: [-34.6, -58.4], latlngs: null,
-      latitude: -34.6, longitude: -58.4, icon: 'point', visible: true,
+      latitude: -34.6, longitude: -58.4, icon: 'marker', visible: true,
       locked: false, layer: 'reference_points', provenance: 'user',
       properties: {}, created_at: '2026-10-05T10:00:00', updated_at: '2026-10-05T10:00:00',
     })
@@ -1417,11 +1449,9 @@ describe('clicking an aircraft fills the inspector', () => {
     const w = mountComponent(InspectorPanel, { pinia })
     await flushPromises()
 
-    const selector = w.findAll('select').find((s) =>
-      s.findAll('option').some((o) => o.text() === 'TPRS'),
-    )
-    expect(selector, 'falta el selector de fuente del punto en el panel').toBeTruthy()
-    await selector.setValue('tprs')
+    const selector = w.findAll('button').find((button) => button.text().includes('TPRS'))
+    expect(selector, 'falta el selector de marcador TPRS en el panel').toBeTruthy()
+    await selector.trigger('click')
     expect(actualizar).toHaveBeenCalledWith(33, { icon: 'tprs' })
     w.unmount()
   })

@@ -511,7 +511,7 @@ describe('the shell wires the clicks the way the flow needs', () => {
 
     const engine = map.engine
     map.setTool(TOOLS.POINT)
-    map.setToolOption('fuente', 'fm')
+    map.setToolOption('markerType', 'fm')
     await flushPromises()
 
     engine.map.fire('click', { latlng: CENTRE })

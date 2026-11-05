@@ -748,6 +748,14 @@ def update_object(
                 )
         setattr(obj, field, value)
 
+    if (
+        (obj.type == "point" or obj.geometry_type == "Point")
+        and ({"latitude", "longitude"} & set(patch))
+    ):
+        if obj.latitude is not None and obj.longitude is not None:
+            obj.geometry_type = "Point"
+            obj.geometry = gjs.point_geometry(obj.latitude, obj.longitude)
+
     _record_history(db, obj, before, comment=comment, user=user)
 
     db.commit()

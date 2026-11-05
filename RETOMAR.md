@@ -1,40 +1,45 @@
 # Punto de retorno — AeroRF
 
-**Estado:** implementación AeroRF Workspace Contextual 2.3 en
-`mejora/aerorf-workspace-contextual-ux`, basada en `main` (`62943a0`). Sin
-commit, push ni deploy. El cambio preexistente de `start.bat` se conserva y no
-forma parte de esta fase.
+**Estado actual:** fase AeroRF 2.4 en `mejora/aerorf-gis-data-markers-export`,
+basada en `origin/main` (`64d89c3`). En curso y sin commit, push ni deploy.
+El cambio preexistente de `start.bat` se conserva fuera del alcance.
+
+### Bloque actual — Integridad GIS, marcadores y exportación
+
+- El contrato GIS expone descripción y coordenadas WGS84 sin inventar
+  ubicaciones; líneas y polígonos reciben resúmenes adecuados a su geometría.
+- Mover un objeto con geometría puntual mantiene sincronizadas sus coordenadas
+  y GeoJSON persistido.
+- Se incorporó un catálogo reutilizable de marcadores con fallback para
+  identificadores históricos o desconocidos y resaltado temporal de selección.
+- La herramienta Línea permite guardar trazos consecutivos, finalizar con
+  doble clic o Enter y cancelar con Escape.
+- La exportación PNG valida mosaicos/CORS antes de descargar y restaura el
+  mapa luego de excluir borradores temporales.
+- El Inspector distingue puntos, líneas y polígonos; muestra coordenadas con
+  precisión, valida WGS84 y ofrece copiado y centrado cuando hay una posición
+  de referencia.
+- Pruebas focalizadas ejecutadas: 120 y 99 pruebas frontend, además de 109
+  pruebas backend. Las suites completas, el build final y la comprobación
+  visual/manual de PNG y dibujo repetido siguen pendientes.
+- La instalación de `html2canvas` mostró 26 avisos de auditoría en el árbol
+  npm; no se ejecutó una corrección automática de dependencias.
+- Documentación de fase actualizada parcialmente; confirmar los resultados
+  completos de validación antes de cerrar esta fase.
+
+**Pendiente:** correr suites frontend y backend completas, build de producción,
+validar exportación real y flujo de Línea en navegador, completar documentos y
+revisar `git diff --check`. No incluir ni modificar el cambio local de
+`start.bat`.
+
+### Fase publicada anterior — Compact UI Polish 2.3.1
+
+Commit `64d89c3` en `mejora/aerorf-compact-ui-polish`, publicado y fast-forward
+a `origin/main`. La suite frontend (491 pruebas) y el build pasaron. Esta fase
+redujo la navegación, retiró la barra secundaria GIS y compactó la cabecera del
+Workspace. `start.bat` se preservó fuera del commit.
 
 > Nota de trabajo 2.1: la corrección del problema de render de trayectorias quedó verificada con la suite frontend, pero eso no cierra AeroRF 2.1. El inventario de Expedientes se limitó al esquema/código: no se inspeccionó ninguna base ni archivo de evidencia y no se ejecutó migración.
-
-### Último bloque — Workspace Contextual 2.3 (en curso)
-
-- El Workspace único navega por cinco categorías jerárquicas, con herramientas
-  y opciones dentro del mismo panel; elimina la barra de herramientas y el
-  Inspector lateral duplicados.
-- Mantiene los paneles existentes de capas, objetos, vuelos, aeropuertos,
-  Inspector y timeline mediante `KeepAlive`.
-- Selección en mapa/lista, aeronave y creación persistida enrutan al Inspector.
-  El pin protege el contexto; las selecciones nuevas quedan pendientes y la
-  vuelta restaura la tarea previa.
-- El estado de navegación, posición, ancho, contexto e historial se guarda en
-  `system.js`; el replay continúa compartido con el dock existente.
-- La configuración y las instrucciones de cada herramienta no se duplican:
-  el estado/cancelación vive en la shell y `ToolOptions` conserva únicamente
-  los controles especializados.
-- Validación final: build de producción exitoso; suite frontend completa con
-  **487/487 pruebas en 37 archivos**. Inspección en navegador a 1280×800 y
-  706×347 confirmó el mapa ocupando el espacio disponible, el Workspace como
-  overlay en móvil, las cinco categorías, selección de herramienta y ausencia
-  de barra/Inspector duplicados.
-- `npm run lint` no se pudo ejecutar: el script ESLint existe, pero el repo no
-  tiene configuración ESLint reconocida. No se agregó configuración nueva por
-  ser independiente del cambio. El build mantiene advertencias existentes de
-  Browserslist desactualizado y bundle Plotly >900 kB.
-- No se modificaron contratos backend; no correspondía ejecutar pruebas
-  backend por este cambio de interfaz.
-- `start.bat` contiene una modificación previa ajena al bloque; no editar,
-  revertir ni incluirla.
 
 ### Estado heredado — Workspace 2.2
 

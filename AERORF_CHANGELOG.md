@@ -4,6 +4,25 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ---
 
+## AeroRF 2.4 — Integridad GIS, marcadores y exportación (en curso)
+
+- El contrato de objetos GIS aporta descripción y coordenadas válidas sin
+  fabricar posiciones; las geometrías lineales y poligonales se resumen sin
+  confundir vértices con centros.
+- La actualización de la ubicación de una geometría puntual sincroniza su
+  GeoJSON persistido.
+- Se incorpora un catálogo de marcadores configurable, con fallback para
+  valores antiguos o desconocidos y resaltado de selección.
+- La herramienta Línea conserva su ciclo para guardar trazos sucesivos y
+  permite terminar con doble clic o Enter, o cancelar con Escape.
+- Se añade exportación PNG de la vista cartográfica con validación de mosaicos
+  y CORS; el mapa vuelve a su estado previo tras la captura.
+- El Inspector diferencia geometrías, valida coordenadas WGS84 y ofrece
+  acciones de copiado y centrado.
+- Estado: pruebas focalizadas aprobadas; suites completas, build final y
+  validación visual de exportación/dibujo aún pendientes. Sin commit, push ni
+  deploy.
+
 ## Fase 0 — Auditoría y estabilización
 
 **Estado:** completada

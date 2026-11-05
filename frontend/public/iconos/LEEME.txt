@@ -15,16 +15,18 @@ aeropuerto.svg  Aeropuertos de la capa de referencia (lista del operador
                 y archivo publicado). Se muestra sobre un disco claro
                 (clase `aerorf-airport-icon` en styles.css) para que se
                 lea sobre el mapa oscuro.
-fm.svg          Punto cuya fuente es una emisora FM.
-tprs.svg        Punto cuya fuente es TPRS.
-otro.svg        Punto cuya fuente es otra (la opción "Otro").
+marker.svg      Marcador geográfico general.
+fm.svg          Torre de radiodifusión FM.
+tprs.svg        Símbolo TPRS existente, sin expandir el acrónimo.
+antenna.svg     Antena radioeléctrica.
+radiobase.svg   Radiobase celular.
+repeater.svg    Estación repetidora.
+monitoring.svg  Estación de monitoreo.
+poi.svg         Punto de interés.
+otro.svg        Símbolo neutral para otra clasificación.
 
 Procedencia
 -----------
-Descargados de Font Awesome Free 6.7.2
-https://fontawesome.com - https://github.com/FortAwesome/Font-Awesome
-Licencia de los iconos: CC BY 4.0 (el texto de licencia también viaja
-dentro de cada archivo SVG). Tipografías: SIL OFL 1.1. Código: MIT.
-
-Cuando los reemplace por imágenes de su interés, deje este archivo
-actualizado con la procedencia de las nuevas.
+Los símbolos del catálogo de marcadores son recursos SVG originales de
+AeroRF, diseñados para esta interfaz con fondo transparente y trazo
+compatible con mapas base claros y oscuros.

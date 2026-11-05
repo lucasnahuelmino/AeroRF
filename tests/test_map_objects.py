@@ -21,6 +21,7 @@ from app.models.constants import (
     STATE_OFF,
 )
 from app.services import flight_service as fsvc
+from app.services import geojson_service as gjs
 from app.services import map_service as svc
 from app.services.map_service import MapServiceError
 
@@ -147,6 +148,168 @@ class TestRead:
         assert len(svc.list_objects(db, types=["circle"])) == 0
         assert len(svc.list_objects(db, search="A")) == 1
         assert svc.get_object(db, 99999) is None
+
+    def test_leaflet_response_contains_inspector_root_fields(self, db):
+        obj = svc.create_object(
+            db, "point", name="Puesto", description="Medición de campo",
+            latitude=-34.6, longitude=-58.4,
+        )
+
+        payload = gjs.object_to_leaflet(obj)
+
+        assert payload["name"] == "Puesto"
+        assert payload["description"] == "Medición de campo"
+        assert payload["latitude"] == pytest.approx(-34.6)
+        assert payload["longitude"] == pytest.approx(-58.4)
+        assert payload["center"] == pytest.approx([-34.6, -58.4])
+
+    def test_historical_point_uses_geojson_coordinates_as_fallback(self, db):
+        obj = svc.create_object(
+            db, "point", name="Histórico", latitude=-34.6, longitude=-58.4,
+        )
+        obj.latitude = None
+        obj.longitude = None
+        obj.geometry_type = "Point"
+        obj.geometry = {"type": "Point", "coordinates": [-58.4, -34.6]}
+        db.commit()
+        db.refresh(obj)
+
+        payload = gjs.object_to_leaflet(obj)
+
+        assert payload["latitude"] == pytest.approx(-34.6)
+        assert payload["longitude"] == pytest.approx(-58.4)
+        assert payload["latlng"] == pytest.approx([-34.6, -58.4])
+        assert payload["geometry"]["coordinates"] == pytest.approx([-58.4, -34.6])
+
+    def test_explicit_center_precedes_historical_point_geometry(self, db):
+        obj = svc.create_object(
+            db, "point", name="Centro histórico", latitude=-34.6, longitude=-58.4,
+        )
+        obj.latitude = None
+        obj.longitude = None
+        obj.properties = {"center": [-34.7, -58.5]}
+        db.commit()
+        db.refresh(obj)
+
+        payload = gjs.object_to_leaflet(obj)
+
+        assert payload["latitude"] == pytest.approx(-34.7)
+        assert payload["longitude"] == pytest.approx(-58.5)
+
+    def test_line_leaflet_response_labels_endpoint_vertices(self, db):
+        obj = svc.create_object(
+            db, "line", name="Tramo",
+            geometry_type="LineString",
+            geometry={
+                "type": "LineString",
+                "coordinates": [[-58.4, -34.6], [-58.3, -34.5]],
+            },
+        )
+
+        payload = gjs.object_to_leaflet(obj)
+
+        assert payload["latitude"] is None
+        assert payload["longitude"] is None
+        assert payload["geometry_summary"]["vertex_count"] == 2
+        assert payload["geometry_summary"]["first_vertex"]["latitude"] == pytest.approx(-34.6)
+        assert payload["geometry_summary"]["first_vertex"]["longitude"] == pytest.approx(-58.4)
+        assert payload["geometry_summary"]["last_vertex"]["latitude"] == pytest.approx(-34.5)
+        assert payload["geometry_summary"]["last_vertex"]["longitude"] == pytest.approx(-58.3)
+
+    def test_polygon_reports_bounds_without_inventing_a_center(self, db):
+        obj = svc.create_object(
+            db, "polygon", name="Área",
+            geometry_type="Polygon",
+            geometry={
+                "type": "Polygon",
+                "coordinates": [[
+                    [-58.4, -34.6], [-58.3, -34.6],
+                    [-58.3, -34.5], [-58.4, -34.6],
+                ]],
+            },
+        )
+
+        payload = gjs.object_to_leaflet(obj)
+
+        assert payload["latitude"] is None
+        assert payload["longitude"] is None
+        assert payload["latlng"] is None
+        assert payload["geometry_summary"]["vertex_count"] == 3
+        bounds = payload["geometry_summary"]["bounds"]
+        assert bounds["south"] == pytest.approx(-34.6)
+        assert bounds["north"] == pytest.approx(-34.5)
+        assert bounds["west"] == pytest.approx(-58.4)
+        assert bounds["east"] == pytest.approx(-58.3)
+
+    def test_move_updates_point_geojson_and_leaflet_position(self, db):
+        obj = svc.create_object(
+            db, "point", name="Puesto", latitude=-34.6, longitude=-58.4,
+        )
+
+        moved = svc.move_object(db, obj.id, -34.5, -58.3)
+        payload = gjs.object_to_leaflet(moved)
+
+        assert moved.geometry["coordinates"] == pytest.approx([-58.3, -34.5])
+        assert payload["latitude"] == pytest.approx(-34.5)
+        assert payload["longitude"] == pytest.approx(-58.3)
+
+
+@pytest.fixture
+def api_client(db):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        yield client
+
+
+def test_point_api_contract_is_stable_across_create_read_update_and_move(api_client):
+    base = "/api/v1/map/objects"
+    created = api_client.post(
+        base,
+        json={
+            "type": "point",
+            "name": "Puesto",
+            "description": "Sitio de monitoreo",
+            "latitude": -34.6,
+            "longitude": -58.4,
+            "icon": "monitoring",
+        },
+    )
+    assert created.status_code == 201, created.text
+    object_id = created.json()["id"]
+    assert created.json()["description"] == "Sitio de monitoreo"
+    assert created.json()["latitude"] == pytest.approx(-34.6)
+    assert created.json()["longitude"] == pytest.approx(-58.4)
+
+    updated = api_client.put(
+        f"{base}/{object_id}",
+        json={"description": "Monitoreo actualizado", "icon": "antenna"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["description"] == "Monitoreo actualizado"
+    assert updated.json()["icon"] == "antenna"
+
+    moved = api_client.patch(
+        f"{base}/{object_id}/move",
+        json={"latitude": -34.5, "longitude": -58.3},
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["latitude"] == pytest.approx(-34.5)
+    assert moved.json()["longitude"] == pytest.approx(-58.3)
+    assert moved.json()["geometry"]["coordinates"] == pytest.approx([-58.3, -34.5])
+
+    listed = api_client.get(base, params={"format": "leaflet"}).json()
+    same = next(item for item in listed["objects"] if item["id"] == object_id)
+    assert same["description"] == "Monitoreo actualizado"
+    assert same["icon"] == "antenna"
+    assert same["latlng"] == pytest.approx([-34.5, -58.3])
+
+    exported = api_client.get(base, params={"format": "geojson"}).json()
+    feature = next(item for item in exported["features"] if item["id"] == object_id)
+    assert feature["properties"]["description"] == "Monitoreo actualizado"
+    assert feature["geometry"]["coordinates"] == pytest.approx([-58.3, -34.5])
 
     def test_filter_by_bbox(self, db):
         svc.create_object(db, "point", name="Cerca", latitude=-34.6, longitude=-58.4)

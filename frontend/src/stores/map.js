@@ -139,9 +139,7 @@ export const useMapStore = defineStore('map', () => {
     length: 20,
     azimuth: 135,
     useTyped: false,
-    // Fuente del punto que se va a dibujar (0.30.31): el valor es a la vez
-    // el campo `icon` del objeto y el nombre del archivo en `public/iconos/`.
-    fuente: 'point',
+    markerType: 'marker',
   })
 
   // ─── Context menu (spec §45) ─────────────────────────────────────────────
@@ -405,6 +403,7 @@ export const useMapStore = defineStore('map', () => {
     if (layer) {
       e.onObjectClick(object.id, (id) => select(id))
       bindInspect(object, layer)
+      if (String(selectedId.value) === String(object.id)) e.highlight(object.id)
     }
   }
 

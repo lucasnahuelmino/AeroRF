@@ -190,7 +190,6 @@ describe('a vector layer must not be given a pane of its own', () => {
   it.each([
     ['circle', CIRCLE],
     ['radial', RADIAL],
-    ['point', POINT],
   ])('a %s and its centre dot stay in the shared overlay pane', (_label, object) => {
     const layer = engine.renderObject(object)
     const children = engine.vectorLayersFor(layer)
@@ -229,6 +228,13 @@ describe('a vector layer must not be given a pane of its own', () => {
     expect(dot, 'el punto central debe existir y no ser interactivo').toBeTruthy()
     expect(dot.options.pane ?? 'overlayPane').toBe('overlayPane')
   })
+
+  it('point markers use Leaflet markers instead of a second full-map canvas', () => {
+    const layer = engine.renderObject(POINT)
+    expect(layer.getElement()?.classList.contains('leaflet-marker-icon')).toBe(true)
+    expect(layer.getElement()?.querySelector('img')?.getAttribute('src')).toBe('/iconos/marker.svg')
+    expect(engine.map.getPanes().markerPane.contains(layer.getElement())).toBe(true)
+  })
 })
 
 describe('selecting an object must not reorder the shared canvas', () => {
@@ -237,8 +243,10 @@ describe('selecting an object must not reorder the shared canvas', () => {
     engine.renderObject(RADIAL)
     engine.renderObject(POINT)
     const before = drawOrder()
-    expect(before, 'los tres objetos deben estar en la lista de dibujo')
-      .toEqual(expect.arrayContaining(['1', '2', '3']))
+    expect(before, 'las formas vectoriales deben estar en el lienzo compartido')
+      .toEqual(expect.arrayContaining(['1', '2']))
+    expect(engine.featureLayers.get('3').getElement()?.querySelector('img'))
+      .toBeTruthy()
 
     engine.highlight(1)
 
@@ -285,13 +293,14 @@ describe('a broad target must not outrank a precise one', () => {
     engine.renderObject(POINT)
   }
 
-  it('restack puts circles below radials and below the points', () => {
+  it('restack keeps circles below radials while markers stay in the marker pane', () => {
     renderInApiOrder()
     engine.restack()
 
     const order = drawOrder()
     const at = (id) => order.indexOf(id)
-    // Bottom to top: the circle's disc, then the radial's line, then the point.
+    // The marker pane is above the vector overlay pane; within the canvas,
+    // the circle's disc stays below the radial's line.
     // Measured in the browser at 0.27.3: with the categories in the order the
     // API returned them, the circles were drawn above the radials, and a click
     // on a radial where it crossed a circle returned the circle. The operator
@@ -299,8 +308,10 @@ describe('a broad target must not outrank a precise one', () => {
     expect(at('1'), 'el disco del circulo debe quedar debajo').toBeLessThan(at('2'))
     expect(at('2'), 'la linea del radial debe quedar encima del circulo')
       .toBeGreaterThan(at('1'))
-    expect(at('3'), 'un punto debe quedar por encima de las formas medidas')
-      .toBeGreaterThan(at('1'))
+    const point = engine.featureLayers.get('3')
+    expect(point.getElement()?.querySelector('img')).toBeTruthy()
+    expect(Number(getComputedStyle(engine.map.getPanes().markerPane).zIndex))
+      .toBeGreaterThan(Number(getComputedStyle(engine.map.getPanes().overlayPane).zIndex))
   })
 
   it('re-showing a layer does not leave it stuck on top', () => {

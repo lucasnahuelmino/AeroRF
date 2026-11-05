@@ -113,25 +113,18 @@ describe('what the operator actually does: click an object', () => {
       .toBeFalsy()
   })
 
-  it('a canvas renderer gives stopPropagation nowhere to stop the event', () => {
-    // Why the object click reaches the map at all. The map is configured with
-    // `preferCanvas`, so every vector object is painted on one shared canvas
-    // element: there is no per-object DOM node for a click to be stopped at,
-    // and `stopPropagation` has nothing to act on.
-    //
-    // This is the assumption the previous two fixes were built on, and it is
-    // the one that made "nothing selects" hard to explain. Recorded here so it
-    // is a fact about the app rather than a belief about Leaflet.
+  it('point markers remain DOM targets above the shared vector canvas', () => {
     expect(engine.map.options.preferCanvas, 'el mapa ya no dibuja en canvas')
       .toBe(true)
 
-    // The canvas is created lazily, when the first vector layer is added, so
-    // this is asserted with an object on the map. The point is the count: one
-    // canvas serves every vector object, which is why there is no per-object
-    // DOM node for a click to be stopped at.
+    // Measured shapes still use the shared canvas; selectable points use a
+    // dedicated marker element so each can show its catalog icon.
+    engine.renderObject(OBJECTS.circle)
     engine.renderObject(OBJECTS.point)
     const canvases = engine.map.getPanes().overlayPane.querySelectorAll('canvas')
     expect(canvases.length, 'deberia haber al menos un canvas de vectores')
       .toBeGreaterThan(0)
+    expect(engine.featureLayers.get(String(OBJECTS.point.id)).getElement()?.querySelector('img'))
+      .toBeTruthy()
   })
 })

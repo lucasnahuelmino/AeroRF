@@ -93,7 +93,9 @@ export class ToolManager {
     this.active = null
     this.draft = null
     this._unsubscribe = null
+    this._unsubscribeDoubleClick = null
     this._keyHandler = null
+    this._doubleClickZoomWasEnabled = null
     /** Options the store injects (radius unit, default names, …). */
     // `useTyped` picks how a circle or a radial gets its size. False is the
     // original interaction — click the centre, then click where you want the
@@ -146,6 +148,18 @@ export class ToolManager {
     // so that finishing a circle does not have to touch the subscription.
     this._onEngineClick = (payload) => this._onClick(payload)
     this._unsubscribe = this.engine.on('click', this._onEngineClick)
+    if (name === TOOLS.LINE) {
+      this._unsubscribeDoubleClick = this.engine.on('dblclick', () => {
+        if (this.active === TOOLS.LINE && (this.draft?.points?.length || 0) >= 2) {
+          this.finish()
+        }
+      })
+      const zoom = this.engine.map?.doubleClickZoom
+      if (zoom) {
+        this._doubleClickZoomWasEnabled = zoom.enabled()
+        zoom.disable()
+      }
+    }
 
     const onKey = (event) => this._onKey(event)
     window.addEventListener('keydown', onKey)
@@ -309,13 +323,13 @@ export class ToolManager {
    * long as the tool is armed. What changes between one shape and the next is
    * the draft, and the draft is not the subscription.
    */
-  _clearDrawing() {
+  _clearDrawing({ preserveControls = false } = {}) {
     this.engine.clearDrafts()
-    if (this._keyHandler) {
+    if (!preserveControls && this._keyHandler) {
       window.removeEventListener('keydown', this._keyHandler)
       this._keyHandler = null
     }
-    this._restoreCursor()
+    if (!preserveControls) this._restoreCursor()
   }
 
   cleanup() {
@@ -323,6 +337,16 @@ export class ToolManager {
     if (this._unsubscribe) {
       this._unsubscribe()
       this._unsubscribe = null
+    }
+    if (this._unsubscribeDoubleClick) {
+      this._unsubscribeDoubleClick()
+      this._unsubscribeDoubleClick = null
+    }
+    if (this._doubleClickZoomWasEnabled !== null) {
+      const zoom = this.engine.map?.doubleClickZoom
+      if (this._doubleClickZoomWasEnabled) zoom?.enable()
+      else zoom?.disable()
+      this._doubleClickZoomWasEnabled = null
     }
   }
 
@@ -368,8 +392,9 @@ export class ToolManager {
 
   // ─── Click handling ───────────────────────────────────────────────────────
 
-  _onClick({ latlng, overObject = null } = {}) {
+  _onClick({ latlng, overObject = null, originalEvent } = {}) {
     if (!latlng) return undefined
+    if (this.active === TOOLS.LINE && originalEvent?.detail >= 2) return undefined
     const raw = [latlng.lat, latlng.lng]
     // The centres of the measured shapes on the map, read before the snap: a
     // click that lands on one of them is asking to use its centre.
@@ -917,27 +942,25 @@ _renderLiveDistance(points) {
       latitude: points[0][0],
       longitude: points[0][1],
       properties: { path: points },
-    })
+    }, { keepTool: this.active === TOOLS.LINE })
   }
 
   /**
    * Hand the finished shape to the shell.
    *
-   * `keepTool` leaves the tool armed. It is what the typed-radius mode needs:
-   * an operator placing a 5 NM circle around four sites wants four circles of
-   * 5 NM, and having to re-pick the tool and retype the number after each one
-   * is what made the panel look like it had vanished — the fields disappear
-   * with the tool.
+   * `keepTool` leaves the tool armed for repeated line drawings and for
+   * typed-radius circle/radial placement.
    *
    * The click subscription is deliberately left alone here. See
    * `_clearDrawing()`: re-subscribing from inside the handler deadlocks the
    * engine's own event walk.
    */
   _emitComplete(payload, { keepTool = false } = {}) {
-    this._clearDrawing()
+    this._clearDrawing({ preserveControls: keepTool })
     this.draft = null
     if (keepTool) {
       this._pointer = null
+      this._setCursor(this.cursor)
       this._renderGhost()
     } else {
       this._unsubscribe?.()

@@ -175,8 +175,8 @@ REM ===========================================================================
 REM  Servidores en primer plano (modos internos)
 REM ===========================================================================
 :run_backend
-"%PY%" -m uvicorn app.main:app --host 127.0.0.1 --port %PORT% --reload > "%ROOT%logs\backend.log" 2>&1
-goto :eof
+"%PY%"  --port %PORT% --reload > "%ROOT%logs\backend.log" 2>&1
+goto :eof-m uvicorn app.main:app --host 127.0.0.1
 
 :run_frontend
 pushd "%ROOT%frontend"

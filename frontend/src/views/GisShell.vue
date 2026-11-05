@@ -297,6 +297,19 @@
       <main class="gis-map-area">
         <div ref="mapContainer" class="gis-map" />
         <button
+          class="gis-map-export"
+          type="button"
+          :disabled="isExportingMap"
+          :aria-busy="isExportingMap"
+          @click="downloadMapImage"
+        >
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
+            <path d="M3 4.5h14v11H3zM6 12l2.5-2.5 2 2 1.5-1.5 3 3M7 7.5h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 1.5v6m-2-2 2 2 2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ isExportingMap ? 'Preparando PNG…' : 'Descargar imagen' }}
+        </button>
+        <button
           v-if="systemStore.workspaceMode === 'closed'"
           class="gis-workspace-reopen"
           :class="`gis-workspace-reopen-${systemStore.workspaceSide}`"
@@ -494,6 +507,7 @@ import { ToolManager, TOOLS, TOOL_META } from '@/map/draw'
 import { MeasureEngine } from '@/map/measure'
 import { AircraftRenderer } from '@/map/aircraft'
 import { AirportLayer, AIRPORT_LAYER_KEY } from '@/map/airports'
+import { mapExportFilename, renderMapPng } from '@/map/exportMap'
 import { useMapStore, typeName } from '@/stores/map'
 import { useFlightsStore } from '@/stores/flights'
 import { useSystemStore } from '@/stores/system'
@@ -513,6 +527,7 @@ const flightsStore = useFlightsStore()
 const systemStore = useSystemStore()
 
 const mapContainer = ref(null)
+const isExportingMap = ref(false)
 const showHelp = ref(false)
 const draftPreview = ref(null)
 const measure = ref({ active: false, segment_count: 0, points: [], total_label: '—', area_note: null, segments: [] })
@@ -530,6 +545,30 @@ const airportsVisible = ref(true)
 const airportMeasureArmed = ref(false)
 const airportMeasureCode = ref(null)
 const airportMeasureResult = ref(null)
+
+async function downloadMapImage() {
+  if (isExportingMap.value) return
+  isExportingMap.value = true
+  try {
+    const blob = await renderMapPng(mapContainer.value, { engine, scale: 2 })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = mapExportFilename()
+    document.body.append(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    systemStore.notify('Imagen cartográfica PNG descargada.', { kind: 'success' })
+  } catch (error) {
+    const message = error instanceof Error
+      ? error.message
+      : 'No se pudo exportar la imagen cartográfica.'
+    systemStore.notify(message, { kind: 'warn', ms: 7000 })
+  } finally {
+    isExportingMap.value = false
+  }
+}
 
 /**
  * The drawing palette.
@@ -1068,13 +1107,12 @@ function handleDraftConfirm() {
 async function handleToolComplete(payload) {
   draftPreview.value = null
   lastCreatedTool.value = payload.type === 'measurement' ? TOOLS.MEASURE : payload.type
+  const keepLineActive = payload.type === 'line' && toolManager?.active === TOOLS.LINE
   const defaults = {
     point: {
       name: `Punto ${new Date().toLocaleTimeString('es-AR')}`,
       category: 'Referencia',
-      // La fuente elegida en las opciones viaja como `icon`: sin esto el
-      // backend guarda el valor por defecto y la elección se pierde.
-      icon: mapStore.toolOptions.fuente || 'point',
+      icon: mapStore.toolOptions.markerType || 'marker',
     },
     annotation: { name: 'Anotación', category: 'Referencia' },
     circle: { name: 'Círculo' },
@@ -1092,11 +1130,13 @@ async function handleToolComplete(payload) {
   })
   if (!created) return
 
-  toolManager?.cancel()
   measureEngine?.stop()
-  mapStore.activeTool = TOOLS.SELECT
-  mapStore.toolHint = TOOL_META[TOOLS.SELECT].hint
-  mapStore.draft = null
+  if (!keepLineActive) {
+    toolManager?.cancel()
+    mapStore.activeTool = TOOLS.SELECT
+    mapStore.toolHint = TOOL_META[TOOLS.SELECT].hint
+    mapStore.draft = null
+  }
   mapStore.select(created.id)
   systemStore.requestWorkspaceContext({ type: 'object', id: created.id })
 }
@@ -1597,6 +1637,28 @@ watch(
   inset: 0;
   background: var(--panel);
 }
+
+.gis-map-export {
+  position: absolute;
+  top: 3.25rem;
+  right: 0.75rem;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 0.4rem;
+  background: var(--panel);
+  color: var(--texto);
+  font-size: 0.6875rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+}
+.gis-map-export svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.gis-map-export:hover:not(:disabled) { border-color: var(--signal); }
+.gis-map-export:disabled { cursor: wait; opacity: 0.7; }
 
 /* ─── Resizers ────────────────────────────────────────────────────────────
  * A 5px hit area on top of a 1px rule: wide enough to grab with a mouse,

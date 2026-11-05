@@ -188,7 +188,7 @@ async function create(item) {
   const opts = mapStore.toolOptions
 
   const payloads = {
-    point: { ...base, type: 'point' },
+    point: { ...base, type: 'point', icon: opts.markerType || 'marker' },
     circle: { ...base, type: 'circle', radius: opts.radius, radius_unit: opts.unit },
     radial: { ...base, type: 'radial', azimuth: opts.azimuth, length_value: opts.length, length_unit: opts.unit },
     reference: { ...base, type: 'reference', reference: { radius: opts.radius, radius_unit: opts.unit } },

@@ -254,8 +254,21 @@ def geometry_for_object(obj) -> dict | None:
       3. a plain point at ``latitude``/``longitude``
     """
     stored = getattr(obj, "geometry", None)
+    stored_point = None
     if isinstance(stored, dict) and stored.get("type") and stored.get("coordinates"):
-        return stored
+        if (
+            getattr(obj, "type", None) == TYPE_POINT
+            and stored.get("type") == "Point"
+        ):
+            reference = _valid_leaflet_position(
+                getattr(obj, "latitude", None),
+                getattr(obj, "longitude", None),
+            )
+            if reference is not None:
+                return point_geometry(*reference)
+            stored_point = stored
+        else:
+            return stored
 
     lat, lon = getattr(obj, "latitude", None), getattr(obj, "longitude", None)
     otype = getattr(obj, "type", None)
@@ -280,8 +293,25 @@ def geometry_for_object(obj) -> dict | None:
         if path:
             return line_geometry(path)
 
-    if lat is not None and lon is not None:
-        return point_geometry(lat, lon)
+    position = _valid_leaflet_position(lat, lon)
+    if position is not None:
+        return point_geometry(*position)
+
+    if otype == TYPE_POINT:
+        center = (getattr(obj, "properties", None) or {}).get("center")
+        if isinstance(center, dict):
+            position = _valid_leaflet_position(
+                center.get("latitude", center.get("lat")),
+                center.get("longitude", center.get("lon", center.get("lng"))),
+            )
+        elif isinstance(center, (list, tuple)) and len(center) >= 2:
+            position = _valid_leaflet_position(center[0], center[1])
+        else:
+            position = None
+        if position is not None:
+            return point_geometry(*position)
+        if stored_point is not None:
+            return stored_point
 
     return None
 
@@ -537,8 +567,9 @@ def _object_to_leaflet(obj) -> dict | None:
         "geometry": geometry,
         "geometry_type": gtype,
         "latlngs": latlngs,
-        "latlng": position,
+        "latlng": position if gtype != "Polygon" else None,
         "name": obj.name,
+        "description": obj.description,
         "properties": feature["properties"],
         "color": obj.color,
         "icon": obj.icon,
@@ -565,12 +596,67 @@ def _object_to_leaflet(obj) -> dict | None:
         "provenance": obj.source,
     }
 
-    # Derived measurements, computed server-side so the numbers on screen
-    # and the numbers in the export cannot diverge.
-    if obj.latitude is not None and obj.longitude is not None:
-        out["center"] = [obj.latitude, obj.longitude]
+    # Keep stored coordinates authoritative. Older rows may only have a
+    # Leaflet center in their properties or a GeoJSON Point, so derive a
+    # reference position only from those explicit sources. A line's first
+    # vertex and a polygon's first ring vertex are not object centers.
+    reference = _valid_leaflet_position(obj.latitude, obj.longitude)
+    if reference is None:
+        feature_properties = feature["properties"]
+        stored_properties = feature_properties.get("properties") or {}
+        center = (
+            getattr(obj, "center", None)
+            or feature_properties.get("center")
+            or stored_properties.get("center")
+        )
+        if isinstance(center, dict):
+            reference = _valid_leaflet_position(
+                center.get("latitude", center.get("lat")),
+                center.get("longitude", center.get("lon", center.get("lng"))),
+            )
+        elif isinstance(center, (list, tuple)) and len(center) >= 2:
+            reference = _valid_leaflet_position(center[0], center[1])
+    if reference is None and gtype == "Point":
+        reference = _valid_leaflet_position(*geojson_to_leaflet_coord(geometry["coordinates"]))
+    if gtype == "Point" and reference is not None:
+        position = reference
+        out["latlng"] = reference
+        out["geometry"] = {
+            "type": "Point",
+            "coordinates": leaflet_to_geojson_coord(reference),
+        }
+
+    out["latitude"] = reference[0] if reference else None
+    out["longitude"] = reference[1] if reference else None
+    if reference is not None:
+        out["center"] = reference
+
     if gtype == "LineString" and len(latlngs) >= 2:
         out["metrics"] = _line_metrics(latlngs)
+        out["geometry_summary"] = {
+            "type": gtype,
+            "vertex_count": len(latlngs),
+            "first_vertex": {
+                "latitude": latlngs[0][0],
+                "longitude": latlngs[0][1],
+            },
+            "last_vertex": {
+                "latitude": latlngs[-1][0],
+                "longitude": latlngs[-1][1],
+            },
+        }
+    elif gtype == "Polygon":
+        ring = latlngs
+        out["geometry_summary"] = {
+            "type": gtype,
+            "vertex_count": len(ring),
+            "bounds": {
+                "south": min((point[0] for point in ring), default=None),
+                "north": max((point[0] for point in ring), default=None),
+                "west": min((point[1] for point in ring), default=None),
+                "east": max((point[1] for point in ring), default=None),
+            },
+        }
     if obj.radius is not None and obj.latitude is not None:
         radius_m = _radius_metres(obj)
         if radius_m:
@@ -593,6 +679,17 @@ def _object_to_leaflet(obj) -> dict | None:
             }
 
     return out
+
+
+def _valid_leaflet_position(latitude, longitude) -> list[float] | None:
+    """Return a finite WGS84 ``[lat, lon]`` pair, never a zero fallback."""
+    try:
+        lat, lon = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        return None
+    if not valid_latlon(lat, lon):
+        return None
+    return [lat, lon]
 
 
 def _line_metrics(latlng: Sequence[Sequence[float]]) -> dict:

@@ -105,33 +105,17 @@
       </label>
     </section>
 
-    <!--
-      La fuente del punto (0.30.31). El valor del selector es el campo
-      `icon` del objeto y también el nombre del archivo en `public/iconos/`:
-      cambiar el dibujo es reemplazar el archivo, sin tocar código. Sólo
-      aparece con la herramienta punto —la fuente es asunto del punto que se
-      va a dibujar— y queda elegida para el próximo.
-    -->
     <section
       v-if="mapStore.activeTool === 'point'"
       class="rounded-lg border border-borde bg-on-ink-wash p-2"
     >
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
-        Fuente del punto
+        Tipo de marcador
       </h3>
-      <select
-        :value="mapStore.toolOptions.fuente || 'point'"
-        class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-xs text-texto"
-        @change="mapStore.setToolOption('fuente', $event.target.value)"
-      >
-        <option value="point">Sin fuente (punto simple)</option>
-        <option value="fm">FM</option>
-        <option value="tprs">TPRS</option>
-        <option value="otro">Otra fuente</option>
-      </select>
-      <p class="mt-1 text-[10px] leading-snug text-texto-tenue">
-        El dibujo vive en public/iconos: cambiarlo es reemplazar el archivo.
-      </p>
+      <PointMarkerPicker
+        :model-value="mapStore.toolOptions.markerType || 'marker'"
+        @update:model-value="mapStore.setToolOption('markerType', $event)"
+      />
     </section>
 
     <!-- Radial (spec §11, §37) -->
@@ -264,6 +248,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { useMapStore, typeName } from '@/stores/map'
+import PointMarkerPicker from './PointMarkerPicker.vue'
 
 const mapStore = useMapStore()
 
@@ -432,7 +417,7 @@ async function createManually(preset) {
     antenna: { ...base, type: 'antenna', antenna: { kind: 'Omnidireccional' } },
     rf_event: { ...base, type: 'rf_event', event: { classification: 'Emisión no identificada' } },
     annotation: { ...base, type: 'annotation' },
-    point: { ...base, type: 'point', icon: mapStore.toolOptions.fuente || 'point' },
+    point: { ...base, type: 'point', icon: mapStore.toolOptions.markerType || 'marker' },
   }
 
   const created = await mapStore.createObject(payloads[preset.type])

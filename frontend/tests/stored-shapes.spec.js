@@ -180,19 +180,14 @@ describe('a stored radial is drawn as a line', () => {
 })
 
 describe('objects that are not measured shapes still draw as before', () => {
-  it('a plain point is still a dot', () => {
+  it('a plain point uses the professional general marker', () => {
     const layer = engine.renderObject({
       id: 1, type: 'point', geometry_type: 'Point',
       latlng: [-34.6, -58.4], visible: true, properties: {},
     })
-    // A dot has no setRadius and no ring; a circle has both. Checking the class
-    // is what distinguishes them, since a circleMarker also answers getRadius
-    // with the marker radius in pixels.
-    expect(layer instanceof L.CircleMarker, 'un punto normal dejo de ser un punto')
+    expect(layer instanceof L.Marker, 'el punto debe conservar su interacción de marcador')
       .toBe(true)
-    // A dot is not a group: there is nothing inside it to have a ring.
-    expect(typeof layer.getLayers, 'un punto normal no deberia ser un grupo')
-      .toBe('undefined')
+    expect(layer.options.icon.options.html).toContain('/iconos/marker.svg')
   })
 
   it('a line is still a polyline', () => {
@@ -308,12 +303,7 @@ describe('a stored shape is selectable', () => {
   })
 })
 
-describe('un punto con fuente se dibuja con su icono reemplazable', () => {
-  // La fuente (FM, TPRS, Otro) vive en el campo `icon`, que el backend ya
-  // guarda y devuelve desde hace versiones: no hay contrato nuevo. Lo que
-  // faltaba era dibujarla. El nombre del icono es el valor del campo, así
-  // que cambiar el dibujo es reemplazar el archivo en `public/iconos` sin
-  // tocar código: la ruta no se arma en ninguna otra parte.
+describe('los puntos usan el catálogo SVG profesional', () => {
   const STORED_POINT_FM = {
     id: 14,
     type: 'point',
@@ -339,21 +329,34 @@ describe('un punto con fuente se dibuja con su icono reemplazable', () => {
     expect(html).toContain('/iconos/fm.svg')
   })
 
-  it('deja el punto sin fuente como el circulo de siempre', () => {
-    const layer = engine.renderObject({ ...STORED_POINT_FM, id: 15, icon: 'point' })
-    expect(layer?.options?.icon, 'el icono por defecto no cambia').toBeFalsy()
-    expect(typeof layer.getRadius).toBe('function')
+  it('usa el marcador general para identificadores antiguos y desconocidos', () => {
+    for (const [id, icon] of [[15, 'point'], [16, null], [17, 'old-value']]) {
+      const layer = engine.renderObject({ ...STORED_POINT_FM, id, icon })
+      expect(layer?.options?.icon?.options?.html).toContain('/iconos/marker.svg')
+    }
   })
 
-  it('tiene los tres archivos de icono en public/iconos', async () => {
+  it('tiene archivos para todos los identificadores del catálogo', async () => {
     const fs = await import('node:fs')
     const { resolve } = await import('node:path')
-    for (const nombre of ['fm', 'tprs', 'otro']) {
+    const { POINT_MARKERS } = await import('../src/map/pointMarkers.js')
+    for (const { id, icon } of POINT_MARKERS) {
+      const nombre = icon.split('/').pop()
       expect(
-        fs.existsSync(resolve(`public/iconos/${nombre}.svg`)),
+        fs.existsSync(resolve(`public/${icon.slice(1)}`)),
         `falta public/iconos/${nombre}.svg`,
       ).toBe(true)
     }
+  })
+
+  it('resalta y restaura el halo sin cambiar el icono del marcador', () => {
+    const layer = engine.renderObject(STORED_POINT_FM)
+    const html = layer.options.icon.options.html
+    engine.highlight(STORED_POINT_FM.id)
+    expect(layer.getElement().classList.contains('aerorf-marker-selected')).toBe(true)
+    engine.clearHighlight()
+    expect(layer.getElement().classList.contains('aerorf-marker-selected')).toBe(false)
+    expect(layer.options.icon.options.html).toBe(html)
   })
 })
 

@@ -227,25 +227,15 @@
             </button>
           </div>
 
-          <!-- La fuente de un punto (0.30.31): el valor es el campo `icon`
-               y también el nombre del archivo en `public/iconos/`, así que
-               cambiar el dibujo es reemplazar el archivo. Se puede cambiar
-               aquí sin volver a dibujar el punto. -->
           <template v-if="object.type === 'point'">
-            <label class="mb-1 block text-[10px] uppercase tracking-widest text-texto-tenue">
-              Fuente del punto
+            <label class="mb-2 block text-[10px] uppercase tracking-widest text-texto-tenue">
+              Tipo de marcador
             </label>
-            <select
-              :value="object.icon || 'point'"
-              class="mb-2 w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-xs text-texto"
+            <PointMarkerPicker
+              :model-value="object.icon || 'marker'"
               :disabled="locked"
-              @change="saveField('icon', $event.target.value)"
-            >
-              <option value="point">Sin fuente (punto simple)</option>
-              <option value="fm">FM</option>
-              <option value="tprs">TPRS</option>
-              <option value="otro">Otra fuente</option>
-            </select>
+              @update:model-value="saveField('icon', $event)"
+            />
           </template>
 
           <div class="flex flex-wrap gap-1">
@@ -319,7 +309,7 @@
             Geometría
           </h3>
           <div v-if="isPoint" class="space-y-1.5">
-            <div class="grid grid-cols-2 gap-1.5">
+            <div v-if="hasReferencePosition" class="grid grid-cols-2 gap-1.5">
               <label class="block">
                 <span class="mb-0.5 block text-[10px] text-texto-tenue">Latitud</span>
                 <input
@@ -343,9 +333,40 @@
                 />
               </label>
             </div>
-            <button class="gis-mini-btn w-full" :disabled="locked" @click="copyCoords">
-              ⧉ Copiar coordenadas
-            </button>
+            <p v-if="hasReferencePosition" class="font-mono text-[10px] text-texto-tenue">
+              {{ formatCoordinate(object.latitude) }}, {{ formatCoordinate(object.longitude) }}
+            </p>
+            <p v-else class="text-[11px] text-texto-tenue">
+              No hay una posición WGS84 válida asociada a este punto.
+            </p>
+          </div>
+          <div v-else-if="object.geometry_type === 'LineString'" class="space-y-1.5 text-[11px]">
+            <p>Vértices: <span class="font-mono">{{ object.geometry_summary?.vertex_count ?? object.metrics?.point_count ?? '—' }}</span></p>
+            <p v-if="object.geometry_summary?.first_vertex" class="font-mono text-texto-medio">
+              Primer vértice: {{ formatCoordinate(object.geometry_summary.first_vertex.latitude) }},
+              {{ formatCoordinate(object.geometry_summary.first_vertex.longitude) }}
+            </p>
+            <p v-if="object.geometry_summary?.last_vertex" class="font-mono text-texto-medio">
+              Último vértice: {{ formatCoordinate(object.geometry_summary.last_vertex.latitude) }},
+              {{ formatCoordinate(object.geometry_summary.last_vertex.longitude) }}
+            </p>
+          </div>
+          <div v-else-if="object.geometry_type === 'Polygon'" class="space-y-1 text-[11px]">
+            <p>Vértices: <span class="font-mono">{{ object.geometry_summary?.vertex_count ?? '—' }}</span></p>
+            <p v-if="object.geometry_summary?.bounds" class="font-mono text-texto-medio">
+              Extensión: {{ formatCoordinate(object.geometry_summary.bounds.south) }}–{{ formatCoordinate(object.geometry_summary.bounds.north) }} lat.,
+              {{ formatCoordinate(object.geometry_summary.bounds.west) }}–{{ formatCoordinate(object.geometry_summary.bounds.east) }} lon.
+            </p>
+            <p class="text-texto-tenue">Sin cálculo de superficie disponible.</p>
+          </div>
+          <div v-if="(object.type === 'circle' || object.type === 'radial') && hasReferencePosition" class="font-mono text-[11px] text-texto-medio">
+            Centro / origen: {{ formatCoordinate(object.latitude) }}, {{ formatCoordinate(object.longitude) }}
+          </div>
+          <div v-if="hasReferencePosition" class="flex flex-wrap gap-1">
+            <button class="gis-mini-btn" @click="copyCoordinate('latitude')">Copiar latitud</button>
+            <button class="gis-mini-btn" @click="copyCoordinate('longitude')">Copiar longitud</button>
+            <button class="gis-mini-btn" @click="copyCoords">Copiar ambas</button>
+            <button class="gis-mini-btn" @click="centerObject">Centrar en mapa</button>
           </div>
 
           <!-- Circle radius (spec §10) -->
@@ -578,6 +599,7 @@ import { useSystemStore } from '@/stores/system'
 import { useFlightsStore } from '@/stores/flights'
 import { useExpedientesStore } from '@/stores/expedientes'
 import { formatDistance } from '@/map/geo'
+import PointMarkerPicker from './PointMarkerPicker.vue'
 
 const emit = defineEmits(['create-another'])
 
@@ -767,10 +789,14 @@ const units = ['nm', 'km', 'm']
 const states = computed(() => mapStore.vocabulary.states || [])
 
 const isPoint = computed(() => object.value?.geometry_type === 'Point')
+const hasReferencePosition = computed(() =>
+  isValidLatLon(object.value?.latitude, object.value?.longitude),
+)
 const hasRadius = computed(() => object.value?.radius != null)
 const hasGeometry = computed(
   () => isPoint.value || hasRadius.value || !!object.value?.radial ||
-    object.value?.metrics?.total_length_nm != null,
+    object.value?.metrics?.total_length_nm != null ||
+    ['LineString', 'Polygon'].includes(object.value?.geometry_type),
 )
 
 // Draft mirrors
@@ -833,7 +859,7 @@ const radiusValue = computed(() => (Number(radiusDraft.value) || 0).toFixed(2))
 const distanceFromCursor = computed(() => {
   const obj = object.value
   const { lat, lon } = mapStore.cursor
-  if (!obj || lat === null || obj.latitude == null) return null
+  if (!obj || !isValidLatLon(lat, lon) || !isValidLatLon(obj.latitude, obj.longitude)) return null
   const metres = haversine(lat, lon, obj.latitude, obj.longitude)
   return {
     m: metres.toFixed(0),
@@ -983,7 +1009,12 @@ async function saveStatus() {
 }
 
 function savePosition() {
-  if (!locked.value) mapStore.moveObject(object.value.id, latDraft.value, lonDraft.value)
+  if (locked.value) return
+  if (!isValidLatLon(latDraft.value, lonDraft.value)) {
+    mapStore.error = 'La posición debe estar dentro de WGS84: latitud −90..90 y longitud −180..180.'
+    return
+  }
+  mapStore.moveObject(object.value.id, Number(latDraft.value), Number(lonDraft.value))
 }
 
 function saveRadius() {
@@ -1040,21 +1071,63 @@ function toggleLock() {
 }
 
 async function copyCoords() {
-  const text = `${object.value.latitude.toFixed(6)}, ${object.value.longitude.toFixed(6)}`
+  if (!hasReferencePosition.value) {
+    mapStore.notice = 'El objeto no tiene coordenadas válidas para copiar.'
+    return
+  }
+  const text = `${formatCoordinate(object.value.latitude)}, ${formatCoordinate(object.value.longitude)}`
+  await copyText(text)
+}
+
+async function copyCoordinate(field) {
+  if (!hasReferencePosition.value) {
+    mapStore.notice = 'El objeto no tiene coordenadas válidas para copiar.'
+    return
+  }
+  await copyText(formatCoordinate(object.value[field]))
+}
+
+async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text)
-    mapStore.notice = `Coordenadas copiadas: ${text}`
+    mapStore.notice = `Coordenada(s) copiada(s): ${text}`
   } catch {
-    systemStore.notify('No se pudo copiar. Coordenadas: ' + text, { kind: 'warn', ms: 6000 })
+    systemStore.notify('No se pudo copiar. Coordenada(s): ' + text, { kind: 'warn', ms: 6000 })
   }
 }
 
 function measureFromCursor() {
   const { lat, lon } = mapStore.cursor
-  if (lat === null) return
+  if (!isValidLatLon(lat, lon) || !hasReferencePosition.value) {
+    mapStore.notice = 'Se necesitan coordenadas válidas del cursor y del objeto para medir.'
+    return
+  }
   const p = object.value
   const metres = haversine(lat, lon, p.latitude, p.longitude)
   mapStore.notice = `Distancia al cursor: ${(metres / 1000).toFixed(3)} km / ${(metres / 1852).toFixed(3)} NM`
+}
+
+function centerObject() {
+  if (!hasReferencePosition.value) {
+    mapStore.notice = 'Este objeto no tiene un centro geográfico definido.'
+    return
+  }
+  const zoom = Math.max(mapStore.engine?.getZoom?.() ?? 10, 11)
+  mapStore.engine?.setView(object.value.latitude, object.value.longitude, zoom)
+}
+
+function isValidLatLon(latitude, longitude) {
+  if (latitude === null || latitude === undefined || longitude === null ||
+      longitude === undefined || latitude === '' || longitude === '') return false
+  return Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude)) &&
+    Number(latitude) >= -90 && Number(latitude) <= 90 &&
+    Number(longitude) >= -180 && Number(longitude) <= 180
+}
+
+function formatCoordinate(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+    ? Number(value).toFixed(6)
+    : '—'
 }
 
 async function linkExpediente() {

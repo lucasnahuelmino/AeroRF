@@ -13,6 +13,12 @@ Desarrollado para la **Dirección Nacional de Control y Fiscalización
 
 ---
 
+La fase actual de trabajo (AeroRF 2.4, en curso) amplía el Inspector con un
+contrato de coordenadas más robusto, marcadores configurables por objeto,
+dibujo repetido de líneas y exportación PNG del mapa. Su validación integral
+está en progreso; consultar [RETOMAR.md](./RETOMAR.md) antes de tratarla como
+una versión publicada.
+
 ## Qué hace y qué no hace
 
 Esta distinción es lo más importante de la herramienta, y está impuesta en el
