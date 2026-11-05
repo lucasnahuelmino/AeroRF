@@ -1,7 +1,7 @@
 /**
  * tests/toolbar.spec.js
  * ────────────────────
- * The tool buttons, checked against the built CSS.
+ * The contextual Workspace controls, checked against the built CSS.
  *
  * Why the CSS and not the markup
  * ─────────────────────────────
@@ -14,10 +14,8 @@
  *
  * The bug this exists for
  * ──────────────────────
- * `.gis-tool` had a fixed `width: 52px`. The longest label, "Seleccionar",
- * needs about 48px at 0.5rem and "Anotación" about 40px, and the label was
- * clipped with an ellipsis. A toolbar whose labels are cut off is one the
- * operator cannot read at a glance, and one they hesitate to press.
+ * The compact toolbar was replaced by a single contextual Workspace. Its
+ * category, task, and tool rows need a reliable hit area and readable labels.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
@@ -55,90 +53,69 @@ const px = (body, prop) => {
   return m ? Number(m[1]) : null
 }
 
-describe('the tool buttons', () => {
-  it('are not a fixed width, because the labels differ in length', () => {
-    const body = ruleFor(shellCss, 'gis-tool')
-    expect(body, 'falta .gis-tool').toBeTruthy()
-    expect(body).not.toMatch(/(?:^|;)\s*width\s*:\s*\d+px/)
-    // A minimum keeps the short labels ("Medir", "Punto") clickable.
-    const min = px(body, 'min-width')
-    expect(min, 'sin min-width los botones cortos son diminutos').toBeTruthy()
-    expect(min).toBeGreaterThanOrEqual(40)
-  })
-
-  it('are tall enough to press comfortably', () => {
-    const body = ruleFor(shellCss, 'gis-tool')
-    const h = px(body, 'height')
-    expect(h, 'sin altura fija').toBeTruthy()
-    expect(h).toBeGreaterThanOrEqual(36)
-  })
-
-  it('do not truncate the label', () => {
-    // The label must not be clipped, because the button is now sized to fit.
-    const label = ruleFor(shellCss, 'gis-tool-label')
-    expect(label, 'falta .gis-tool-label').toBeTruthy()
-    expect(label).not.toMatch(/text-overflow\s*:\s*ellipsis/)
-    expect(label).not.toMatch(/overflow\s*:\s*hidden/)
-    expect(label).toMatch(/white-space\s*:\s*nowrap/)
-  })
-
-  it('show a readable label size', () => {
-    const label = ruleFor(shellCss, 'gis-tool-label')
-    const rem = label.match(/font-size\s*:\s*([\d.]+)rem/)
-    expect(rem, 'sin font-size en rem').toBeTruthy()
-    // 0.5rem is about 8px: technically legible, but at the limit. Anything
-    // below that is a caption, not a control label.
-    expect(Number(rem[1])).toBeGreaterThanOrEqual(0.5)
-  })
-
-  it('do not select their own text when clicked', () => {
-    // Clicking the same tool twice used to select the label, and the
-    // selection highlight made a working button look broken.
-    for (const selector of ['gis-toolbar', 'gis-toolstrip', 'gis-tool']) {
+describe('the Workspace task controls', () => {
+  it('gives category and tool rows a full-width, comfortable hit area', () => {
+    for (const selector of ['gis-workspace-category', 'gis-workspace-task', 'gis-workspace-tool']) {
       const body = ruleFor(shellCss, selector)
       expect(body, `falta .${selector}`).toBeTruthy()
-      expect(body, `.${selector} permite seleccionar texto`).toMatch(
-        /user-select\s*:\s*none/,
-      )
+      expect(body).toMatch(/width\s*:\s*100%/)
+      expect(px(body, 'min-height')).toBeGreaterThanOrEqual(44)
     }
   })
 
-  it('take a tap immediately rather than after the 300ms delay', () => {
-    // The strip is a scroll container, so the browser would otherwise treat a
-    // slightly-off click as a scroll gesture and the tool would not fire.
-    const strip = ruleFor(shellCss, 'gis-toolstrip')
-    expect(strip).toMatch(/touch-action\s*:\s*manipulation/)
-    const tool = ruleFor(shellCss, 'gis-tool')
-    expect(tool).toMatch(/touch-action\s*:\s*manipulation/)
+  it('keeps task labels readable in the available panel width', () => {
+    const label = ruleFor(shellCss, 'gis-workspace-category strong')
+    const description = ruleFor(shellCss, 'gis-workspace-category small')
+    expect(label).toMatch(/font-size\s*:\s*\.8125rem/)
+    expect(description).toMatch(/font-size\s*:\s*\.6875rem/)
+    expect(description).toMatch(/line-height\s*:\s*1\.4/)
   })
 
-  it('show a press feedback while the button is held', () => {
-    // `:active` is its own rule, not a declaration inside `.gis-tool`, so it
-    // has to be matched against the selector rather than the body. The
-    // scope hash sits between the class and the pseudo-class, as in
-    // `.gis-tool[data-v-abc]:active`, so no character may sit between them.
-    const press = shellCss.match(/\.gis-tool(?:\[[^\]]*\])?:active[^{}]*\{([^}]*)\}/)
-    expect(press, 'sin :active, no hay sensacion de pulsar').toBeTruthy()
-    expect(press[1]).toMatch(/background/)
+  it('does not clip category labels or descriptions', () => {
+    const label = ruleFor(shellCss, 'gis-workspace-category strong')
+    const description = ruleFor(shellCss, 'gis-workspace-category small')
+    for (const body of [label, description]) {
+      expect(body).not.toMatch(/text-overflow\s*:\s*ellipsis/)
+      expect(body).not.toMatch(/overflow\s*:\s*hidden/)
+      expect(body).not.toMatch(/white-space\s*:\s*nowrap/)
+    }
   })
 
-  it('keep the active tool visible', () => {
-    const active = shellCss.match(/\.gis-tool\.active[^{}]*\{([^}]*)\}/)
+  it('keeps button presses from selecting text and accepts taps immediately', () => {
+    for (const selector of ['gis-workspace-category', 'gis-workspace-task', 'gis-workspace-tool']) {
+      const body = ruleFor(shellCss, selector)
+      expect(body).toMatch(/user-select\s*:\s*none/)
+      expect(body).toMatch(/touch-action\s*:\s*manipulation/)
+    }
+  })
+
+  it('shows the active tool with a filled surface and signal border', () => {
+    const active = shellCss.match(/\.gis-workspace-tool\.active[^{}]*\{([^}]*)\}/)
     expect(active, 'sin estado activo').toBeTruthy()
     expect(active[1]).toMatch(/background/)
-    // Not just a colour change: the state has to be obvious.
     expect(active[1]).toMatch(/border-color/)
+  })
+
+  it('provides tactile press feedback for category and task rows', () => {
+    const active = shellCss.match(
+      /\.gis-workspace-category(?:\[[^\]]+\])?:active,\s*\.gis-workspace-task(?:\[[^\]]+\])?:active,\s*\.gis-workspace-tool(?:\[[^\]]+\])?:active\{([^}]*)\}/,
+    )
+    expect(active, 'falta feedback activo en las filas').toBeTruthy()
+    expect(active[1]).toMatch(/background/)
+  })
+
+  it('keeps the category and task lists vertically scrollable', () => {
+    expect(ruleFor(shellCss, 'gis-workspace-home')).toMatch(/overflow-y\s*:\s*auto/)
+    expect(ruleFor(shellCss, 'gis-workspace-submenu')).toMatch(/overflow-y\s*:\s*auto/)
+  })
+
+  it('does not ship the removed horizontal tool strip or tab bar', () => {
+    expect(shellCss).not.toContain('.gis-toolstrip')
+    expect(shellCss).not.toContain('.gis-tab')
   })
 })
 
-describe('the toolbar container', () => {
-  it('still lets the tool strip scroll when the window is narrow', () => {
-    // Ten labelled tools do not fit on a laptop. Scrolling is the answer, and
-    // it is why touch-action matters above.
-    const strip = ruleFor(shellCss, 'gis-toolstrip')
-    expect(strip).toMatch(/overflow-x\s*:\s*auto/)
-  })
-
+describe('the map toolbar container', () => {
   it('stays short enough to leave the map room', () => {
     const bar = ruleFor(shellCss, 'gis-toolbar')
     const h = px(bar, 'height')
@@ -147,20 +124,19 @@ describe('the toolbar container', () => {
 })
 
 describe('every tool has a label worth reading', () => {
-  it('no label is long enough to need truncating at this size', () => {
-    // At 0.5rem an average glyph is roughly 4.4px wide. A label wider than
-    // the strip can offer is a label that will be clipped on some screen.
+  it('keeps labels concise enough for a contextual tool row', () => {
+    // Concise labels leave room for a useful hint within the panel width.
     for (const [id, meta] of Object.entries(TOOL_META)) {
       expect(meta.label, `${id} sin etiqueta`).toBeTruthy()
       const estimated = meta.label.length * 4.4
       expect(
         estimated,
-        `"${meta.label}" necesita ${Math.round(estimated)}px: es demasiado larga para la barra`,
-      ).toBeLessThan(90)
+        `"${meta.label}" necesita ${Math.round(estimated)}px: es demasiado larga para la fila`,
+      ).toBeLessThan(120)
     }
   })
 
-  it('every tool carries a hint, so the title is useful', () => {
+  it('every tool carries an explanation for its Workspace row', () => {
     for (const [id, meta] of Object.entries(TOOL_META)) {
       expect(meta.hint, `${id} sin explicación`).toBeTruthy()
     }

@@ -1,25 +1,5 @@
 <template>
   <div class="p-2 space-y-4">
-    <!-- Active tool + hint -->
-    <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
-      <div class="mb-1 flex items-center gap-2">
-        <span class="text-sm">{{ TOOL_META[mapStore.activeTool]?.icon }}</span>
-        <h3 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">
-          {{ TOOL_META[mapStore.activeTool]?.label || 'Seleccionar' }}
-        </h3>
-      </div>
-      <p class="text-[11px] leading-relaxed text-texto-tenue">
-        {{ mapStore.toolHint || 'Seleccione una herramienta de la barra superior.' }}
-      </p>
-      <button
-        v-if="mapStore.activeTool !== 'select'"
-        class="gis-mini-btn mt-2 w-full"
-        @click="mapStore.cancelTool()"
-      >
-        Cancelar (ESC)
-      </button>
-    </section>
-
     <!-- Unit choice (spec §10, §13, §36) -->
     <section class="rounded-lg border border-borde bg-on-ink-wash p-2">
       <h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-texto-medio">
@@ -283,7 +263,6 @@
  */
 import { computed, ref, watch } from 'vue'
 
-import { TOOL_META } from '@/map/draw'
 import { useMapStore, typeName } from '@/stores/map'
 
 const mapStore = useMapStore()

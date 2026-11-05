@@ -5,133 +5,288 @@
       here too, so the map keeps its height budget, and it is present on every
       section, which is what makes the application navigable.
     -->
-    <!-- ── Toolbar (spec §3, §6) ─────────────────────────────────────────── -->
+    <!-- ── Map workspace toolbar ─────────────────────────────────────────── -->
     <header class="gis-toolbar">
-      <!-- Brand. The section menu and the way back to the panel are in
-           BrandBar, one click up, on every screen. Repeating them here
-           stacked two navigation bars on top of each other. -->
       <div class="gis-brand">
-        <span class="gis-mode-label hidden lg:inline">{{ modeLabel }}</span>
+        <span class="gis-mode-label">{{ modeLabel }}</span>
       </div>
-
-      <!-- Drawing and measurement tools. `type="button"` because a bare
-           button inside any form is a submit button, and clicking one that
-           submits does not look like pressing a tool. -->
-      <div class="gis-toolstrip" role="toolbar" aria-label="Herramientas de dibujo">
-        <button
-          v-for="tool in tools"
-          :key="tool.id"
-          type="button"
-          class="gis-tool"
-          :class="{ active: mapStore.activeTool === tool.id }"
-          :title="`${tool.label} — ${tool.hint}`"
-          :aria-pressed="mapStore.activeTool === tool.id"
-          :aria-label="tool.label"
-          @click="activateTool(tool.id)"
-        >
-          <span class="gis-tool-icon" aria-hidden="true">{{ tool.icon }}</span>
-          <span class="gis-tool-label">{{ tool.label }}</span>
-        </button>
-      </div>
-
-      <!-- The hint is the tool's own instruction. It sits in the middle of the
-           free space so it never competes with the tools for room. -->
-      <div class="gis-hint" :class="{ 'gis-hint-on': mapStore.toolHint }">
-        {{ mapStore.toolHint || ' ' }}
-      </div>
-
-      <!-- Right-hand actions -->
       <div class="gis-actions">
-        <div class="gis-status" title="Estado del backend">
-          <span class="gis-dot" :class="systemStore.connected ? 'ok' : 'bad'" />
-          <span class="gis-status-label">Backend</span>
-        </div>
-        <div class="gis-status" title="Credenciales de OpenSky">
-          <span class="gis-dot" :class="flightsStore.openskyConfigured ? 'ok' : 'warn'" />
-          <span class="gis-status-label">OpenSky</span>
-        </div>
-        <div class="gis-status" title="Canal de vuelo en vivo">
-          <span class="gis-dot" :class="flightsStore.socketState === 'connected' ? 'ok' : 'off'" />
-          <span class="gis-status-label">Vivos</span>
-        </div>
-
-        <span class="gis-divider" />
-
         <button
           class="gis-icon-btn"
-          :class="{ active: systemStore.sidebarOpen }"
-          :title="systemStore.sidebarOpen ? 'Ocultar panel izquierdo' : 'Mostrar panel izquierdo'"
-          @click="systemStore.toggleSidebar()"
+          :title="workspaceToggleTitle"
+          :aria-label="workspaceToggleTitle"
+          @click="systemStore.toggleWorkspaceMode()"
         >
           ▤
-        </button>
-        <button
-          class="gis-icon-btn"
-          :class="{ active: systemStore.inspectorOpen }"
-          :title="systemStore.inspectorOpen ? 'Ocultar inspector' : 'Mostrar inspector'"
-          @click="systemStore.toggleInspector()"
-        >
-          ▥
         </button>
         <button class="gis-icon-btn" title="Ayuda" @click="showHelp = !showHelp">?</button>
       </div>
     </header>
 
-    <!-- ── Body: tools | map | inspector (spec §3) ───────────────────────── -->
-    <div class="gis-body">
-      <!-- Left: tools / layers / flights -->
+    <!-- ── Body: one contextual Workspace and the map ───────────────────── -->
+    <div
+      class="gis-body"
+      :class="[
+        `gis-workspace-${systemStore.workspaceSide}`,
+        { 'workspace-collapsed': systemStore.workspaceMode === 'collapsed' },
+      ]"
+    >
       <aside
-        v-if="systemStore.sidebarOpen"
+        v-if="systemStore.workspaceMode !== 'closed'"
         class="gis-sidebar"
-        :style="{ width: `${systemStore.sidebarWidth}px` }"
+        :class="[
+          `gis-sidebar-${systemStore.workspaceSide}`,
+          { 'gis-sidebar-collapsed': systemStore.workspaceMode === 'collapsed' },
+        ]"
+        :style="{ width: `${systemStore.workspaceMode === 'collapsed' ? 64 : systemStore.workspaceWidth}px` }"
+        aria-label="Workspace contextual"
       >
-        <nav class="gis-tabs">
-          <!-- Icon over a short label, so all five fit and all five read. -->
-          <button
-            v-for="tab in sideTabs"
-            :key="tab.id"
-            class="gis-tab"
-            :class="{ active: systemStore.leftPanel === tab.id }"
-            :title="tab.label"
-            :aria-label="tab.label"
-            :aria-current="systemStore.leftPanel === tab.id ? 'page' : undefined"
-            @click="systemStore.setPanel(tab.id)"
+        <template v-if="systemStore.workspaceMode === 'collapsed'">
+          <div class="gis-workspace-collapsed">
+            <button
+              class="gis-workspace-expand"
+              type="button"
+              title="Expandir Workspace"
+              aria-label="Expandir Workspace"
+              @click="systemStore.setWorkspaceMode('open')"
+            >
+              ›
+            </button>
+            <button
+              v-for="category in workspaceCategories"
+              :key="category.id"
+              class="gis-workspace-category-icon"
+              type="button"
+              :title="category.label"
+              :aria-label="category.label"
+              @click="systemStore.openWorkspaceCategory(category.id)"
+            >
+              <span aria-hidden="true">{{ category.icon }}</span>
+            </button>
+          </div>
+        </template>
+
+        <template v-else>
+          <header class="gis-workspace-header">
+            <div class="gis-workspace-title-row">
+              <div class="min-w-0">
+                <p class="gis-workspace-kicker">AeroRF · Workspace</p>
+                <h2 class="gis-workspace-title">{{ workspaceHeading }}</h2>
+              </div>
+              <div class="gis-workspace-controls">
+                <button
+                  class="gis-icon-btn"
+                  type="button"
+                  :title="systemStore.workspaceSide === 'left' ? 'Mover Workspace a la derecha' : 'Mover Workspace a la izquierda'"
+                  :aria-label="systemStore.workspaceSide === 'left' ? 'Mover Workspace a la derecha' : 'Mover Workspace a la izquierda'"
+                  @click="systemStore.setWorkspaceSide(systemStore.workspaceSide === 'left' ? 'right' : 'left')"
+                >
+                  ⇆
+                </button>
+                <button
+                  class="gis-icon-btn"
+                  type="button"
+                  title="Contraer Workspace"
+                  aria-label="Contraer Workspace"
+                  @click="systemStore.setWorkspaceMode('collapsed')"
+                >
+                  −
+                </button>
+                <button
+                  class="gis-icon-btn"
+                  type="button"
+                  title="Cerrar Workspace"
+                  aria-label="Cerrar Workspace"
+                  @click="systemStore.setWorkspaceMode('closed')"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <nav class="gis-workspace-breadcrumb" aria-label="Ruta del Workspace">
+              <button type="button" @click="systemStore.openWorkspaceHome()">Workspace</button>
+              <template v-if="workspaceCategoryMeta">
+                <span aria-hidden="true">›</span>
+                <button
+                  v-if="systemStore.workspaceLevel === 'task'"
+                  type="button"
+                  @click="systemStore.openWorkspaceCategory(workspaceCategoryMeta.id)"
+                >
+                  {{ workspaceCategoryMeta.label }}
+                </button>
+                <span v-else aria-current="page">{{ workspaceCategoryMeta.label }}</span>
+              </template>
+              <template v-if="systemStore.workspaceLevel === 'task'">
+                <span aria-hidden="true">›</span>
+                <span aria-current="page">{{ workspaceTaskLabel }}</span>
+              </template>
+            </nav>
+          </header>
+
+          <div v-if="systemStore.pendingWorkspaceContext" class="gis-workspace-pending" role="status">
+            <span>Hay una nueva selección; el contexto actual está fijado.</span>
+            <button class="gis-mini-btn" type="button" @click="systemStore.inspectPendingWorkspaceContext()">
+              Inspeccionar selección
+            </button>
+          </div>
+
+          <nav
+            v-if="systemStore.workspaceLevel === 'home'"
+            class="gis-workspace-home"
+            aria-label="Categorías de trabajo"
           >
-            <span class="gis-tab-icon" aria-hidden="true">{{ tab.icon }}</span>
-            <span class="gis-tab-label">{{ tab.short }}</span>
-          </button>
-        </nav>
+            <button
+              v-for="category in workspaceCategories"
+              :key="category.id"
+              class="gis-workspace-category"
+              type="button"
+              @click="systemStore.openWorkspaceCategory(category.id)"
+            >
+              <span class="gis-workspace-category-icon-large" aria-hidden="true">{{ category.icon }}</span>
+              <span class="min-w-0 flex-1 text-left">
+                <strong>{{ category.label }}</strong>
+                <small>{{ category.description }}</small>
+              </span>
+              <span class="gis-workspace-chevron" aria-hidden="true">›</span>
+            </button>
+          </nav>
 
-        <div class="gis-sidebar-body">
-          <ToolOptions v-if="systemStore.leftPanel === 'tools'" />
-          <LayerPanel v-else-if="systemStore.leftPanel === 'layers'" />
-          <ObjectsPanel v-else-if="systemStore.leftPanel === 'objects'" />
-          <FlightPanel v-else-if="systemStore.leftPanel === 'flights'" />
-          <AirportPanel
-            v-else-if="systemStore.leftPanel === 'airports'"
-            :visible="airportsVisible"
-            :labels="systemStore.airportLabels"
-            :armed="airportMeasureArmed"
-            :result="airportMeasureResult"
-            @update:visible="setAirportsVisible"
-            @update:labels="systemStore.setAirportLabels"
-            @toggle-country="systemStore.toggleAirportCountry"
-            @zoom="zoomToAirports()"
-            @measure="armAirportMeasure"
-          />
-          <InspectorPanel v-else-if="systemStore.leftPanel === 'inspector'" />
-          <Timeline v-else-if="systemStore.leftPanel === 'timeline'" embedded />
-        </div>
+          <section
+            v-else-if="systemStore.workspaceLevel === 'category'"
+            class="gis-workspace-submenu"
+            :aria-label="`${workspaceCategoryMeta?.label || 'Categoría'}: tareas`"
+          >
+            <p class="gis-workspace-intro">{{ workspaceCategoryMeta?.description }}</p>
+            <template v-if="systemStore.workspaceCategory === 'tools'">
+              <h3 class="gis-workspace-section-title">Herramientas disponibles</h3>
+              <div class="gis-workspace-tool-list">
+                <button
+                  v-for="tool in tools"
+                  :key="tool.id"
+                  class="gis-workspace-tool"
+                  type="button"
+                  :class="{ active: mapStore.activeTool === tool.id }"
+                  :aria-pressed="mapStore.activeTool === tool.id"
+                  @click="selectWorkspaceTool(tool.id)"
+                >
+                  <span class="gis-workspace-tool-icon" aria-hidden="true">{{ tool.icon }}</span>
+                  <span class="min-w-0 flex-1 text-left">
+                    <strong>{{ tool.label }}</strong>
+                    <small>{{ tool.hint }}</small>
+                  </span>
+                  <span class="gis-workspace-chevron" aria-hidden="true">›</span>
+                </button>
+              </div>
+            </template>
+            <div v-else class="gis-workspace-task-list">
+              <button
+                v-for="task in workspaceTasksForCategory"
+                :key="task.id"
+                class="gis-workspace-task"
+                type="button"
+                @click="openWorkspaceTask(task)"
+              >
+                <span class="min-w-0 flex-1 text-left">
+                  <strong>{{ task.label }}</strong>
+                  <small>{{ task.description }}</small>
+                </span>
+                <span class="gis-workspace-chevron" aria-hidden="true">›</span>
+              </button>
+            </div>
+          </section>
 
-        <!-- Drag handle: the map is the point, so the operator decides how
-             much of the window the panel gets. -->
+          <div v-else class="gis-workspace-task-view">
+            <section
+              v-if="systemStore.workspaceSection === 'inspector'"
+              class="gis-workspace-context-bar"
+            >
+              <span class="min-w-0 flex-1">{{ workspaceContextLabel }}</span>
+              <button
+                v-if="systemStore.workspaceContext"
+                class="gis-mini-btn"
+                type="button"
+                :aria-pressed="systemStore.workspacePinned"
+                :title="systemStore.workspacePinned ? 'Desfijar contexto' : 'Fijar contexto'"
+                @click="systemStore.toggleWorkspacePinned()"
+              >
+                {{ systemStore.workspacePinned ? 'Fijado' : 'Fijar' }}
+              </button>
+              <button
+                v-if="systemStore.workspaceReturnTarget"
+                class="gis-mini-btn"
+                type="button"
+                title="Volver a la tarea anterior"
+                @click="systemStore.clearWorkspaceContext()"
+              >
+                Volver
+              </button>
+            </section>
+
+            <section
+              v-if="systemStore.workspaceSection === 'tools'"
+              class="gis-workspace-active-tool"
+              aria-live="polite"
+            >
+              <div class="gis-workspace-active-tool-heading">
+                <span class="gis-workspace-tool-icon" aria-hidden="true">{{ activeToolMeta.icon }}</span>
+                <div class="min-w-0 flex-1">
+                  <h3>{{ activeToolMeta.label }}</h3>
+                  <p>{{ mapStore.activeTool === 'select' ? 'Lista para seleccionar' : 'Herramienta activa en el mapa' }}</p>
+                </div>
+                <button
+                  v-if="mapStore.activeTool !== 'select'"
+                  class="gis-mini-btn"
+                  type="button"
+                  @click="cancelActiveTool"
+                >
+                  Cancelar (Esc)
+                </button>
+              </div>
+              <p class="gis-workspace-tool-hint">{{ mapStore.toolHint || activeToolMeta.hint }}</p>
+              <button
+                v-if="mapStore.activeTool === 'measure' && measure.active && measure.segment_count > 0"
+                class="gis-btn-primary gis-workspace-finish"
+                type="button"
+                @click="saveMeasurement"
+              >
+                Guardar medición
+              </button>
+              <button
+                v-else-if="mapStore.draft"
+                class="gis-btn-primary gis-workspace-finish"
+                type="button"
+                @click="handleDraftConfirm"
+              >
+                Finalizar dibujo
+              </button>
+            </section>
+
+            <div class="gis-workspace-panel-slot">
+              <KeepAlive>
+                <component
+                  :is="workspacePanelComponent"
+                  v-if="workspacePanelComponent"
+                  :key="systemStore.workspaceSection"
+                  v-bind="workspacePanelProps"
+                  v-on="workspacePanelListeners"
+                />
+              </KeepAlive>
+            </div>
+          </div>
+        </template>
+
         <div
-          class="gis-resizer gis-resizer-r"
+          v-if="systemStore.workspaceMode === 'open'"
+          class="gis-resizer"
+          :class="systemStore.workspaceSide === 'left' ? 'gis-resizer-r' : 'gis-resizer-l'"
           role="separator"
           aria-orientation="vertical"
-          :aria-valuenow="systemStore.sidebarWidth"
-          title="Arrastrar para ajustar el ancho"
-          @pointerdown="startResize($event, 'sidebar')"
+          :aria-valuenow="systemStore.workspaceWidth"
+          :aria-valuemin="240"
+          :aria-valuemax="520"
+          :aria-label="`Ancho del Workspace: ${systemStore.workspaceWidth} píxeles`"
+          :title="`Arrastrar para ajustar el ancho: ${systemStore.workspaceWidth}px`"
+          @pointerdown="startResize"
         />
       </aside>
 
@@ -199,13 +354,6 @@
             <span class="w-px h-4 bg-borde" />
             <button
               class="gis-mini-btn"
-              title="Inspeccionar objeto"
-              @click="inspectSelected"
-            >
-              ⌕
-            </button>
-            <button
-              class="gis-mini-btn"
               title="Medir desde este objeto hasta el cursor"
               @click="measureFromSelected"
             >
@@ -234,22 +382,6 @@
         <ContextMenu />
       </main>
 
-      <!-- Right: inspector (spec §9) -->
-      <aside
-        v-if="systemStore.inspectorOpen"
-        class="gis-inspector"
-        :style="{ width: `${systemStore.inspectorWidth}px` }"
-      >
-        <div
-          class="gis-resizer gis-resizer-l"
-          role="separator"
-          aria-orientation="vertical"
-          :aria-valuenow="systemStore.inspectorWidth"
-          title="Arrastrar para ajustar el ancho"
-          @pointerdown="startResize($event, 'inspector')"
-        />
-        <InspectorPanel />
-      </aside>
     </div>
 
     <!-- ── Status bar: cursor, coordinates, scale, time (spec §5, §28) ────── -->
@@ -343,7 +475,6 @@
  * panels. That split is what keeps the map logic reusable and testable.
  */
 import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 
 import MapEngine from '@/map/MapEngine'
 import { ToolManager, TOOLS, TOOL_META } from '@/map/draw'
@@ -364,7 +495,6 @@ import Timeline from '@/components/gis/Timeline.vue'
 import ToolOptions from '@/components/gis/ToolOptions.vue'
 import AirportPanel from '@/components/gis/AirportPanel.vue'
 
-const router = useRouter()
 const mapStore = useMapStore()
 const flightsStore = useFlightsStore()
 const systemStore = useSystemStore()
@@ -409,40 +539,190 @@ const tools = computed(() =>
     .map(([id, meta]) => ({ id, ...meta })),
 )
 
-// The left panel's five sections.
-//
-// `icon` + `short` instead of the full name, because the full names need 312px
-// and the sidebar has 215. The icons were checked to be real glyphs and not
-// `.notdef` boxes: each was drawn to a canvas and its bitmap compared against a
-// private-use character, which always renders as a box. All fourteen candidates
-// came back distinct, so none of these is a hollow rectangle on someone else's
-// font. `label` stays the full name and is what the title and the accessible
-// name use.
-const sideTabs = [
-  { id: 'tools', label: 'Herramientas', short: 'Herram.', icon: '\u270E' },
-  { id: 'layers', label: 'Capas', short: 'Capas', icon: '\u25A9' },
-  { id: 'objects', label: 'Objetos', short: 'Objetos', icon: '\u25A3' },
-  { id: 'flights', label: 'Vuelos', short: 'Vuelos', icon: '\u2708' },
-  { id: 'airports', label: 'Aeropuertos', short: 'Aerop.', icon: '\u2316' },
-  { id: 'inspector', label: 'Inspector', short: 'Insp.', icon: '\u25B8' },
-  { id: 'timeline', label: 'Línea de tiempo', short: 'Tiempo', icon: '\u23F1' },
+const workspaceCategories = [
+  {
+    id: 'tools',
+    label: 'Herramientas',
+    icon: '✎',
+    description: 'Dibujo, selección, medición y análisis sobre el mapa.',
+  },
+  {
+    id: 'layers',
+    label: 'Capas',
+    icon: '▤',
+    description: 'Mapa base, visibilidad, opacidad, bloqueo y exportación.',
+  },
+  {
+    id: 'objects',
+    label: 'Objetos',
+    icon: '◈',
+    description: 'Buscar, filtrar, seleccionar y administrar objetos GIS.',
+  },
+  {
+    id: 'flights',
+    label: 'Vuelos',
+    icon: '✈',
+    description: 'Búsqueda, seguimiento, trayectorias e historial de vuelos.',
+  },
+  {
+    id: 'airports',
+    label: 'Aeropuertos',
+    icon: '⌂',
+    description: 'Referencias aeroportuarias, filtros y mediciones.',
+  },
 ]
 
-// ─── Panel resizing ──────────────────────────────────────────────────────────
-// The map is the working surface, so how much window the side panels take is
-// the operator's call, not a constant baked into the stylesheet. Pointer
-// capture keeps the drag alive even when the cursor leaves the 4px handle.
-function startResize(event, which) {
+const workspaceTasks = {
+  layers: [
+    {
+      id: 'manage-layers',
+      section: 'layers',
+      label: 'Administrar capas',
+      description: 'Mapa base, visibilidad, opacidad, bloqueo, procedencia y exportación.',
+    },
+  ],
+  objects: [
+    {
+      id: 'manage-objects',
+      section: 'objects',
+      label: 'Buscar y administrar objetos',
+      description: 'Filtros, categorías, selección múltiple y acciones de objeto.',
+    },
+  ],
+  flights: [
+    {
+      id: 'flight-operations',
+      section: 'flights',
+      label: 'Búsqueda y seguimiento',
+      description: 'Vuelos, aeronaves seguidas, trayectorias e historial.',
+    },
+    {
+      id: 'timeline',
+      section: 'timeline',
+      label: 'Sesiones y línea de tiempo',
+      description: 'Reproducir una sesión grabada y sincronizarla con el mapa.',
+    },
+  ],
+  airports: [
+    {
+      id: 'airport-reference',
+      section: 'airports',
+      label: 'Aeropuertos de referencia',
+      description: 'Buscar, filtrar, etiquetar, centrar y medir distancias.',
+    },
+  ],
+}
+
+const workspaceCategoryMeta = computed(() =>
+  workspaceCategories.find((category) => category.id === systemStore.workspaceCategory) || null,
+)
+const workspaceTasksForCategory = computed(
+  () => workspaceTasks[systemStore.workspaceCategory] || [],
+)
+const workspaceHeading = computed(
+  () => workspaceCategoryMeta.value?.label || 'Workspace',
+)
+const workspaceTaskLabel = computed(() => {
+  if (systemStore.workspaceSection === 'inspector') return 'Inspector'
+  if (systemStore.workspaceSection === 'timeline') return 'Línea de tiempo'
+  if (systemStore.workspaceSection === 'tools') {
+    return `Configuración · ${activeToolMeta.value.label}`
+  }
+  return workspaceTasksForCategory.value.find((task) => task.id === systemStore.workspaceTask)?.label
+    || workspaceCategoryMeta.value?.label
+    || 'Tarea'
+})
+const workspaceContextLabel = computed(() => {
+  const context = systemStore.workspaceContext
+  if (!context) return 'Sin contexto seleccionado'
+  if (context.type === 'object') {
+    const object = mapStore.byId.get(context.id)
+    return object?.name || `${typeName(object?.type || 'point')} · ID ${context.id}`
+  }
+  const state = flightsStore.liveStates?.[context.icao24]
+  return state?.callsign || `Aeronave ${context.icao24.toUpperCase()}`
+})
+const activeToolMeta = computed(
+  () => TOOL_META[mapStore.activeTool] || TOOL_META[TOOLS.SELECT],
+)
+const workspaceToggleTitle = computed(() => ({
+  open: 'Contraer Workspace',
+  collapsed: 'Expandir Workspace',
+  closed: 'Abrir Workspace',
+}[systemStore.workspaceMode]))
+
+const workspacePanelMap = {
+  tools: ToolOptions,
+  layers: LayerPanel,
+  objects: ObjectsPanel,
+  flights: FlightPanel,
+  airports: AirportPanel,
+  inspector: InspectorPanel,
+  timeline: Timeline,
+}
+const workspacePanelComponent = computed(() =>
+  systemStore.workspaceLevel === 'task'
+    ? workspacePanelMap[systemStore.workspaceSection] || null
+    : null,
+)
+const workspacePanelProps = computed(() => {
+  if (systemStore.workspaceSection === 'inspector') {
+    return {
+      context: systemStore.workspaceContext,
+      canCreateAnother: Boolean(lastCreatedTool.value),
+    }
+  }
+  if (systemStore.workspaceSection === 'timeline') return { embedded: true }
+  if (systemStore.workspaceSection === 'airports') {
+    return {
+      visible: airportsVisible.value,
+      labels: systemStore.airportLabels,
+      armed: airportMeasureArmed.value,
+      result: airportMeasureResult.value,
+    }
+  }
+  return {}
+})
+const workspacePanelListeners = computed(() => {
+  if (systemStore.workspaceSection === 'inspector') {
+    return { 'create-another': createAnother }
+  }
+  if (systemStore.workspaceSection === 'airports') {
+    return {
+      'update:visible': setAirportsVisible,
+      'update:labels': systemStore.setAirportLabels,
+      'toggle-country': systemStore.toggleAirportCountry,
+      zoom: zoomToAirports,
+      measure: armAirportMeasure,
+    }
+  }
+  return {}
+})
+
+const lastCreatedTool = ref(null)
+
+function openWorkspaceTask(task) {
+  systemStore.openWorkspaceTask(task.section, {
+    category: systemStore.workspaceCategory,
+    task: task.id,
+  })
+}
+
+function selectWorkspaceTool(id) {
+  activateTool(id)
+  systemStore.openWorkspaceTask('tools', { category: 'tools', task: 'tool-options' })
+}
+
+// ─── Workspace resizing ────────────────────────────────────────────────────
+function startResize(event) {
   if (event.button !== undefined && event.button !== 0) return
   event.preventDefault()
   const startX = event.clientX
-  const startW =
-    which === 'sidebar' ? systemStore.sidebarWidth : systemStore.inspectorWidth
+  const startWidth = systemStore.workspaceWidth
+  const direction = systemStore.workspaceSide === 'left' ? 1 : -1
 
   const move = (e) => {
-    const delta = which === 'sidebar' ? e.clientX - startX : startX - e.clientX
-    if (which === 'sidebar') systemStore.setSidebarWidth(startW + delta)
-    else systemStore.setInspectorWidth(startW + delta)
+    systemStore.setWorkspaceWidth(startWidth + (e.clientX - startX) * direction)
   }
   const stop = () => {
     window.removeEventListener('pointermove', move)
@@ -501,14 +781,12 @@ onMounted(async () => {
   // Aircraft: live markers and provenance-coloured tracks (spec §21–§23).
   aircraftRenderer = markRaw(
     new AircraftRenderer(engine, {
-  onSelect: (icao24) => {
-    flightsStore.selectedIcao24 = icao24
-    flightsStore.loadAircraftDistances(icao24)
-    // Selection is explicit and the inspector opens on request. Auto-opening
-    // here would make the map action feel like a panel transition and would
-    // interfere with the operator's choice of what to inspect next.
-    if (mapStore.selectedId != null) mapStore.clearSelection()
-  },
+      onSelect: (icao24) => {
+        flightsStore.selectedIcao24 = icao24
+        flightsStore.loadAircraftDistances(icao24)
+        if (mapStore.selectedId != null) mapStore.clearSelection()
+        systemStore.requestWorkspaceContext({ type: 'aircraft', icao24 })
+      },
     }),
   )
   mapStore.aircraftRenderer = aircraftRenderer
@@ -592,8 +870,13 @@ function bindEngineEvents() {
       // comparing against TOOLS.SELECT meant this never ran at all: the
       // selection could be made and could never be taken back.
       const drawing = toolManager?.isDrawing
-      if (!drawing && overObject == null) {
+      if (!drawing && overObject != null) {
+        systemStore.requestWorkspaceContext({ type: 'object', id: overObject })
+      } else if (!drawing && overObject == null) {
         mapStore.clearSelection()
+        if (!systemStore.workspacePinned && systemStore.workspaceContext?.type === 'object') {
+          systemStore.clearWorkspaceContext()
+        }
       }
       // Every other tool, including measurement, is the manager's business.
       // Returning without acting is correct: it has already run.
@@ -613,7 +896,7 @@ function bindEngineEvents() {
   unsubscribers.push(
     engine.on('objectdblclick', ({ id }) => {
       mapStore.select(id)
-      systemStore.setPanel('layers')
+      systemStore.requestWorkspaceContext({ type: 'object', id })
     }),
   )
 
@@ -737,6 +1020,15 @@ function activateTool(id) {
   toolManager.activate(id, mapStore.toolOptions)
 }
 
+function cancelActiveTool() {
+  toolManager?.cancel()
+  measureEngine?.stop()
+  mapStore.activeTool = TOOLS.SELECT
+  mapStore.toolHint = TOOL_META[TOOLS.SELECT].hint
+  mapStore.draft = null
+  draftPreview.value = null
+}
+
 function handleToolPreview(payload) {
   if (payload.type === 'circle') {
     draftPreview.value = {
@@ -764,6 +1056,7 @@ function handleDraftConfirm() {
 /** Persist whatever the tool just finished drawing. */
 async function handleToolComplete(payload) {
   draftPreview.value = null
+  lastCreatedTool.value = payload.type === 'measurement' ? TOOLS.MEASURE : payload.type
   const defaults = {
     point: {
       name: `Punto ${new Date().toLocaleTimeString('es-AR')}`,
@@ -782,34 +1075,51 @@ async function handleToolComplete(payload) {
     measurement: { name: 'Medición' },
   }
 
-  const creado = await mapStore.createObject({
+  const created = await mapStore.createObject({
     ...defaults[payload.type],
     ...payload,
   })
-  systemStore.setPanel('tools')
-  // El objeto recién dibujado queda seleccionado, pero la inspección debe
-  // abrirse por acción explícita del operador. El mapa no debe empujar el
-  // panel cuando solo se completa una operación de dibujo.
-  if (creado) {
-    mapStore.select(creado.id)
-  }
+  if (!created) return
+
+  toolManager?.cancel()
+  measureEngine?.stop()
+  mapStore.activeTool = TOOLS.SELECT
+  mapStore.toolHint = TOOL_META[TOOLS.SELECT].hint
+  mapStore.draft = null
+  mapStore.select(created.id)
+  systemStore.requestWorkspaceContext({ type: 'object', id: created.id })
 }
 
-function saveMeasurement() {
+async function saveMeasurement() {
   const payload = measureEngine?.toObjectPayload()
-  if (payload) {
-    mapStore.createObject({ ...payload, name: `Medición ${new Date().toLocaleTimeString('es-AR')}` })
-  }
   measureEngine.stop()
   toolManager.deactivate()
+  mapStore.activeTool = TOOLS.SELECT
+  mapStore.toolHint = TOOL_META[TOOLS.SELECT].hint
+  mapStore.draft = null
+  if (!payload) return
+
+  lastCreatedTool.value = TOOLS.MEASURE
+  const created = await mapStore.createObject({
+    ...payload,
+    name: `Medición ${new Date().toLocaleTimeString('es-AR')}`,
+  })
+  if (!created) return
+  mapStore.select(created.id)
+  systemStore.requestWorkspaceContext({ type: 'object', id: created.id })
 }
 
 // ─── Object actions ─────────────────────────────────────────────────────────
 
-function inspectSelected() {
-  if (!mapStore.selected) return
-  systemStore.setWorkspaceContext({ type: 'object', id: mapStore.selected.id })
-  systemStore.setPanel('inspector')
+function createAnother() {
+  const tool = lastCreatedTool.value
+  if (!tool) {
+    systemStore.openWorkspaceCategory('tools')
+    return
+  }
+  systemStore.openWorkspaceCategory('tools')
+  activateTool(tool)
+  systemStore.openWorkspaceTask('tools', { category: 'tools', task: 'tool-options' })
 }
 
 function centerSelected() {
@@ -886,10 +1196,9 @@ async function confirmDelete() {
 // to a width that is about to change again.
 watch(
   () => [
-    systemStore.sidebarOpen,
-    systemStore.sidebarWidth,
-    systemStore.inspectorOpen,
-    systemStore.inspectorWidth,
+    systemStore.workspaceMode,
+    systemStore.workspaceWidth,
+    systemStore.workspaceSide,
   ],
   () => engine?.invalidateSize(140),
   { flush: 'post' },
@@ -957,9 +1266,9 @@ watch(
  * Proportions, in order of importance:
  *   - the map takes every pixel the panels do not need
  *   - the toolbar is 46px: tall enough for a comfortable tool button with an
- *     icon and a readable label, short enough to stay out of the way
- *   - the side panels are defaults, not constants. Both collapse, and both
- *     are draggable, so the working area belongs to the operator.
+ *     categories and tasks have readable labels and comfortable hit areas
+ *   - the single contextual Workspace is configurable by the operator:
+ *     position, width, open/collapsed/closed mode.
  * ------------------------------------------------------------------------- */
 
 .gis-shell {
@@ -985,9 +1294,6 @@ watch(
   background: var(--panel);
   border-bottom: 1px solid var(--panel-alto);
   z-index: 1100;
-  /* The tool strip is allowed to scroll rather than push the status pills
-     off the edge on a narrow window. min-width:0 is what makes that
-     possible inside a flex row. */
   min-width: 0;
   /* Every control in the bar is a button, not selectable text. Without this,
      clicking the same tool twice selects its label, and the selection
@@ -1008,8 +1314,7 @@ watch(
   flex: 0 0 auto;
 }
 
-/* The brand name. Hidden until there is room, so it never squeezes the
-   tools on a laptop. */
+/* Keep the mode label readable without duplicating connection indicators from BrandBar. */
 .gis-mode-label {
   font-size: 0.5625rem;
   text-transform: uppercase;
@@ -1018,164 +1323,12 @@ watch(
   white-space: nowrap;
 }
 
-/* ─── Tool strip ────────────────────────────────────────────────────────── */
-
-.gis-toolstrip {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  padding: 3px 0;
-  /* The strip is a scroll container, so the browser would otherwise turn a
-     slightly-off click into a scroll gesture and the tool would not fire.
-     `manipulation` removes the 300ms tap delay and keeps panning working. */
-  touch-action: manipulation;
-  -webkit-overflow-scrolling: touch;
-  /* Selecting the label text while clicking a tool twice in a row is what
-     makes a toolbar feel broken. */
-  user-select: none;
-  -webkit-user-select: none;
-}
-.gis-toolstrip::-webkit-scrollbar { display: none; }
-
-.gis-tool {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  /* Sized by its content, not fixed.
-   *
-   * A fixed 52px clipped the longest labels: "Seleccionar" needs about
-   * 48px at this size and "Anotacion" about 40px, and the overflow was cut
-   * with an ellipsis. A clipped label means the operator cannot tell the
-   * tools apart at a glance, and a button that looks truncated is a button
-   * people hesitate to press.
-   */
-  height: 38px;
-  min-width: 44px;
-  padding: 2px 0.5rem;
-  flex: 0 0 auto;
-  border: 1px solid transparent;
-  border-radius: 0.375rem;
-  background: transparent;
-  color: var(--texto-tenue);
-  white-space: nowrap;
-  /* The label is part of the button, not a text run to be selected. */
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.gis-tool:hover { background: var(--panel-alto); color: var(--texto); }
-.gis-tool:active { background: var(--borde-fuerte); }
-.gis-tool:focus-visible {
-  outline: 2px solid var(--signal-on-ink);
-  outline-offset: -2px;
-}
-
-/*
- * The armed tool.
- *
- * A filled background alone was not enough to read at a glance, so the state
- * is carried by three signals that reinforce each other: a filled ground, a
- * bright border, and a lit underline bar under the label. On a toolbar of ten
- * tools that can be told apart at a glance is not a nicety — it is what tells
- * the operator whether the next click will draw a circle or drop a point.
- */
-.gis-tool.active {
-  background: var(--signal);
-  border-color: var(--signal-on-ink);
-  color: #fff;
-  box-shadow: inset 0 -2px 0 var(--trazo-observado);
-}
-.gis-tool.active .gis-tool-icon { transform: scale(1.08); }
-
-.gis-tool-icon {
-  font-size: 0.9375rem;
-  line-height: 1;
-  pointer-events: none;
-}
-.gis-tool-label {
-  font-size: 0.5rem;
-  line-height: 1.1;
-  letter-spacing: 0.01em;
-  /* No truncation: the button is now wide enough for every label, and a
-     label the operator cannot read is worse than a wider toolbar. */
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/* ─── Hint ─────────────────────────────────────────────────────────────────
- * The active tool's own instruction. It flexes into whatever space the
- * tools and the status pills leave, and is hidden entirely when empty so
- * it never reserves a gap.
- * ------------------------------------------------------------------------- */
-
-.gis-hint {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 0.6875rem;
-  color: var(--risk-mid);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-}
-.gis-hint-on { opacity: 0.9; }
-
-/* ─── Right-hand actions ─────────────────────────────────────────────────── */
+/* ─── Toolbar actions ──────────────────────────────────────────────────── */
 
 .gis-actions {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  flex: 0 0 auto;
-  padding-left: 0.625rem;
-  border-left: 1px solid var(--panel-alto);
-}
-
-.gis-status {
-  display: flex;
-  align-items: center;
-  gap: 0.3125rem;
-  height: 24px;
-  padding: 0 0.4375rem;
-  border-radius: 0.375rem;
-  background: var(--panel);
-  border: 1px solid var(--panel-alto);
-}
-.gis-status-label {
-  font-size: 0.5625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--texto-tenue);
-  white-space: nowrap;
-}
-.gis-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  flex: 0 0 auto;
-}
-.gis-dot.ok { background: var(--risk-ok); }
-.gis-dot.warn { background: var(--risk-mid); }
-.gis-dot.bad { background: var(--risk-high); }
-.gis-dot.off { background: var(--texto-invisible); }
-
-.gis-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--panel-alto);
-  margin: 0 0.1875rem;
   flex: 0 0 auto;
 }
 
@@ -1197,11 +1350,14 @@ watch(
 /* ─── Body ──────────────────────────────────────────────────────────────── */
 
 .gis-body {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
 }
+
+.gis-workspace-right { flex-direction: row-reverse; }
 
 .gis-sidebar {
   position: relative;
@@ -1209,23 +1365,225 @@ watch(
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border-right: 1px solid var(--panel-alto);
+  border-right: 1px solid var(--borde);
   min-width: 0;
   overflow: hidden;
+  transition: width 0.16s ease;
 }
 
-.gis-tabs {
-  display: flex;
+.gis-sidebar-right {
+  border-right: 0;
+  border-left: 1px solid var(--borde);
+}
+
+.gis-sidebar-collapsed { width: 64px; }
+
+.gis-workspace-header {
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--panel-alto);
+  padding: 0.85rem 0.8rem 0.65rem;
+  border-bottom: 1px solid var(--borde);
 }
 
-.gis-sidebar-body {
+.gis-workspace-title-row,
+.gis-workspace-controls,
+.gis-workspace-active-tool-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gis-workspace-title-row { justify-content: space-between; }
+.gis-workspace-controls { flex: 0 0 auto; gap: 0.15rem; }
+.gis-workspace-kicker {
+  margin-bottom: 0.15rem;
+  color: var(--signal);
+  font: 600 0.625rem var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.gis-workspace-title {
+  overflow: hidden;
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gis-workspace-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  color: var(--texto-tenue);
+  font-size: 0.6875rem;
+}
+.gis-workspace-breadcrumb button {
+  color: var(--texto-secundario, var(--texto-medio));
+}
+.gis-workspace-breadcrumb button:hover { color: var(--signal-on-ink); }
+
+.gis-workspace-home,
+.gis-workspace-submenu,
+.gis-workspace-task-view {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+.gis-workspace-home,
+.gis-workspace-submenu { padding: 0.7rem; }
+.gis-workspace-home,
+.gis-workspace-task-list,
+.gis-workspace-tool-list { display: flex; flex-direction: column; gap: 0.45rem; }
+.gis-workspace-category,
+.gis-workspace-task,
+.gis-workspace-tool {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 56px;
+  padding: 0.65rem;
+  border: 1px solid var(--borde);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--texto);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.gis-workspace-category:hover,
+.gis-workspace-task:hover,
+.gis-workspace-tool:hover {
+  border-color: var(--signal);
+  background: var(--panel-alto);
+}
+.gis-workspace-category:active,
+.gis-workspace-task:active,
+.gis-workspace-tool:active {
+  border-color: var(--signal);
+  background: var(--panel-alto);
+}
+.gis-workspace-category strong,
+.gis-workspace-task strong,
+.gis-workspace-tool strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.gis-workspace-category small,
+.gis-workspace-task small,
+.gis-workspace-tool small {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--texto-tenue);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+.gis-workspace-category-icon-large,
+.gis-workspace-tool-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  border-radius: 0.375rem;
+  background: var(--panel-alto);
+  color: var(--signal-on-ink);
+  font-size: 1rem;
+}
+.gis-workspace-chevron { flex: 0 0 auto; color: var(--texto-tenue); font-size: 1.25rem; }
+.gis-workspace-intro {
+  margin-bottom: 0.85rem;
+  color: var(--texto-secundario, var(--texto-medio));
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.gis-workspace-section-title {
+  margin-bottom: 0.5rem;
+  color: var(--texto-tenue);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gis-workspace-tool { align-items: flex-start; }
+.gis-workspace-tool.active {
+  border-color: var(--signal);
+  background: color-mix(in srgb, var(--signal) 14%, var(--panel));
+}
+.gis-workspace-tool.active .gis-workspace-tool-icon {
+  background: var(--signal);
+  color: var(--texto);
+}
+.gis-workspace-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.25rem;
+}
+.gis-workspace-expand,
+.gis-workspace-category-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--texto-medio);
+  font-size: 1.15rem;
+}
+.gis-workspace-expand:hover,
+.gis-workspace-category-icon:hover {
+  border-color: var(--borde);
+  background: var(--panel-alto);
+  color: var(--texto);
+}
+.gis-workspace-pending {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid var(--borde);
+  background: color-mix(in srgb, var(--risk-mid) 12%, var(--panel));
+  color: var(--texto);
+  font-size: 0.6875rem;
+}
+.gis-workspace-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--borde);
+  color: var(--texto);
+  font-size: 0.6875rem;
+}
+.gis-workspace-active-tool {
+  flex: 0 0 auto;
+  padding: 0.7rem;
+  border-bottom: 1px solid var(--borde);
+  background: var(--panel);
+}
+.gis-workspace-active-tool-heading h3 { color: var(--texto); font-size: 0.8125rem; font-weight: 600; }
+.gis-workspace-active-tool-heading p {
+  margin-top: 0.1rem;
+  color: var(--signal-on-ink);
+  font-size: 0.625rem;
+}
+.gis-workspace-tool-hint {
+  margin-top: 0.55rem;
+  color: var(--texto-secundario, var(--texto-medio));
+  font-size: 0.6875rem;
+  line-height: 1.45;
+}
+.gis-workspace-finish { width: 100%; margin-top: 0.6rem; }
+.gis-workspace-panel-slot { min-height: 0; }
+.gis-workspace-panel-slot > * { min-height: 0; }
 
 /* ─── Map ──────────────────────────────────────────────────────────────────
  * flex: 1 1 auto with min-width:0 is what actually gives the map the space.
@@ -1247,19 +1605,6 @@ watch(
   background: var(--panel);
 }
 
-/* ─── Inspector ──────────────────────────────────────────────────────────── */
-
-.gis-inspector {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  background: var(--panel);
-  border-left: 1px solid var(--panel-alto);
-  min-width: 0;
-  overflow: hidden;
-}
-
 /* ─── Resizers ────────────────────────────────────────────────────────────
  * A 5px hit area on top of a 1px rule: wide enough to grab with a mouse,
  * invisible enough to stay out of the way.
@@ -1278,6 +1623,27 @@ watch(
 .gis-resizer:hover { background: var(--signal-on-ink); }
 .gis-resizer-r { right: -2px; }
 .gis-resizer-l { left: -2px; }
+
+.gis-sidebar button:focus-visible,
+.gis-toolbar button:focus-visible {
+  outline: 2px solid var(--signal-on-ink);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .gis-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1200;
+    max-width: min(92vw, 520px);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
+  }
+
+  .gis-sidebar-left { left: 0; }
+  .gis-sidebar-right { right: 0; }
+  .gis-workspace-collapsed { box-shadow: none; }
+}
 </style>
 
 <style>
@@ -1293,52 +1659,6 @@ watch(
 .gis-mini-btn:hover { background: var(--panel-alto); color: #fff; }
 .gis-mini-btn.danger { border-color: var(--risk-high); color: var(--risk-high); }
 .gis-mini-btn.danger:hover { background: var(--risk-high); color: #fff; }
-
-/* A tab is an icon over a short label, in a column.
- *
- * The width is `flex: 0 0 auto` and the label is `nowrap`: five tabs that fit,
- * instead of five that try to and one that does not.
- */
-.gis-tab {
-  flex: 0 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0.3rem 0.15rem 0.25rem;
-  color: var(--texto-tenue);
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-}
-
-.gis-tab-icon {
-  font-size: 13px;
-  line-height: 1;
-  /* The geometric shapes are wide and the aeroplane is narrow; without this
-     they would sit on visibly different baselines across the strip. */
-  display: block;
-  text-align: center;
-}
-
-.gis-tab-label {
-  font-size: 0.4375rem;
-  line-height: 1.1;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  /* The last resort, not the plan: the labels are sized to fit, and this only
-     means an unexpectedly narrow window truncates them instead of pushing one
-     tab out of the strip. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.gis-tab:hover { color: var(--texto-medio); }
-.gis-tab.active { color: var(--signal-on-ink); border-bottom-color: var(--signal-on-ink); }
 
 /*
  * The measurement labels moved to the global block below, and that is not a

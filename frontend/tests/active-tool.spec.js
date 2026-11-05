@@ -64,6 +64,10 @@ vi.mock('@/api/client', () => {
 })
 
 async function mountShell() {
+  localStorage.removeItem('aerorf:workspace-section')
+  localStorage.removeItem('aerorf:workspace-category')
+  localStorage.removeItem('aerorf:workspace-level')
+  localStorage.setItem('aerorf:workspace-mode', 'open')
   const pinia = createPinia()
   setActivePinia(pinia)
   const router = createRouter({
@@ -74,6 +78,10 @@ async function mountShell() {
   await router.isReady()
   const { default: GisShell } = await import('@/views/GisShell.vue')
   const w = mount(GisShell, { global: { plugins: [pinia, router] } })
+  await flushPromises()
+  const category = w.findAll('.gis-workspace-category')
+    .find((button) => button.text().includes('Herramientas'))
+  await category.trigger('click')
   await flushPromises()
   const { useMapStore } = await import('@/stores/map')
   return { w, map: useMapStore() }
@@ -89,78 +97,80 @@ describe('the pressed tool', () => {
     map = mounted.map
   })
 
+  const buttons = () => w.findAll('.gis-workspace-tool')
+
+  async function returnToToolList() {
+    if (buttons().length) return
+    const category = w.findAll('.gis-workspace-breadcrumb button')
+      .find((button) => button.text() === 'Herramientas')
+    expect(category, 'falta el breadcrumb de Herramientas').toBeTruthy()
+    await category.trigger('click')
+    await flushPromises()
+  }
+
+  async function chooseTool(label) {
+    await returnToToolList()
+    const button = buttons().find((item) => item.text().includes(label))
+    expect(button, `no se encontro la herramienta ${label}`).toBeTruthy()
+    await button.trigger('click')
+    await flushPromises()
+  }
+
   /** Indexes of the buttons currently marked active. */
   const pressed = () =>
-    w.findAll('.gis-tool')
+    buttons()
       .map((b, i) => (b.classes('active') ? i : -1))
       .filter((i) => i >= 0)
 
-  it('marks exactly one tool when the shell opens', () => {
+  it('marks exactly one tool in the Workspace tool list', () => {
     // The select tool is the default, so it starts marked.
-    // Eight, not ten: poligono and traza were taken off the palette at the
-      // operator's request, because they duplicated cobertura and linea. The
-      // assertion is on the count rather than on 'more than one', so a tool
-      // going missing has to be a deliberate edit here too.
-      expect(w.findAll('.gis-tool').length).toBe(8)
+    // Eight, not ten: polígono and traza duplicate cobertura and línea.
+    expect(buttons().length).toBe(8)
     expect(pressed().length, 'mas de un boton apretado, o ninguno').toBe(1)
   })
 
-  it('marks the tool that was pressed', async () => {
-    const buttons = w.findAll('.gis-tool')
-    const circleIndex = buttons.findIndex((b) => b.text().includes('Círculo'))
-    expect(circleIndex, 'no se encontro el boton de circulo').toBeGreaterThanOrEqual(0)
-
-    await buttons[circleIndex].trigger('click')
-    await flushPromises()
-
-    expect(pressed(), 'el circulo no quedo apretado').toEqual([circleIndex])
+  it('marks the chosen tool in the contextual task view', async () => {
+    await chooseTool('Círculo')
+    expect(w.find('.gis-workspace-active-tool').text()).toContain('Círculo')
+    expect(map.activeTool).toBe('circle')
   })
 
   it('moves the mark instead of adding a second one', async () => {
-    const buttons = w.findAll('.gis-tool')
-    const circle = buttons.findIndex((b) => b.text().includes('Círculo'))
-    const point = buttons.findIndex((b) => b.text().includes('Punto'))
-
-    await buttons[circle].trigger('click')
-    await flushPromises()
-    await buttons[point].trigger('click')
-    await flushPromises()
-
-    expect(pressed(), 'al cambiar de herramienta quedo mas de un boton apretado')
-      .toEqual([point])
+    await chooseTool('Círculo')
+    await chooseTool('Punto')
+    await returnToToolList()
+    expect(pressed().length, 'al cambiar de herramienta quedo mas de un boton apretado').toBe(1)
+    expect(buttons()[pressed()[0]].text()).toContain('Punto')
   })
 
   it('stays pressed while the operator draws', async () => {
-    const buttons = w.findAll('.gis-tool')
-    const lineIndex = buttons.findIndex((b) => b.text().includes('Línea'))
-    await buttons[lineIndex].trigger('click')
-    await flushPromises()
-    expect(pressed()).toEqual([lineIndex])
+    await chooseTool('Línea')
+    expect(map.activeTool).toBe('line')
 
     const engine = map.engine
     expect(engine, 'sin motor').toBeTruthy()
 
-    // Placing vertices must not clear the pressed state: the tool is still
-    // armed and the operator is mid-drawing.
+    // Placing vertices must not clear the active task: the tool is still
+    // armed while the operator is mid-drawing.
     engine.map.fire('click', { latlng: { lat: -34.6, lng: -58.4 } })
     await flushPromises()
-    expect(pressed(), 'el boton se solto al empezar a dibujar').toEqual([lineIndex])
+    expect(map.activeTool, 'el boton se solto al empezar a dibujar').toBe('line')
 
     engine.map.fire('click', { latlng: { lat: -34.5, lng: -58.3 } })
     await flushPromises()
-    expect(pressed(), 'el boton se solto al agregar un vertice').toEqual([lineIndex])
+    expect(map.activeTool, 'el boton se solto al agregar un vertice').toBe('line')
+    await returnToToolList()
+    expect(buttons()[pressed()[0]].text()).toContain('Línea')
   })
 
   it('reports the pressed state to assistive technology', async () => {
-    const buttons = w.findAll('.gis-tool')
-    const circleIndex = buttons.findIndex((b) => b.text().includes('Círculo'))
-    await buttons[circleIndex].trigger('click')
-    await flushPromises()
+    await chooseTool('Círculo')
+    await returnToToolList()
 
     // The visual class is not the whole story: a screen reader announces
     // aria-pressed, and a toggle button that lies about its state is worse
     // than one with no state at all.
-    const marked = w.findAll('.gis-tool').filter((b) => b.attributes('aria-pressed') === 'true')
+    const marked = buttons().filter((b) => b.attributes('aria-pressed') === 'true')
     expect(marked.length).toBe(1)
     expect(marked[0].text()).toContain('Círculo')
   })
@@ -183,10 +193,7 @@ describe('the pressed tool', () => {
       return Promise.resolve({ id: created.length, ...payload, latlngs: [], latlng: null })
     }
 
-    const buttons = w.findAll('.gis-tool')
-    const circleIndex = buttons.findIndex((b) => b.text().includes('Círculo'))
-    await buttons[circleIndex].trigger('click')
-    await flushPromises()
+    await chooseTool('Círculo')
 
     const engine = map.engine
     const CENTRE = { lat: -34.6, lng: -58.4 }
@@ -210,27 +217,28 @@ describe('the pressed tool', () => {
     // And at the size that was on screen, not a stale one.
     expect(created[0].radius_m).toBeCloseTo(shownM, 3)
     // The tool is released, which is what lets another tool be picked.
-    expect(pressed().length, 'la herramienta quedo armada tras confirmar').toBe(0)
+    expect(map.activeTool, 'la herramienta quedo armada tras confirmar').toBe('select')
+    expect(w.find('.gis-workspace-context-bar').exists()).toBe(true)
 
-    // A line can start immediately, with no leftover state.
-    await buttons[1].trigger('click')
+    // The operator can return to tools and arm another tool immediately.
+    const { useSystemStore } = await import('@/stores/system')
+    useSystemStore().clearWorkspaceContext()
     await flushPromises()
-    expect(pressed().length).toBe(1)
+    await chooseTool('Línea')
+    expect(map.activeTool).toBe('line')
 
     map.createObject = real
   }, 20000)
 
   it('un-presses when the same tool is pressed again', async () => {
-    const buttons = w.findAll('.gis-tool')
-    const point = buttons.findIndex((b) => b.text().includes('Punto'))
-    await buttons[point].trigger('click')
-    await flushPromises()
-    expect(pressed()).toEqual([point])
+    await chooseTool('Punto')
+    expect(map.activeTool).toBe('point')
 
-    // Pressing an armed tool releases it, which is the toggle every other
-    // toolbar in the application follows.
-    await buttons[point].trigger('click')
+    // Selecting the same armed tool again releases it.
+    await returnToToolList()
+    await buttons().find((button) => button.text().includes('Punto')).trigger('click')
     await flushPromises()
+    await returnToToolList()
     expect(pressed().length, 'el boton quedo apretado tras desactivarlo').toBe(0)
   })
 })
@@ -241,7 +249,7 @@ describe('the pressed state is visible, not just a class', () => {
     // the built CSS, because jsdom does not lay out.
     const dist = join(here, '..', 'dist', 'assets')
     // Both built stylesheets, not just the map's.
-    // The `.gis-tool.active` rule lives in the route chunk, but every colour in
+    // The `.gis-workspace-tool.active` rule lives in the route chunk, but every colour in
     // the application now resolves through a token declared in the entry chunk.
     // Reading only the route chunk found `var(--signal)` with nothing pointing at
     // it, and the button looked like it had no background when it had one.
@@ -249,17 +257,14 @@ describe('the pressed state is visible, not just a class', () => {
       .filter((f) => f.endsWith('.css'))
       .map((f) => readFileSync(join(dist, f), 'utf8'))
       .join('\n')
-    const m = css.match(/\.gis-tool\.active(?:\[[^\]]*\])?[^{}]*\{([^}]*)\}/)
+    const m = css.match(/\.gis-workspace-tool\.active(?:\[[^\]]*\])?[^{}]*\{([^}]*)\}/)
     expect(m, 'sin estado activo en el CSS construido').toBeTruthy()
     const body = m[1]
-    // A filled ground, a bright border, and a lit bar under the label.
+    // A filled ground and bright border distinguish the armed tool.
     //
     // The value may be a hex or a token reference; what is required is that a
-    // colour is painted, not how it is spelled. When the palette moved to
-    // tokens.css these became var(--signal) and var(--signal-on-ink), and a
-    // hex-only assertion failed against a button that was painting perfectly.
-    // The token is followed and the colour it resolves to is what gets checked,
-    // so a reference to a token that does not exist still fails.
+    // colour is painted, not how it is spelled. The background blends the
+    // signal token with the panel, and the border resolves to a real token.
     const colorOToken = (valor) => {
       if (/^#(?:[0-9a-f]{3,8})$/i.test(valor)) return true
       const ref = valor.match(/^var\(\s*(--[a-z-]+)\s*\)$/i)
@@ -271,15 +276,14 @@ describe('the pressed state is visible, not just a class', () => {
       const p = body.match(new RegExp(`(?:^|;)\\s*${nombre}\\s*:\\s*([^;}]+)`))
       return p ? p[1].trim() : ''
     }
-    expect(
-      colorOToken(propiedad('background')),
-      `sin fondo propio: ${propiedad('background') || '(nada)'}`,
-    ).toBe(true)
+    expect(propiedad('background'), 'sin fondo propio').toMatch(
+      /^color-mix\(in srgb,var\(--signal\).+var\(--panel\)\)$/i,
+    )
     expect(
       colorOToken(propiedad('border-color')),
       `sin borde propio: ${propiedad('border-color') || '(nada)'}`,
     ).toBe(true)
-    expect(body, 'sin marca adicional bajo la etiqueta').toMatch(/box-shadow/i)
+    expect(body, 'sin borde de estado activo').toMatch(/border-color/i)
   })
 
   it('does not change the button size when pressed', () => {
@@ -287,7 +291,7 @@ describe('the pressed state is visible, not just a class', () => {
     // pointer moves off it. The active state is paint only.
     const dist = join(here, '..', 'dist', 'assets')
     // Both built stylesheets, not just the map's.
-    // The `.gis-tool.active` rule lives in the route chunk, but every colour in
+    // The `.gis-workspace-tool.active` rule lives in the route chunk, but every colour in
     // the application now resolves through a token declared in the entry chunk.
     // Reading only the route chunk found `var(--signal)` with nothing pointing at
     // it, and the button looked like it had no background when it had one.
@@ -295,7 +299,7 @@ describe('the pressed state is visible, not just a class', () => {
       .filter((f) => f.endsWith('.css'))
       .map((f) => readFileSync(join(dist, f), 'utf8'))
       .join('\n')
-    const m = css.match(/\.gis-tool\.active(?:\[[^\]]*\])?[^{}]*\{([^}]*)\}/)
+    const m = css.match(/\.gis-workspace-tool\.active(?:\[[^\]]*\])?[^{}]*\{([^}]*)\}/)
     expect(m[1]).not.toMatch(/padding/i)
     expect(m[1]).not.toMatch(/font-size/i)
     expect(m[1]).not.toMatch(/(?:^|;)\s*(?:width|height)\s*:/i)

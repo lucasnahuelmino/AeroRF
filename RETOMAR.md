@@ -1,26 +1,47 @@
 # Punto de retorno — AeroRF
 
-**Fecha:** 2026-11-04
-**Estado:** continuación AeroRF Workspace 2.2 en `mejora/aerorf-workspace-unificado`, basada en `0fb57d1`. Cambios locales preservados; sin commit, push ni deploy.
+**Estado:** implementación AeroRF Workspace Contextual 2.3 en
+`mejora/aerorf-workspace-contextual-ux`, basada en `main` (`62943a0`). Sin
+commit, push ni deploy. El cambio preexistente de `start.bat` se conserva y no
+forma parte de esta fase.
 
 > Nota de trabajo 2.1: la corrección del problema de render de trayectorias quedó verificada con la suite frontend, pero eso no cierra AeroRF 2.1. El inventario de Expedientes se limitó al esquema/código: no se inspeccionó ninguna base ni archivo de evidencia y no se ejecutó migración.
 
-### Último bloque — Workspace 2.2
+### Último bloque — Workspace Contextual 2.3 (en curso)
 
-- Implementado un panel lateral único en `GisShell.vue`, configurable entre
-  izquierdo/derecho, abierto/contraído/cerrado y con ancho persistente.
-- Reutiliza herramientas, capas, objetos, vuelos, aeropuertos, inspector y
-  timeline; el cambio de sección conserva estado local.
-- El inspector se abre mediante acción explícita o navegación deliberada.
-  Contexto y hasta diez elementos recientes se persisten; el pin impide que una
-  nueva inspección reemplace el contexto fijado.
-- La línea de tiempo dentro del workspace y el dock inferior usan el mismo
-  replay. Se quitó el temporizador local y la shell pausa el replay al salir.
-- Se retiró `FooterBar` del árbol de `App.vue`; la shell se adapta a pantallas
-  estrechas con el panel sobre el mapa.
-- Pendientes: terminar validación integral; Espectro requiere motor y entrada
-  verificables; Configuración aún no tiene una funcionalidad aprobada; la baja
-  completa de Expedientes continúa bloqueada por preservación de datos.
+- El Workspace único navega por cinco categorías jerárquicas, con herramientas
+  y opciones dentro del mismo panel; elimina la barra de herramientas y el
+  Inspector lateral duplicados.
+- Mantiene los paneles existentes de capas, objetos, vuelos, aeropuertos,
+  Inspector y timeline mediante `KeepAlive`.
+- Selección en mapa/lista, aeronave y creación persistida enrutan al Inspector.
+  El pin protege el contexto; las selecciones nuevas quedan pendientes y la
+  vuelta restaura la tarea previa.
+- El estado de navegación, posición, ancho, contexto e historial se guarda en
+  `system.js`; el replay continúa compartido con el dock existente.
+- La configuración y las instrucciones de cada herramienta no se duplican:
+  el estado/cancelación vive en la shell y `ToolOptions` conserva únicamente
+  los controles especializados.
+- Validación final: build de producción exitoso; suite frontend completa con
+  **487/487 pruebas en 37 archivos**. Inspección en navegador a 1280×800 y
+  706×347 confirmó el mapa ocupando el espacio disponible, el Workspace como
+  overlay en móvil, las cinco categorías, selección de herramienta y ausencia
+  de barra/Inspector duplicados.
+- `npm run lint` no se pudo ejecutar: el script ESLint existe, pero el repo no
+  tiene configuración ESLint reconocida. No se agregó configuración nueva por
+  ser independiente del cambio. El build mantiene advertencias existentes de
+  Browserslist desactualizado y bundle Plotly >900 kB.
+- No se modificaron contratos backend; no correspondía ejecutar pruebas
+  backend por este cambio de interfaz.
+- `start.bat` contiene una modificación previa ajena al bloque; no editar,
+  revertir ni incluirla.
+
+### Estado heredado — Workspace 2.2
+
+El panel único, la línea de tiempo y el dock compartido, junto con la retirada
+del `FooterBar` de `App.vue`, ya estaban implementados en la base. La inspección
+de Expedientes y su eliminación segura siguen siendo trabajo aparte; no se
+inspeccionaron ni migraron datos de ninguna base.
 
 **Fecha histórica anterior:** 2026-09-30
 **Estado histórico:** funcional y verificado. Rama `main` en `origin/main`.

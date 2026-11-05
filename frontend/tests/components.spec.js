@@ -606,8 +606,10 @@ describe('GisShell boots', () => {
    * If this test mounts and renders the panels, the shell starts.
    */
   it('mounts, builds the map and renders every panel', async () => {
+    localStorage.removeItem('aerorf:workspace-section')
+    localStorage.removeItem('aerorf:workspace-category')
+    localStorage.removeItem('aerorf:workspace-level')
     localStorage.setItem('aerorf:workspace-mode', 'open')
-    localStorage.setItem('aerorf:workspace-section', 'tools')
     const pinia = makePinia()
     const router = makeRouter()
     await router.push('/')
@@ -637,23 +639,18 @@ describe('GisShell boots', () => {
     expect(map.toolManager).toBeTruthy()
     expect(map.measureEngine).toBeTruthy()
 
-    // The tool palette and the side-panel tab strip must be present. The
-    // panels themselves sit behind tabs, so only one is mounted at a time.
-    //
-    // Full names remain accessible while the visible labels stay compact.
-    for (const label of [
-      'Herramientas', 'Capas', 'Objetos', 'Vuelos', 'Aeropuertos', 'Inspector', 'Línea de tiempo',
-    ]) {
-      const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === label)
-      expect(tab, `falta la pestana ${label}`).toBeTruthy()
-      expect(tab.attributes('aria-label'), `${label} sin nombre accesible`).toBe(label)
-      // An icon and a short label, so the strip is a diagram and not a row of
-      // words that may or may not fit.
-      expect(tab.find('.gis-tab-icon').exists(), `${label} sin icono`).toBe(true)
-      expect(tab.find('.gis-tab-label').exists(), `${label} sin rotulo`).toBe(true)
+    // The five top-level categories are the only navigation surface. Tools
+    // and inspection appear in the same contextual Workspace as needed.
+    for (const label of ['Herramientas', 'Capas', 'Objetos', 'Vuelos', 'Aeropuertos']) {
+      const category = w.findAll('.gis-workspace-category')
+        .find((button) => button.text().includes(label))
+      expect(category, `falta la categoría ${label}`).toBeTruthy()
     }
-    expect(w.findAll('.gis-tab')).toHaveLength(7)
-    expect(w.findComponent(ToolOptions).exists()).toBe(true)
+    expect(w.findAll('.gis-workspace-category')).toHaveLength(5)
+    expect(w.find('.gis-toolstrip').exists()).toBe(false)
+    expect(w.find('.gis-tab').exists()).toBe(false)
+    expect(w.find('.gis-inspector').exists()).toBe(false)
+    expect(w.findComponent(ToolOptions).exists()).toBe(false)
     expect(w.findComponent(CoordinateBar).exists()).toBe(true)
 
     // Nothing anywhere in the tree may have failed to render.
@@ -664,9 +661,11 @@ describe('GisShell boots', () => {
     w.unmount()
   })
 
-  it('switches the side panel and mounts the one that was asked for', async () => {
+  it('navigates through a category and mounts its requested task in the Workspace', async () => {
+    localStorage.removeItem('aerorf:workspace-section')
+    localStorage.removeItem('aerorf:workspace-category')
+    localStorage.removeItem('aerorf:workspace-level')
     localStorage.setItem('aerorf:workspace-mode', 'open')
-    localStorage.setItem('aerorf:workspace-section', 'tools')
     const pinia = makePinia()
     const router = makeRouter()
     await router.push('/')
@@ -674,20 +673,48 @@ describe('GisShell boots', () => {
     const w = mount(GisShell, { global: { plugins: [pinia, router] } })
     await flushPromises()
 
-    // The shell starts on the tools tab.
-    expect(w.findComponent(ToolOptions).exists()).toBe(true)
-    expect(w.findComponent(LayerPanel).exists()).toBe(false)
-
-    // Clicking "Capas" must swap the panel, not just change a label.
-    // Matched on the full name, which the tab carries as its accessible name;
-    // the visible label is the abbreviation.
-    const tab = w.findAll('.gis-tab').find((b) => b.attributes('title') === 'Capas')
-    expect(tab).toBeTruthy()
-    await tab.trigger('click')
+    expect(w.findComponent(ToolOptions).exists()).toBe(false)
+    const category = w.findAll('.gis-workspace-category')
+      .find((button) => button.text().includes('Capas'))
+    expect(category).toBeTruthy()
+    await category.trigger('click')
     await flushPromises()
 
+    expect(w.findAll('.gis-workspace-task')).toHaveLength(1)
+    await w.find('.gis-workspace-task').trigger('click')
+    await flushPromises()
     expect(w.findComponent(LayerPanel).exists()).toBe(true)
     expect(w.findComponent(ToolOptions).exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('keeps tool configuration inside the Workspace after choosing a map tool', async () => {
+    localStorage.removeItem('aerorf:workspace-section')
+    localStorage.removeItem('aerorf:workspace-category')
+    localStorage.removeItem('aerorf:workspace-level')
+    localStorage.setItem('aerorf:workspace-mode', 'open')
+    const pinia = makePinia()
+    const router = makeRouter()
+    await router.push('/')
+    await router.isReady()
+    const w = mount(GisShell, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+
+    const category = w.findAll('.gis-workspace-category')
+      .find((button) => button.text().includes('Herramientas'))
+    await category.trigger('click')
+    await flushPromises()
+    const circle = w.findAll('.gis-workspace-tool')
+      .find((button) => button.text().includes('Círculo'))
+    await circle.trigger('click')
+    await flushPromises()
+
+    expect(w.findComponent(ToolOptions).exists()).toBe(true)
+    expect(w.find('.gis-workspace-active-tool').text()).toContain('Círculo')
+    expect(w.find('.gis-workspace-panel-slot').text()).not.toContain('Herramienta activa en el mapa')
+    expect(w.findAll('.gis-workspace-active-tool button')).toHaveLength(1)
+    expect(w.find('.gis-toolstrip').exists()).toBe(false)
+    expect(w.find('.gis-inspector').exists()).toBe(false)
     w.unmount()
   }, 10000)
 
@@ -1221,6 +1248,9 @@ describe('the drawing palette', () => {
     // keep rendering, labelling and exporting. Dropping the type would orphan
     // whatever is already in the database. `TOOL_META` still carries both; only
     // `HIDDEN_TOOLS` in `GisShell.vue` keeps them off the palette.
+    localStorage.removeItem('aerorf:workspace-section')
+    localStorage.removeItem('aerorf:workspace-category')
+    localStorage.removeItem('aerorf:workspace-level')
     const pinia = makePinia()
     const router = makeRouter()
     await router.push('/')
@@ -1228,13 +1258,18 @@ describe('the drawing palette', () => {
     const w = mount(GisShell, { global: { plugins: [pinia, router] } })
     await flushPromises()
 
-    const titles = w.findAll('.gis-tool').map((b) => b.attributes('title') || '')
-    expect(titles.length, 'la paleta tiene que tener botones').toBe(8)
-    expect(titles.join(' ')).not.toMatch(/Polígono/)
-    expect(titles.join(' ')).not.toMatch(/Traza/)
+    const category = w.findAll('.gis-workspace-category')
+      .find((button) => button.text().includes('Herramientas'))
+    await category.trigger('click')
+    await flushPromises()
+
+    const tools = w.findAll('.gis-workspace-tool').map((button) => button.text())
+    expect(tools.length, 'la lista de herramientas tiene que tener botones').toBe(8)
+    expect(tools.join(' ')).not.toMatch(/Polígono/)
+    expect(tools.join(' ')).not.toMatch(/Traza/)
     // And the ones that stay are all there.
     for (const label of ['Punto', 'Línea', 'Círculo', 'Radial', 'Medir', 'Cobertura']) {
-      expect(titles.join(' '), `falta ${label}`).toContain(label)
+      expect(tools.join(' '), `falta ${label}`).toContain(label)
     }
     w.unmount()
   })

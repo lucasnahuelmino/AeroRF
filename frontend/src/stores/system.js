@@ -27,20 +27,9 @@ export const useSystemStore = defineStore('system', () => {
   const coordinateFormat = ref(localStorage.getItem('aerorf:coord-format') || 'dd')
 
   // ─── UI state ────────────────────────────────────────────────────────────
-  // The map is the point of the application, so the two side panels are sized
-  // well under a third of the viewport between them and both can be collapsed
-  // to give the map the whole width. The widths are remembered because an
-  // operator who works at a particular size should not have to drag the edges
-  // again on every reload.
-  //
-  // They were 268 and 300, which is 568px of chrome: on a 1600px screen the map
-  // got 1032px, and the operator asked for the map to take the full width.
-  // 216 and 256 is 472, ninety-six pixels less of chrome and of panel.
-  //
-  // The old value is kept as the *maximum* rather than thrown away: someone who
-  // dragged a panel wide on purpose can still have it wide. Only the default
-  // moved, and only for a first visit — a stored width wins over the fallback,
-  // so nobody who already has a size loses it.
+  // The map is the working surface, so its single contextual Workspace has a
+  // remembered width and can be moved, collapsed, or closed without losing the
+  // operator's preferred layout.
   const _num = (key, fallback, min, max) => {
     const raw = Number(localStorage.getItem(key))
     return Number.isFinite(raw) && raw >= min ? Math.min(raw, max) : fallback
@@ -77,32 +66,47 @@ export const useSystemStore = defineStore('system', () => {
         : { type: 'aircraft', icao24: item.icao24.trim().toLowerCase() })
   }
 
-  const WORKSPACE_SECTIONS = new Set([
-    'tools', 'layers', 'objects', 'flights', 'airports', 'inspector', 'timeline',
-  ])
+  const WORKSPACE_CATEGORIES = new Set(['tools', 'layers', 'objects', 'flights', 'airports'])
+  const WORKSPACE_SECTIONS = new Set([...WORKSPACE_CATEGORIES, 'inspector', 'timeline'])
+  const SECTION_CATEGORY = {
+    tools: 'tools',
+    layers: 'layers',
+    objects: 'objects',
+    flights: 'flights',
+    airports: 'airports',
+    inspector: 'objects',
+    timeline: 'flights',
+  }
+  const workspaceSectionValue = localStorage.getItem('aerorf:workspace-section')
+  const workspaceCategoryValue = localStorage.getItem('aerorf:workspace-category')
+  const workspaceLevelValue = localStorage.getItem('aerorf:workspace-level')
   const storedMode = localStorage.getItem('aerorf:workspace-mode')
   const workspaceMode = ref(
     ['open', 'collapsed', 'closed'].includes(storedMode)
       ? storedMode
       : localStorage.getItem('aerorf:sidebar-open') === '0' ? 'closed' : 'open',
   )
-  const workspaceSectionValue = localStorage.getItem('aerorf:workspace-section')
   const workspaceSection = ref(
     WORKSPACE_SECTIONS.has(workspaceSectionValue) ? workspaceSectionValue : 'tools',
   )
+  const workspaceCategory = ref(
+    WORKSPACE_CATEGORIES.has(workspaceCategoryValue)
+      ? workspaceCategoryValue
+      : SECTION_CATEGORY[workspaceSection.value] || null,
+  )
+  const workspaceLevel = ref(
+    ['home', 'category', 'task'].includes(workspaceLevelValue)
+      ? workspaceLevelValue
+      : workspaceSectionValue ? 'task' : 'home',
+  )
+  const workspaceTask = ref(localStorage.getItem('aerorf:workspace-task') || '')
   const workspaceSide = ref(localStorage.getItem('aerorf:workspace-side') === 'right' ? 'right' : 'left')
   const workspaceWidth = ref(_num('aerorf:workspace-width', 300, 240, 520))
   const workspacePinned = ref(localStorage.getItem('aerorf:workspace-pinned') === '1')
   const workspaceContext = ref(readWorkspaceContext())
   const workspaceHistory = ref(readWorkspaceHistory())
-
-  const sidebarOpen = computed(() => workspaceMode.value !== 'closed')
-  const leftPanel = workspaceSection
-  const sidebarWidth = workspaceWidth
-  const inspectorOpen = computed(
-    () => workspaceMode.value === 'open' && workspaceSection.value === 'inspector',
-  )
-  const inspectorWidth = workspaceWidth
+  const pendingWorkspaceContext = ref(null)
+  const workspaceReturnTarget = ref(null)
 
   const showTimeline = ref(false)
 
@@ -161,7 +165,10 @@ export const useSystemStore = defineStore('system', () => {
 
   function setWorkspaceContext(context, { force = false } = {}) {
     if (!context || !['object', 'aircraft'].includes(context.type)) return false
-    if (workspacePinned.value && workspaceContext.value && !force) return false
+    if (workspacePinned.value && workspaceContext.value && !force) {
+      pendingWorkspaceContext.value = context
+      return false
+    }
 
     const normalized = context.type === 'object'
       ? { type: 'object', id: context.id }
@@ -170,6 +177,7 @@ export const useSystemStore = defineStore('system', () => {
     if (normalized.type === 'aircraft' && !normalized.icao24) return false
 
     workspaceContext.value = normalized
+    pendingWorkspaceContext.value = null
     workspaceHistory.value = [
       normalized,
       ...workspaceHistory.value.filter((item) =>
@@ -183,53 +191,104 @@ export const useSystemStore = defineStore('system', () => {
   }
 
   function restoreWorkspaceContext(context) {
-    return setWorkspaceContext(context, { force: true })
+    return requestWorkspaceContext(context, { force: true })
+  }
+
+  function persistWorkspaceNavigation() {
+    _remember('aerorf:workspace-category', workspaceCategory.value || '')
+    _remember('aerorf:workspace-level', workspaceLevel.value)
+    _remember('aerorf:workspace-section', workspaceSection.value)
+    _remember('aerorf:workspace-task', workspaceTask.value)
+  }
+
+  function openWorkspaceHome() {
+    workspaceLevel.value = 'home'
+    workspaceCategory.value = null
+    workspaceTask.value = ''
+    persistWorkspaceNavigation()
+    setWorkspaceMode('open')
+    return true
+  }
+
+  function openWorkspaceCategory(category) {
+    if (!WORKSPACE_CATEGORIES.has(category)) return false
+    workspaceCategory.value = category
+    workspaceLevel.value = 'category'
+    workspaceTask.value = ''
+    workspaceSection.value = category
+    persistWorkspaceNavigation()
+    setWorkspaceMode('open')
+    return true
+  }
+
+  function openWorkspaceTask(section, { category = SECTION_CATEGORY[section], task = section } = {}) {
+    if (!WORKSPACE_SECTIONS.has(section) || !WORKSPACE_CATEGORIES.has(category)) return false
+    workspaceCategory.value = category
+    workspaceSection.value = section
+    workspaceTask.value = task
+    workspaceLevel.value = 'task'
+    persistWorkspaceNavigation()
+    setWorkspaceMode('open')
+    return true
+  }
+
+  function requestWorkspaceContext(context, { force = false } = {}) {
+    if (!context || !['object', 'aircraft'].includes(context.type)) return false
+    if (workspacePinned.value && workspaceContext.value && !force) {
+      pendingWorkspaceContext.value = context
+      return false
+    }
+
+    if (workspaceSection.value !== 'inspector' || workspaceLevel.value !== 'task') {
+      workspaceReturnTarget.value = {
+        category: workspaceCategory.value,
+        level: workspaceLevel.value,
+        section: workspaceSection.value,
+        task: workspaceTask.value,
+      }
+    }
+    if (!setWorkspaceContext(context, { force: true })) return false
+    return openWorkspaceTask('inspector', { category: 'objects', task: 'inspector' })
+  }
+
+  function inspectPendingWorkspaceContext() {
+    if (!pendingWorkspaceContext.value) return false
+    return requestWorkspaceContext(pendingWorkspaceContext.value, { force: true })
   }
 
   function clearWorkspaceContext() {
     workspaceContext.value = null
+    pendingWorkspaceContext.value = null
     localStorage.removeItem('aerorf:workspace-context')
-  }
-
-  function openWorkspace(section = workspaceSection.value) {
-    if (WORKSPACE_SECTIONS.has(section)) {
-      workspaceSection.value = section
-      _remember('aerorf:workspace-section', section)
+    const previous = workspaceReturnTarget.value
+    workspaceReturnTarget.value = null
+    if (previous && WORKSPACE_CATEGORIES.has(previous.category)) {
+      workspaceCategory.value = previous.category
+      workspaceLevel.value = previous.level
+      workspaceSection.value = previous.section
+      workspaceTask.value = previous.task
+      persistWorkspaceNavigation()
+      setWorkspaceMode('open')
+    } else {
+      openWorkspaceHome()
     }
-    setWorkspaceMode('open')
   }
 
   function toggleWorkspaceSection(section) {
-    if (!WORKSPACE_SECTIONS.has(section)) return
-    if (workspaceMode.value === 'open' && workspaceSection.value === section) {
-      setWorkspaceMode('collapsed')
-      return
-    }
-    openWorkspace(section)
+    return setPanel(section)
   }
 
-  function toggleSidebar() {
-    setWorkspaceMode(workspaceMode.value === 'closed' ? 'open' : 'closed')
+  function toggleWorkspaceMode() {
+    if (workspaceMode.value === 'closed') setWorkspaceMode('open')
+    else if (workspaceMode.value === 'open') setWorkspaceMode('collapsed')
+    else setWorkspaceMode('open')
   }
 
   function setPanel(panel) {
-    openWorkspace(panel)
-  }
-
-  function setSidebarWidth(px) {
-    setWorkspaceWidth(px)
-  }
-
-  function setInspectorWidth(px) {
-    setWorkspaceWidth(px)
-  }
-
-  function toggleInspector() {
-    if (workspaceSection.value === 'inspector' && workspaceMode.value === 'open') {
-      setWorkspaceMode('closed')
-    } else {
-      openWorkspace('inspector')
-    }
+    if (!WORKSPACE_SECTIONS.has(panel)) return false
+    const category = SECTION_CATEGORY[panel]
+    const task = panel === 'tools' ? 'tool-options' : panel
+    return openWorkspaceTask(panel, { category, task })
   }
 
   const connected = computed(() => backendStatus.value === 'ok')
@@ -335,13 +394,15 @@ export const useSystemStore = defineStore('system', () => {
     backendStatus, openskyStatus, dbStatus, config, lastCheck,
     connected, dbConnected, checkBackend, loadConfig,
     cursor, coordinateFormat, setCursor, setCoordinateFormat,
-    sidebarOpen, leftPanel, sidebarWidth, setSidebarWidth, setPanel, toggleSidebar,
-    inspectorOpen, inspectorWidth, setInspectorWidth, toggleInspector,
-    workspaceMode, workspaceSection, workspaceSide, workspaceWidth, workspacePinned,
+    setPanel,
+    workspaceMode, workspaceSection, workspaceCategory, workspaceLevel, workspaceTask,
+    workspaceSide, workspaceWidth, workspacePinned,
     workspaceContext, workspaceHistory, setWorkspaceMode, setWorkspaceSide,
     setWorkspaceWidth, toggleWorkspacePinned, setWorkspaceContext,
-    restoreWorkspaceContext, clearWorkspaceContext, openWorkspace,
-    toggleWorkspaceSection,
+    pendingWorkspaceContext, workspaceReturnTarget, restoreWorkspaceContext,
+    requestWorkspaceContext, inspectPendingWorkspaceContext, clearWorkspaceContext,
+    openWorkspaceHome, openWorkspaceCategory, openWorkspaceTask, toggleWorkspaceSection,
+    toggleWorkspaceMode,
     dialog, ask, answerDialog, notice, notify, dismissNotice,
     showTimeline,
     airportCountries, airportLabels, setAirportCountries, toggleAirportCountry,

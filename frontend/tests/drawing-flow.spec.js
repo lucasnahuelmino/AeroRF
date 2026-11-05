@@ -428,7 +428,7 @@ describe('the shell wires the clicks the way the flow needs', () => {
     w.unmount()
   }, 10000)
 
-  it('keeps new objects selected and opens their inspector only on request', async () => {
+  it('selects a newly created object and opens its contextual inspector', async () => {
     localStorage.setItem('aerorf:workspace-mode', 'open')
     localStorage.setItem('aerorf:workspace-section', 'tools')
 
@@ -441,7 +441,7 @@ describe('the shell wires the clicks the way the flow needs', () => {
     setActivePinia(pinia)
     const map = useMapStore()
     const system = useSystemStore()
-    expect(system.inspectorOpen, 'el inspector debería arrancar cerrado').toBe(false)
+    expect(system.workspaceMode).toBe('open')
 
     map.createObject = (payload) => {
       const object = { id: 7, ...payload, latlng: null, latlngs: [] }
@@ -475,9 +475,6 @@ describe('the shell wires the clicks the way the flow needs', () => {
       map.selectedId,
       'el circulo recién creado debe quedar seleccionado',
     ).toBe(7)
-    expect(system.inspectorOpen, 'la selección no debe abrir automáticamente el inspector').toBe(false)
-
-    await w.find('[title="Inspeccionar objeto"]').trigger('click')
     expect(system.workspaceSection).toBe('inspector')
     expect(system.workspaceContext).toEqual({ type: 'object', id: 7 })
 

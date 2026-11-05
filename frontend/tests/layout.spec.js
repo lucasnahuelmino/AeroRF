@@ -181,47 +181,22 @@ describe('Shell proportions', () => {
     expect(Number(px[1])).toBeGreaterThanOrEqual(40)
   })
 
-  it('gives the tools a hit area big enough to use', () => {
-    const tool = ruleFor(css, 'gis-tool')
-    expect(tool, 'falta .gis-tool').toBeTruthy()
-    // 38px tall and 52px wide: comfortably clickable without dominating.
-    const h = tool.match(/height:\s*(\d+(?:\.\d+)?)px/)
-    const w = tool.match(/width:\s*(\d+(?:\.\d+)?)px/)
-    expect(Number(h[1])).toBeGreaterThanOrEqual(34)
-    expect(Number(w[1])).toBeGreaterThanOrEqual(44)
+  it('uses a single contextual Workspace instead of a separate tool strip and tabs', () => {
+    const home = ruleFor(css, 'gis-workspace-home')
+    const category = ruleFor(css, 'gis-workspace-category')
+    expect(home, 'falta la navegación principal del Workspace').toBeTruthy()
+    expect(category, 'faltan las categorías contextuales').toBeTruthy()
+    expect(css).not.toContain('.gis-toolstrip')
+    expect(css).not.toContain('.gis-tab')
   })
 
-  it('has a visible state for the active tool', () => {
-    // The selector keeps the scope hash, so match the combined name directly.
-    const m = css.match(/\.gis-tool\.active[^{}]*\{([^}]*)\}/)
-    expect(m, 'falta el estado activo de la herramienta').toBeTruthy()
-    expect(m[1]).toContain('background')
-  })
-
-  it('lets the tool strip scroll instead of pushing the status pills off', () => {
-    const strip = ruleFor(css, 'gis-toolstrip')
-    expect(strip, 'falta .gis-toolstrip').toBeTruthy()
-    expect(strip).toContain('overflow-x:auto')
-    expect(strip).toContain('min-width:0')
-  })
-
-  it('collapses the tool hint when it is empty', () => {
-    // An always-visible empty hint would reserve a gap in the toolbar and
-    // steal width from the map for no reason.
-    const hint = ruleFor(css, 'gis-hint')
-    expect(hint, 'falta .gis-hint').toBeTruthy()
-    expect(hint).toMatch(/opacity:\s*0/)
-    expect(ruleFor(css, 'gis-hint-on')).toBeTruthy()
-  })
-
-  it('offers a drag handle on both side panels', () => {
-    // The map is the working surface: the operator decides how much window
-    // the panels take, rather than the stylesheet deciding for them.
+  it('offers one adjustable Workspace on either side of the map', () => {
     const resizer = ruleFor(css, 'gis-resizer')
     expect(resizer, 'falta .gis-resizer').toBeTruthy()
     expect(resizer).toContain('cursor:col-resize')
     expect(ruleFor(css, 'gis-resizer-r')).toBeTruthy()
     expect(ruleFor(css, 'gis-resizer-l')).toBeTruthy()
+    expect(ruleFor(css, 'gis-workspace-right')).toContain('flex-direction:row-reverse')
   })
 })
 
@@ -318,18 +293,13 @@ describe('The brand mark cannot size itself again', () => {
       )
   })
 
-  it('lets the five panel tabs keep their own width instead of shrinking out of sight', () => {
-    // `flex: 1 1 0` let all five shrink below what their text needed, and the
-    // last one — Expediente — was pushed off the strip entirely: the strip
-    // needed 312px and the sidebar has 215. `flex: 0 1 auto` plus a `nowrap`
-    // label makes the five fit or visibly truncate, which is a different and
-    // recoverable failure.
-    const tab = ruleFor(css, 'gis-tab')
-    expect(tab, 'falta .gis-tab').toBeTruthy()
-    expect(tab).toMatch(/flex:\s*0 1 auto/)
-    const label = ruleFor(css, 'gis-tab-label')
-    expect(label, 'falta .gis-tab-label').toBeTruthy()
-    expect(label, 'el rotulo no debe partirse en dos lineas').toMatch(/white-space:\s*nowrap/)
+  it('keeps Workspace category and task labels readable in a narrow panel', () => {
+    const sidebar = ruleFor(css, 'gis-sidebar')
+    const category = ruleFor(css, 'gis-workspace-category')
+    const label = ruleFor(css, 'gis-workspace-category strong')
+    expect(sidebar, 'falta el panel Workspace').toContain('min-width:0')
+    expect(category, 'faltan las filas de categoría').toContain('display:flex')
+    expect(label, 'los nombres de categoría deben conservar jerarquía tipográfica').toContain('font-weight:600')
   })
 
   it('ships a small logo, not the 1.4 MB master', () => {

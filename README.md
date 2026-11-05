@@ -109,13 +109,18 @@ sabe dónde se está y siempre se puede ir a otro lugar.
 
 ### Workspace GIS
 
-En el mapa, un único panel contextual reúne herramientas, capas, objetos,
-aeropuertos, vuelos, inspector y línea de tiempo. Puede moverse a cualquiera de
-los lados, redimensionarse, contraerse o cerrarse; su sección y preferencias se
-conservan localmente. Seleccionar una entidad en el mapa no abre el inspector:
-la inspección se solicita desde la acción explícita de la entidad o desde la
-sección Inspector. El contexto inspeccionado y su historial reciente pueden
-fijarse y recuperarse.
+En el mapa, un único Workspace contextual organiza la navegación en cinco
+categorías: Herramientas, Capas, Objetos, Vuelos y Aeropuertos. Cada categoría
+abre sus tareas existentes; la configuración de herramientas y el Inspector
+viven dentro del mismo panel, no en barras o inspectores laterales duplicados.
+El panel puede moverse a cualquiera de los lados, redimensionarse, contraerse o
+cerrarse; su navegación y preferencias se conservan localmente.
+
+Al seleccionar un objeto en el mapa o en la lista, una aeronave, o un objeto
+recién persistido, el Inspector muestra automáticamente ese contexto. Se puede
+fijar para protegerlo de selecciones nuevas: estas quedan pendientes hasta que
+se elija inspeccionarlas. El historial reciente permite recuperar contextos y
+la acción Volver retorna a la tarea que estaba abierta antes de la inspección.
 
 La reproducción embebida y el dock inferior usan el mismo estado de sesión y
 replay de vuelos; no crean copias independientes. El dock permanece plegable y
@@ -159,6 +164,9 @@ Vue 3 con Vite, Tailwind, Pinia y Leaflet.
 - **`MapEngine`** es una clase, no un composable: maneja los objetos de Leaflet
   y no debe ser reactivado por Vue. Los componentes hablan con el store, el
   store empuja al motor, y nunca al revés.
+- El Workspace GIS usa el store `system` para persistir navegación, posición,
+  tamaño y estado del contexto; selección, inspección y dibujo siguen usando
+  los stores y componentes existentes para no duplicar datos ni motores.
 - **`map/geo.js`** implementa la geodesia sin importar Leaflet, para poder
   probarla en Node y compararla con el backend.
 - Stores de mapa, vuelos y sistema; `expedientes` permanece por compatibilidad
@@ -188,9 +196,10 @@ Ninguna prueba por defecto toca la red. OpenSky se ejercita con
 `httpx.MockTransport`, y los contratos están fijados a **capturas reales** de su
 API, no a lo que dice su documentación.
 
-En la última ejecución completa del backend: **699 pasaron, 7 fueron
-excluidas** por el marcador de integración. La suite frontend completa pasó:
-**484 pruebas en 35 archivos**. Se ampliaron a 20 segundos los límites de dos
+En la última ejecución completa del backend registrada en la base: **699
+pasaron, 7 fueron excluidas** por el marcador de integración. Tras la
+implementación del Workspace contextual, la suite frontend completa pasó:
+**487 pruebas en 37 archivos**. Se ampliaron a 20 segundos los límites de dos
 pruebas sensibles a la carga del entorno.
 
 ---

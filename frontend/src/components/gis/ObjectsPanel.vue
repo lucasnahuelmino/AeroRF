@@ -281,14 +281,14 @@ async function loadPage(nextPage = 1) {
 function selectObject(object) {
   mapStore.upsert(object)
   mapStore.select(object.id)
-  if (!systemStore.inspectorOpen) systemStore.toggleInspector()
+  systemStore.requestWorkspaceContext({ type: 'object', id: object.id })
 }
 
 function centerObject(object) {
   mapStore.upsert(object)
   mapStore.select(object.id)
   mapStore.engine?.fitObject(object)
-  if (!systemStore.inspectorOpen) systemStore.toggleInspector()
+  systemStore.requestWorkspaceContext({ type: 'object', id: object.id })
 }
 
 function editObject(object) {

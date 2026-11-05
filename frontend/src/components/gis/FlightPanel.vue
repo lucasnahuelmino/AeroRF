@@ -497,6 +497,7 @@ function selectAircraft(slot) {
   flightsStore.selectedIcao24 = slot.icao24
   flightsStore.patchTracked(slot.icao24, { selected: true })
   flightsStore.loadAircraftDistances(slot.icao24)
+  systemStore.requestWorkspaceContext({ type: 'aircraft', icao24: slot.icao24 })
   if (slot.state?.latitude != null) {
     mapStore.engine?.setView(slot.state.latitude, slot.state.longitude, 12)
   }

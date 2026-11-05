@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   upsert: vi.fn(),
   select: vi.fn(),
   fitObject: vi.fn(),
-  toggleInspector: vi.fn(),
+  requestWorkspaceContext: vi.fn(),
   ask: vi.fn(),
   deleteObject: vi.fn(),
   duplicateObject: vi.fn(),
@@ -76,8 +76,7 @@ describe('GIS object administrator', () => {
       duplicateObject: mocks.duplicateObject,
     }
     mocks.systemStore = {
-      inspectorOpen: false,
-      toggleInspector: mocks.toggleInspector,
+      requestWorkspaceContext: mocks.requestWorkspaceContext,
       ask: mocks.ask,
     }
   })
@@ -110,5 +109,15 @@ describe('GIS object administrator', () => {
     await wrapper.get('[aria-label="Mostrar objeto 41"]').trigger('click')
     await flushPromises()
     expect(mocks.updateObject).toHaveBeenCalledWith(41, { visible: true })
+  })
+
+  it('opens the selected object in the contextual inspector', async () => {
+    const wrapper = mount(ObjectsPanel)
+    await flushPromises()
+
+    await wrapper.get('[title="Seleccionar Fuente oculta"]').trigger('click')
+
+    expect(mocks.select).toHaveBeenCalledWith(41)
+    expect(mocks.requestWorkspaceContext).toHaveBeenCalledWith({ type: 'object', id: 41 })
   })
 })

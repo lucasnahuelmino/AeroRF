@@ -19,8 +19,18 @@
         </option>
       </select>
       <button
+        v-if="canCreateAnother"
+        class="gis-mini-btn"
+        type="button"
+        title="Volver a la herramienta y configuración usadas"
+        @click="emit('create-another')"
+      >
+        Crear otro
+      </button>
+      <button
         v-if="object || aircraft"
         class="gis-mini-btn"
+        type="button"
         title="Cerrar inspección"
         @click="closeInspection()"
       >
@@ -569,8 +579,11 @@ import { useFlightsStore } from '@/stores/flights'
 import { useExpedientesStore } from '@/stores/expedientes'
 import { formatDistance } from '@/map/geo'
 
+const emit = defineEmits(['create-another'])
+
 const props = defineProps({
   context: { type: Object, default: undefined },
+  canCreateAnother: { type: Boolean, default: false },
 })
 
 const mapStore = useMapStore()
