@@ -78,5 +78,11 @@ export default defineConfig({
     globals: true,
     include: ['tests/**/*.spec.js'],
     setupFiles: ['./tests/setup.js'],
+    // Leaflet stacks its panes with classes in `leaflet.css` (`.leaflet-marker-pane`
+    // z-index 600 over `.leaflet-overlay-pane` 400). Without this, Vitest turns
+    // every imported stylesheet into an empty module: `document.styleSheets` stays
+    // at 0 and `getComputedStyle(...).zIndex` answers 0 for both panes, so a test
+    // that measures which pane is on top measures nothing.
+    css: true,
   },
 })
