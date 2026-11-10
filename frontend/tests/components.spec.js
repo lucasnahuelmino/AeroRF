@@ -233,6 +233,26 @@ describe('CoordinateBar', () => {
     w.unmount()
   })
 
+  it('keeps the readout but drops the object census (spec 3.4)', async () => {
+    // The bar reports the cursor, the format, the last click and UTC. The
+    // census (Objetos N / Ocultos N / per-type counts) lived here too and was
+    // removed: the Objects panel already owns those numbers.
+    const pinia = makePinia()
+    const map = useMapStore()
+    map.setCursor({ lat: -34.603722, lng: -58.381592 })
+    map.stats = { total: 11, visible: 9, hidden: 2, locked: 1, by_type: { circle: 4, point: 7 } }
+    const w = mountComponent(CoordinateBar, { pinia })
+    await flushPromises()
+
+    expect(w.text()).toContain('Cursor')
+    expect(w.text()).toContain('Formato')
+    expect(w.text()).toContain('Último clic')
+    expect(w.text()).toContain('UTC')
+    expect(w.text()).not.toContain('Objetos')
+    expect(w.text()).not.toContain('Ocultos')
+    w.unmount()
+  })
+
   it('switches coordinate format', async () => {
     const pinia = makePinia()
     const map = useMapStore()
@@ -746,6 +766,40 @@ describe('GisShell boots', () => {
     expect(w.findAll('.gis-workspace-active-tool button')).toHaveLength(1)
     expect(w.find('.gis-toolstrip').exists()).toBe(false)
     expect(w.find('.gis-inspector').exists()).toBe(false)
+    w.unmount()
+  }, 10000)
+
+  it('offers PNG export inside Herramientas, not as a floating map button (spec 3.1)', async () => {
+    // The export used to float over the map, competing with the zoom
+    // controls. It now lives in Workspace → Herramientas as an action with
+    // its state; the pipeline itself (`renderMapPng`) is the validated one
+    // from Fase 1 and is untouched.
+    localStorage.removeItem('aerorf:workspace-section')
+    localStorage.removeItem('aerorf:workspace-category')
+    localStorage.removeItem('aerorf:workspace-level')
+    localStorage.setItem('aerorf:workspace-mode', 'open')
+    const pinia = makePinia()
+    const router = makeRouter()
+    await router.push('/')
+    await router.isReady()
+    const w = mount(GisShell, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+
+    // No floating button over the map.
+    expect(w.find('.gis-map-export').exists(), 'el botón flotante debe desaparecer').toBe(false)
+
+    const category = w.findAll('.gis-workspace-category')
+      .find((button) => button.text().includes('Herramientas'))
+    await category.trigger('click')
+    await flushPromises()
+
+    const exportBtn = w.find('.gis-workspace-export')
+    expect(exportBtn.exists(), 'falta la acción Exportar mapa en Herramientas').toBe(true)
+    expect(exportBtn.text()).toContain('Exportar mapa')
+    expect(exportBtn.text()).toContain('Descargar una imagen PNG de la vista cartográfica actual.')
+    expect(exportBtn.find('svg.gis-workspace-export-icon').exists(), 'falta el icono image-down').toBe(true)
+    expect(exportBtn.attributes('disabled')).toBeUndefined()
+    expect(exportBtn.attributes('aria-busy')).toBe('false')
     w.unmount()
   }, 10000)
 

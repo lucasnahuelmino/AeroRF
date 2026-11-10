@@ -45,24 +45,6 @@
 
     <div class="flex-1" />
 
-    <!-- Object counts (spec §38) -->
-    <div v-if="mapStore.stats" class="hidden lg:flex items-center gap-3 text-[10px] text-texto-tenue">
-      <span>
-        Objetos
-        <b class="text-texto-medio">{{ mapStore.stats.total }}</b>
-      </span>
-      <span>
-        Ocultos
-        <b class="text-texto-medio">{{ mapStore.stats.hidden }}</b>
-      </span>
-      <span v-for="(n, type) in topTypes" :key="type" class="flex items-center gap-1">
-        <i class="w-1.5 h-1.5 rounded-full" :style="{ background: typeColor(type) }" />
-        <b class="text-texto-medio">{{ n }}</b>
-      </span>
-    </div>
-
-    <span class="w-px h-3.5 bg-borde" />
-
     <!-- UTC time: investigation records are timestamped in UTC -->
     <div class="flex items-center gap-2">
       <span class="text-[10px] uppercase tracking-widest text-texto-tenue">UTC</span>
@@ -76,7 +58,12 @@
  * components/gis/CoordinateBar.vue
  * ────────────────────────────────────
  * Permanent cursor readout (spec §5) plus the format switcher, the last
- * captured click and a compact object census.
+ * captured click and the UTC clock.
+ *
+ * The object census (total, hidden, per-type counts) was removed: the
+ * Objects panel already reports every number the census repeated, and 26px
+ * of a bar that must stay readable at 1366px is a poor place for a second
+ * copy of them.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -104,18 +91,6 @@ const lastClickText = computed(() => {
   if (!c) return '—'
   return `${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`
 })
-
-const topTypes = computed(() => {
-  const byType = mapStore.stats?.by_type || {}
-  return Object.entries(byType)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-})
-
-function typeColor(type) {
-  const obj = mapStore.objects.find((o) => o.type === type)
-  return obj?.color || 'var(--texto-tenue)'
-}
 
 async function copyCoordinates() {
   const { lat, lon } = mapStore.cursor

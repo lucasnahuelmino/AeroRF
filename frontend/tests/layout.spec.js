@@ -247,10 +247,11 @@ describe('The brand mark cannot size itself again', () => {
     expect(header, 'falta .brandbar-enacom-img').toBeTruthy()
     expect(Number.isFinite(Number(header.match(/height:\s*(\d+)px/)?.[1]))).toBe(true)
     expect(ruleFor(css, 'footerbar-logo')).toBeNull()
-    const chip = ruleFor(css, 'brandbar-enacom-chip')
-    expect(chip, 'falta el fondo blanco del logo oficial').toMatch(
-      /background(-color)?:\s*(#fff(fff)?|white|rgb\(255,\s*255,\s*255\))/i,
-    )
+    // No white chip: the mark is monochrome navy on transparent, and it is
+    // rendered white on the bar with an alpha-preserving filter.
+    expect(ruleFor(css, 'brandbar-enacom-chip')).toBeNull()
+    expect(header, 'el logo debe pasarse a blanco sobre la barra azul')
+      .toMatch(/filter:\s*brightness\(0\)\s*invert\(1\)/)
   })
 
   it('takes only the header out of the map height', () => {

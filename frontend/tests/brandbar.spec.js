@@ -206,15 +206,17 @@ describe('the institutional lockup', () => {
     w.unmount()
   })
 
-  it('sits the official mark on white, because the mark is dark navy', async () => {
-    // Measured off the supplied file: RGB(11, 23, 66) on a transparent
-    // ground. On this bar's near-black that is invisible, so the mark goes on a
-    // white chip. A filter that lightened it instead would be a different logo,
-    // and "put the logo correctly" means the colours as they are.
+  it('shows the official mark white on the dark bar, with no white chip', async () => {
+    // The supplied file is monochrome navy #0B1742 on transparent ground
+    // (md5 1a314c…, the only ENACOM asset that exists). It sits directly on
+    // the bar and is rendered white with `brightness(0) invert(1)`, which
+    // remaps the ink and leaves the alpha alone — no white chip, no
+    // rectangle behind the mark, proportions untouched.
     const { w } = await mountApp({ path: '/' })
-    const chip = w.find('.brandbar-enacom-chip')
-    expect(chip.exists(), 'el logo debe ir sobre un fondo blanco').toBe(true)
-    expect(chip.find('img').attributes('src')).toContain('logoenacom')
+    expect(w.find('.brandbar-enacom-chip').exists(), 'la ficha blanca debe desaparecer').toBe(false)
+    const img = w.find('.brandbar-enacom-img')
+    expect(img.exists(), 'el logo oficial debe estar presente').toBe(true)
+    expect(img.attributes('src')).toContain('logoenacom')
     w.unmount()
   })
 })
@@ -286,7 +288,11 @@ describe('the bar is thin', () => {
     expect(link).toMatch(/border-radius:\s*\.375rem/)
     expect(link).toMatch(/background:\s*transparent/)
     expect(link).toMatch(/color:\s*var\(--texto-tenue\)/)
-    expect(active).toMatch(/background:\s*var\(--panel\)/)
+    // The active link keeps the same transparent background as the rest: it
+    // is marked by accent colour and underline only, so the three sections
+    // read as one menu and not as differently filled buttons (spec 3.2).
+    expect(active).toMatch(/background:\s*transparent/)
+    expect(active).not.toMatch(/background:\s*var\(--panel\)/)
     expect(active).toMatch(/color:\s*var\(--signal\)/)
     expect(active).toMatch(/border-bottom-color:\s*var\(--signal\)/)
     expect(css).toMatch(/\.brandbar-link[^{}]*:hover[^{}]*\{[^}]*background:var\(--panel-alto\)/)

@@ -2,10 +2,51 @@
 
 **Estado actual:** AeroRF 2.5 en `main`, sincronizada con `origin/main`.
 Trabajo por fases con commit y push independientes: **Fase 1 publicada**
-(cierre técnico GIS + exportación PNG) y **Fase 2 publicada** (Inspector y
-experiencia de objetos); siguen Fase 3 (pulido visual), Fase 4 (Calculadora
+(cierre técnico GIS + exportación PNG), **Fase 2 publicada** (Inspector y
+experiencia de objetos) y **Fase 3 publicada** (pulido visual: exportación
+en Herramientas, marca, barra de coordenadas); siguen Fase 4 (Calculadora
 RF) y la regresión global. El cambio preexistente de `start.bat` ya no
 aparece en `git status` y se respeta fuera del alcance.
+
+### Fase 3 completada — Pulido visual del mapa y los controles
+
+- **Exportar mapa en Workspace → Herramientas** (3.1): el botón flotante
+  sobre el mapa (`.gis-map-export`) desapareció; la acción vive al final del
+  menú Herramientas como `.gis-workspace-export` con icono `image-down`,
+  título "Exportar mapa" y descripción "Descargar una imagen PNG de la vista
+  cartográfica actual.". Conserva `downloadMapImage`/`isExportingMap`
+  (estado `disabled`+`aria-busy`, sin corridas concurrentes, feedback de
+  éxito/error por notify). El pipeline exportado es el validado en Fase 1:
+  sólo cambió el punto de entrada. **Ejecutado en navegador:** PNG real de
+  1.36 MB descargado, toast "Imagen cartográfica PNG descargada.", recortes
+  del archivo = sólo mosaicos/marcadores/atribución (sin UI).
+- **Enlaces de sección unificados** (3.2): `.brandbar-link-on` con
+  `background: transparent` (sin `var(--panel)`); el activo se marca sólo
+  con `color: var(--signal)` + `border-bottom-color`. Mapa, Situación y
+  Calculadora RF leen como un solo menú.
+- **Logo ENACOM integrado en la barra azul oscura** (3.3): sin ficha blanca
+  (`.brandbar-enacom-chip` eliminado de template y CSS). El único asset
+  (md5 `1a314c96930b3868ee8f58dc3b29507a`, verificado en las 5 copias del
+  disco) es monograma marino #0B1742 sobre transparente; se renderiza
+  blanco con `filter: brightness(0) invert(1)` — alfa preservado, geometría
+  intacta, mismo tratamiento que el proyecto hermano `rni-app-4.0`
+  (`.topbar__logo`). Nunca se edita `dist/` como fuente.
+- **Barra de coordenadas limpia** (3.4): quedan Cursor (+ copiar),
+  Formato DD/GMS/GDM, Último clic y UTC. Se eliminaron Objetos N, Ocultos N
+  y los conteos por tipo (el panel Objetos ya los reporta); sin huecos
+  vacíos (`flex-1` de reparto).
+- **Validación responsive (3.5)** — sin desborde horizontal en 1366x768,
+  1920x1080, 1600x900, 1024x768 y 800x582 (mediciones dentro de iframes
+  same-origin a tamaño exacto): brandbar 48px (Mapa) / 56px (vistas
+  documentales, preexistente idéntico en `71c8415`), barra inferior 26px
+  siempre ajustada, workspace abierto (300px) y cerrado (mapa a ancho
+  completo), menú Herramientas con Exportar mapa (visible en pliegue a
+  1080px, con scroll a 768px), zoom 10→11 por control nativo, Situación y
+  Calculadora RF a los tres anchos con títulos visibles, consola sin
+  errores.
+- **Pruebas:** frontend **502 / 38 archivos** (500 + 2 nuevas: exportación
+  en Herramientas y censo retirado), lint ✓, build ✓ (36,22 s),
+  `git diff --check` ✓.
 
 ### Fase 2 completada — Inspector contextual y experiencia de objetos
 

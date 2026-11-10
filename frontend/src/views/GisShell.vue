@@ -181,6 +181,31 @@
                   <span class="gis-workspace-chevron" aria-hidden="true">›</span>
                 </button>
               </div>
+
+              <!--
+                Export is an action, not a drawing tool (spec 3.1). It moved
+                here from a floating button on the map, where it competed with
+                the zoom controls. The export itself is the validated pipeline
+                from Fase 1 (`renderMapPng`): only the entry point changed.
+              -->
+              <button
+                class="gis-workspace-task gis-workspace-export"
+                type="button"
+                :disabled="isExportingMap"
+                :aria-busy="isExportingMap"
+                title="Descargar una imagen PNG de la vista cartográfica actual."
+                @click="downloadMapImage"
+              >
+                <!-- image-down: photo with a down arrow, the icon the spec asks for. -->
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="gis-workspace-export-icon">
+                  <path d="M3 4.5h14v11H3zM6 12l2.5-2.5 2 2 1.5-1.5 3 3M7 7.5h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M10 1.5v6m-2-2 2 2 2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="min-w-0 flex-1 text-left">
+                  <strong>{{ isExportingMap ? 'Preparando PNG…' : 'Exportar mapa' }}</strong>
+                  <small>Descargar una imagen PNG de la vista cartográfica actual.</small>
+                </span>
+              </button>
             </template>
             <div v-else class="gis-workspace-task-list">
               <button
@@ -296,19 +321,6 @@
       <!-- Map -->
       <main class="gis-map-area">
         <div ref="mapContainer" class="gis-map" />
-        <button
-          class="gis-map-export"
-          type="button"
-          :disabled="isExportingMap"
-          :aria-busy="isExportingMap"
-          @click="downloadMapImage"
-        >
-          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-            <path d="M3 4.5h14v11H3zM6 12l2.5-2.5 2 2 1.5-1.5 3 3M7 7.5h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M10 1.5v6m-2-2 2 2 2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          {{ isExportingMap ? 'Preparando PNG…' : 'Descargar imagen' }}
-        </button>
         <button
           v-if="systemStore.workspaceMode === 'closed'"
           class="gis-workspace-reopen"
@@ -1616,27 +1628,16 @@ watch(
   background: var(--panel);
 }
 
-.gis-map-export {
-  position: absolute;
-  top: 3.25rem;
-  right: 0.75rem;
-  z-index: 1000;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2rem;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--borde-fuerte);
-  border-radius: 0.4rem;
-  background: var(--panel);
-  color: var(--texto);
-  font-size: 0.6875rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  pointer-events: auto;
+/* The export action lives in the Workspace → Herramientas menu (spec 3.1);
+   nothing floats over the map competing with the zoom controls any more. */
+.gis-workspace-export { align-items: center; }
+.gis-workspace-export:disabled { cursor: wait; opacity: 0.7; }
+.gis-workspace-export-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  color: var(--signal-on-ink);
 }
-.gis-map-export svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
-.gis-map-export:hover:not(:disabled) { border-color: var(--signal); }
-.gis-map-export:disabled { cursor: wait; opacity: 0.7; }
 
 /* ─── Resizers ────────────────────────────────────────────────────────────
  * A 5px hit area on top of a 1px rule: wide enough to grab with a mouse,

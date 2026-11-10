@@ -20,18 +20,23 @@
  * the map almost nothing.
  *
  * ── The institutional lockup ───────────────────────────────────────────────
- * ENACOM's official mark is used here, from `src/assets/logoenacom.png`, which
- * the institution supplies. The image is a dark navy — RGB(11, 23, 66) measured
- * off the file — on a transparent ground, so it cannot sit directly on this
- * bar's near-black: it would be invisible. It goes on a white rounded chip
- * instead, which is what keeps the official colours exactly as they are. A CSS
- * filter that inverted it to suit the background would be a different mark, and
- * that is not what "put the logo correctly" means.
+ * ENACOM's official mark is used here, from `src/assets/logoenacom.png`,
+ * which the institution supplies. The file was verified byte for byte: it is
+ * a single monochrome asset — navy #0B1742 on a transparent ground (md5
+ * 1a314c96930b3868ee8f58dc3b29507a; every copy that exists on disk, in this
+ * repo and in the sibling rni-app project, is the same file). There is no
+ * pre-rendered white variant to reach for, so the mark is rendered white on
+ * the dark-blue bar with `filter: brightness(0) invert(1)`: black first,
+ * then white, alpha untouched — no rectangle appears behind it and the
+ * letterforms keep their exact proportions. This is the same treatment the
+ * institution's own rni-app applies to the same file (see its
+ * `.topbar__logo`), not a colour inversion invented here: the geometry of
+ * the mark is untouched and only its monochrome ink is remapped.
  *
- * An earlier version drew no mark at all, reasoning that official logotypes are
- * protected and an imitation inside a tool carrying the institution's name would
- * be wrong. The file exists because the institution supplies it, so the question
- * of an imitation does not arise.
+ * An earlier version drew no mark at all, reasoning that official logotypes
+ * are protected and an imitation inside a tool carrying the institution's
+ * name would be wrong. The file exists because the institution supplies it,
+ * so the question of an imitation does not arise.
  */
 
 <template>
@@ -76,12 +81,11 @@
       <span class="brandbar-dot" :class="dotClass('off', flightsStore.socketState === 'connected')" :title="`Vivos: ${flightsStore.socketState}`" />
     </div>
 
-    <!-- Institutional lockup. The official mark, on a white chip: see the note
-         at the top of this file about why it is not on the bar directly. -->
+    <!-- Institutional lockup. The official mark, white, directly on the bar:
+         see the note at the top of this file about the alpha-preserving
+         filter that gets it there. -->
     <div class="brandbar-enacom" title="Dirección Nacional de Control y Fiscalización">
-      <span class="brandbar-enacom-chip">
-        <img :src="enacomLogo" alt="ENACOM" class="brandbar-enacom-img" />
-      </span>
+      <img :src="enacomLogo" alt="ENACOM" class="brandbar-enacom-img" />
       <span v-if="!compact" class="brandbar-enacom-full">
         Dirección Nacional de Control<br />y Fiscalización
       </span>
@@ -238,9 +242,16 @@ function go(path) {
 }
 .brandbar-link:hover { color: var(--texto); background: var(--panel-alto); }
 
+/*
+ * The active section shares the link's transparent background: the three
+ * sections are visually one row, and the current one is marked only by the
+ * accent colour and the underline. A filled background on the active link
+ * made "Mapa", "Situación" and "Calculadora RF" read as three differently
+ * styled buttons instead of one menu.
+ */
 .brandbar-link-on {
   color: var(--signal);
-  background: var(--panel);
+  background: transparent;
   border-bottom-color: var(--signal);
 }
 .brandbar-link:focus-visible {
@@ -277,9 +288,11 @@ function go(path) {
 .brandbar-dot-off { background: var(--borde); }
 
 /* ─── ENACOM lockup ────────────────────────────────────────────────────────
- * The official mark on a white chip, with the institution's full name beside
- * it. The chip is not decoration: the mark is dark navy and the bar is
- * near-black, so without it the logo would be there and unreadable.
+ * The official mark, white, sitting directly on the dark-blue bar — no
+ * white chip behind it. The chip existed because the file is navy on
+ * transparent; the alpha-preserving filter described at the top of this
+ * file does the same job without a rectangle of foreign colour in an
+ * institutional bar. The full name stays as text beside the mark.
  * ------------------------------------------------------------------------- */
 
 .brandbar-enacom {
@@ -291,21 +304,12 @@ function go(path) {
   flex: 0 0 auto;
 }
 
-/* White ground, so the official colours are the ones on screen. A filter that
-   lightened the mark instead would be a different logo. */
-.brandbar-enacom-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 5px;
-  border-radius: 3px;
-  background: #ffffff;
-  flex: 0 0 auto;
-}
-
 .brandbar-enacom-img {
   height: 17px;
   width: auto;
   display: block;
+  /* Navy #0B1742 → white, alpha untouched: no white ground needed. */
+  filter: brightness(0) invert(1);
 }
 
 .brandbar-enacom-full {

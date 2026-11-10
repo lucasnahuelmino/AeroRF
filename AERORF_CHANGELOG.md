@@ -4,6 +4,99 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ---
 
+## AeroRF 2.5 — Fase 3: pulido visual del mapa y los controles
+
+**Estado:** completada. Suite frontend **502 pruebas / 38 archivos**, lint ✓,
+build de producción ✓ (36,22 s), `git diff --check` ✓, validación visual y
+responsive en navegador ✓.
+
+### 3.1 Exportar mapa dentro de Herramientas
+
+- El botón flotante sobre el mapa (`.gis-map-export` + su CSS) se eliminó.
+- La acción se agregó al final de la categoría **Herramientas** del
+  Workspace: botón `.gis-workspace-export.gis-workspace-task` con icono SVG
+  `image-down`, etiqueta fuerte **"Exportar mapa"** (o "Preparando PNG…"
+  durante la corrida) y descripción **"Descargar una imagen PNG de la vista
+  cartográfica actual."**.
+- Estado sin cambios respecto de la Fase 1: `downloadMapImage` con guard
+  `isExportingMap` (sin corridas concurrentes), `:disabled` +
+  `:aria-busy`, feedback `systemStore.notify` de éxito ("Imagen
+  cartográfica PNG descargada.") y de error. **El pipeline validado en
+  Fase 1 (`renderMapPng` + repintado de símbolos) no se tocó**: sólo cambió
+  el punto de entrada.
+- Verificación en navegador: clic real → PNG `AeroRF_Mapa_*.png` de
+  1.357.716 bytes descargado; recortes del archivo muestran sólo contenido
+  cartográfico (mosaicos, círculo, marcadores sin disco, aeronaves,
+  atribución) sin chrome de la UI; toast de éxito visible; consola sin
+  errores; botón vuelve a reposo (`aria-busy="false"`, habilitado).
+
+### 3.2 Enlaces de sección unificados
+
+- `.brandbar-link-on`: `background: transparent` explícito (antes
+  `var(--panel)`); el estado activo se marca sólo con `color: var(--signal)`
+  y `border-bottom-color: var(--signal)`. Las tres secciones leen como un
+  solo menú, sin botones con relleno distinto.
+- Hover de los enlaces sin cambios (`var(--panel-alto)`).
+
+### 3.3 Logo ENACOM en la barra azul oscura
+
+- Se retiró el chip blanco (`.brandbar-enacom-chip` eliminado del template
+  y del CSS). El logo va directo sobre la barra.
+- El único asset existente (`src/assets/logoenacom.png`, md5
+  `1a314c96930b3868ee8f58dc3b29507a` — verificado idéntico en las 5 copias
+  del disco: AeroRF src, build de dist y las 3 copias de `rni-app-4.0`) es
+  monograma monocromático marino #0B1742 sobre transparente; **no existe
+  variante blanca pre-renderizada**.
+- Render blanco con `filter: brightness(0) invert(1)` en
+  `.brandbar-enacom-img`: `brightness(0)` deja la tinta en negro,
+  `invert(1)` la lleva a blanco, **el alfa no se toca** (no aparece ningún
+  rectángulo detrás) y la geometría del logotipo queda exacta. Es el mismo
+  tratamiento documentado en el proyecto institucional hermano
+  `rni-app-4.0` (`.topbar__logo`), no una inversión a ciegas.
+- `dist/` nunca se edita como fuente; el comentario superior de
+  `BrandBar.vue` documenta la verificación md5 y la razón del filtro.
+
+### 3.4 Barra de coordenadas limpia
+
+- Quedan: **Cursor** (lectura + copiar), **Formato** (DD/GMS/GDM),
+  **Último clic** y **UTC**.
+- Se eliminaron el bloque de conteos (Objetos N, Ocultos N), `topTypes` y
+  `typeColor`: el panel Objetos ya reporta esas cifras y la barra de 26px no
+  debe duplicarlas. Sin huecos vacíos: un `flex-1` reparte el espacio hasta
+  UTC a la derecha.
+
+### 3.5 Validación responsive (1366x768, 1920x1080 e intermedios)
+
+Mediciones reales de layout dentro de iframes same-origin cargados a tamaño
+exacto (media queries reales), más inspección visual de capturas:
+
+| Escenario | Resultado |
+|---|---|
+| Mapa 1366x768 / 1920x1080 / 1600x900 / 1024x768 / 800x582 | sin desborde horizontal (`scrollWidth ≤ innerWidth`), brandbar ajustada |
+| Herramientas + Exportar mapa | presente (267×78 px); en pliegue a 1080px de alto, con scroll del menú a 768px |
+| Workspace abierto / cerrado (1366) | panel 300px + mapa 1066px / panel oculto + mapa 1366px, sin desborde |
+| Zoom (control nativo) | 10 → 11 ✓ |
+| Situación y Calculadora RF (1366/1600/1920) | títulos visibles, sin desborde, enlace activo correcto, logo cargado con filtro |
+| Barra inferior | 26px, siempre ajustada (`scrollWidth ≤ clientWidth`), sin recuentos |
+| Consola | 0 errores |
+
+- Alturas de brandbar: 48px en Mapa (variante `brandbar-shell`) y 56px en
+  vistas documentales — **idénticas al commit previo `71c8415`** (verificado
+  con `git show`), sin regresión de esta fase.
+
+### Pruebas
+
+- Nuevas en `components.spec.js`: "offers PNG export inside Herramientas,
+  not as a floating map button (spec 3.1)" (sin `.gis-map-export`; con
+  `.gis-workspace-export`, textos, icono, estado) y "keeps the readout but
+  drops the object census (spec 3.4)" (Cursor/Formato/Último clic/UTC
+  presentes; Objetos/Ocultos ausentes con `stats` cargado).
+- `brandbar.spec.js` / `layout.spec.js` adaptados: sin chip, filtro
+  `brightness(0) invert(1)`, `.brandbar-link-on` transparente.
+- Resultado: **502/502 (38 archivos)**; lint ✓; build ✓ (36,22 s).
+
+---
+
 ## AeroRF 2.5 — Fase 2: Inspector contextual y experiencia de objetos
 
 **Estado:** completada. Suite frontend **500 pruebas / 38 archivos**, lint ✓,
