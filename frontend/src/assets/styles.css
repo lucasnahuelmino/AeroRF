@@ -345,25 +345,23 @@ table thead th {
   opacity: 0.72;
 }
 
-/* ─── Símbolo de aeropuerto ────────────────────────────────────────────────
- * El marcador es `<img src="/iconos/aeropuerto.svg">` dentro de un disco
- * claro: el mapa es oscuro y el icono descargado viene negro, así que sin
- * el disco no se vería. El disco también hace que cualquier imagen que
- * coloque el operador (de colores, con fondo propio) se lea igual.
- * Cambiar el dibujo = reemplazar `public/iconos/aeropuerto.svg`.
+/* ─── Símbolos de aeropuerto y punto ───────────────────────────────────────
+ * El disco blanco que rodeaba el símbolo se retiró: el marcador se dibuja
+ * solo, sin fondo, sin borde circular ni sombra de ficha. El contraste sobre
+ * mosaicos claros lo aportan el trazo oscuro propio de los SVG de
+ * `public/iconos/` y un halo `drop-shadow` discreto alrededor del dibujo.
+ * El `padding` queda sin pintura (no hay fondo) pero conserva el tamaño y el
+ * centrado originales del símbolo, y `border-radius` mantiene circular el
+ * aro de selección. Cambiar el dibujo = reemplazar el SVG en
+ * `public/iconos/`.
  * ------------------------------------------------------------------------- */
-
-/* Marcadores técnicos sobre un disco claro para mantener contraste en ambos
- * estilos de mapa. */
 
 .aerorf-airport-icon,
 .aerorf-punto-icono {
   align-items: center;
-  background: rgba(241, 245, 249, 0.9);
-  border: 1px solid rgba(30, 41, 59, 0.6);
   border-radius: 9999px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
   display: flex;
+  filter: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.5));
   justify-content: center;
   padding: 4px;
 }
@@ -377,10 +375,10 @@ table thead th {
 }
 
 .aerorf-punto-icono.aerorf-marker-selected {
+  /* Aro de selección sobre el símbolo desnudo: sin sombra de ficha debajo. */
   box-shadow:
     0 0 0 2px var(--signal),
-    0 0 0 5px rgba(24, 182, 199, 0.35),
-    0 1px 3px rgba(0, 0, 0, 0.45);
+    0 0 0 5px rgba(24, 182, 199, 0.35);
 }
 
 .aerorf-airport-tip {

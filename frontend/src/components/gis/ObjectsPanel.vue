@@ -163,7 +163,6 @@
                 >
                   Eliminar
                 </button>
-                <button class="gis-mini-btn" @click="duplicateObject(object)">Duplicar</button>
               </div>
             </div>
             <span
@@ -322,15 +321,6 @@ async function deleteObject(object) {
   objects.value = objects.value.filter((item) => item.id !== object.id)
   total.value = Math.max(0, total.value - 1)
   if (!objects.value.length && page.value > 1) await loadPage(page.value - 1)
-}
-
-async function duplicateObject(object) {
-  const duplicate = await mapStore.duplicateObject(object.id)
-  if (!duplicate) {
-    error.value = mapStore.error || 'No se pudo duplicar el objeto.'
-    return
-  }
-  await loadPage(1)
 }
 
 function setObjectSelected(id, selected) {

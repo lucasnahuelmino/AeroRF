@@ -2,10 +2,39 @@
 
 **Estado actual:** AeroRF 2.5 en `main`, sincronizada con `origin/main`.
 Trabajo por fases con commit y push independientes: **Fase 1 publicada**
-(cierre técnico GIS + exportación PNG); siguen Fase 2 (Inspector/objetos),
-Fase 3 (pulido visual), Fase 4 (Calculadora RF) y la regresión global.
-El cambio preexistente de `start.bat` ya no aparece en `git status` y se
-respeta fuera del alcance.
+(cierre técnico GIS + exportación PNG) y **Fase 2 publicada** (Inspector y
+experiencia de objetos); siguen Fase 3 (pulido visual), Fase 4 (Calculadora
+RF) y la regresión global. El cambio preexistente de `start.bat` ya no
+aparece en `git status` y se respeta fuera del alcance.
+
+### Fase 2 completada — Inspector contextual y experiencia de objetos
+
+- **Encabezado del Inspector eliminado** (título, "Contextos recientes",
+  "Crear otro", ✕): el panel arranca con la identificación del objeto. El
+  historial interno de contextos sigue en el store; atrás se navega con la
+  flecha del Workspace. Maquinaria muerta retirada (`emit('create-another')`,
+  prop `canCreateAnother`, helpers de contexto/cierre).
+- **"Duplicar" fuera de la interfaz** en Inspector, ObjectsPanel y barra de
+  objetos de GisShell; se conservan endpoint, servicio y
+  `mapStore.duplicateObject` sin consumidores visuales.
+- **Acciones ordenadas:** Centrar → Mostrar/Ocultar → Eliminar, con bloqueo y
+  confirmación intactos.
+- **`Copiar Lat y Lon`:** única acción de copiado, ambas coordenadas con 6
+  decimales; "Copiar latitud/longitud/ambas" eliminadas. Centrado, edición
+  WGS84 y resúmenes por geometría conservados.
+- **PointMarkerPicker desplegable:** `<img>` de previsualización + `<select>`
+  con los 9 ids históricos; funciona en creación (ToolOptions) y edición
+  (Inspector) actualizando API/store/marcador sin tocar id, geometría ni
+  historial.
+- **Disco blanco retirado** de `.aerorf-airport-icon`/`.aerorf-punto-icono`:
+  sin fondo/borde/sombra de ficha, halo `drop-shadow` + trazo oscuro de los
+  SVG; tamaños de símbolo idénticos a los anteriores; selección circular
+  conservada; aeronaves sin cambios.
+- **Pruebas:** frontend **500 / 38 archivos** (499 + 1 nueva), lint ✓, build
+  ✓ (36,68 s), `git diff --check` ✓. Verificación visual en navegador: panel
+  sin encabezado, desplegable con los 9 tipos, 0 "Duplicar" en el DOM, 105
+  aeropuertos y 7 puntos con fondo transparente computado y recortes PNG sin
+  disco.
 
 ### Fase 1 completada — Integridad GIS, Línea y exportación PNG
 

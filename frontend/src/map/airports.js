@@ -212,10 +212,11 @@ export class AirportLayer {
   _marker(airport) {
     let marker
     if (airport.kind !== 'sitio' && airport.kind !== 'heliport') {
-      // Aeródromo: el icono de avión sobre un disco claro, para que cualquier
-      // imagen que ponga el operador en `public/iconos/` se lea sobre el mapa
-      // oscuro. Los mayores van más grandes: la información de antes (dos
-      // familias distinguibles), ahora en el tamaño y no en el color.
+      // Aeródromo: el icono de avión sin ficha de fondo. El trazo oscuro del
+      // SVG y el halo `drop-shadow` de `.aerorf-airport-icon` mantienen el
+      // contraste sobre cualquier mosaico. Los mayores van más grandes: la
+      // información de antes (dos familias distinguibles), ahora en el tamaño
+      // y no en el color.
       const lado = isMajor(airport) ? 26 : 18
       marker = L.marker([airport.lat, airport.lon], {
         icon: L.divIcon({

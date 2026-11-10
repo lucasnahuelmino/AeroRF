@@ -386,7 +386,6 @@
               ↔
             </button>
             <button class="gis-mini-btn" title="Centrar" @click="centerSelected">⊙</button>
-            <button class="gis-mini-btn" title="Duplicar" @click="mapStore.duplicateObject(mapStore.selected.id)">⧉</button>
             <button class="gis-mini-btn" title="Ocultar" @click="toggleSelectedVisibility">
               {{ mapStore.selected.visible ? '👁' : '🚫' }}
             </button>
@@ -714,10 +713,7 @@ const workspacePanelComponent = computed(() =>
 )
 const workspacePanelProps = computed(() => {
   if (systemStore.workspaceSection === 'inspector') {
-    return {
-      context: systemStore.workspaceContext,
-      canCreateAnother: Boolean(lastCreatedTool.value),
-    }
+    return { context: systemStore.workspaceContext }
   }
   if (systemStore.workspaceSection === 'timeline') return { embedded: true }
   if (systemStore.workspaceSection === 'airports') {
@@ -731,9 +727,6 @@ const workspacePanelProps = computed(() => {
   return {}
 })
 const workspacePanelListeners = computed(() => {
-  if (systemStore.workspaceSection === 'inspector') {
-    return { 'create-another': createAnother }
-  }
   if (systemStore.workspaceSection === 'airports') {
     return {
       'update:visible': setAirportsVisible,
@@ -745,8 +738,6 @@ const workspacePanelListeners = computed(() => {
   }
   return {}
 })
-
-const lastCreatedTool = ref(null)
 
 function openWorkspaceTask(task) {
   systemStore.openWorkspaceTask(task.section, {
@@ -1106,7 +1097,6 @@ function handleDraftConfirm() {
 /** Persist whatever the tool just finished drawing. */
 async function handleToolComplete(payload) {
   draftPreview.value = null
-  lastCreatedTool.value = payload.type === 'measurement' ? TOOLS.MEASURE : payload.type
   const keepLineActive = payload.type === 'line' && toolManager?.active === TOOLS.LINE
   const defaults = {
     point: {
@@ -1150,7 +1140,6 @@ async function saveMeasurement() {
   mapStore.draft = null
   if (!payload) return
 
-  lastCreatedTool.value = TOOLS.MEASURE
   const created = await mapStore.createObject({
     ...payload,
     name: `Medición ${new Date().toLocaleTimeString('es-AR')}`,
@@ -1161,17 +1150,6 @@ async function saveMeasurement() {
 }
 
 // ─── Object actions ─────────────────────────────────────────────────────────
-
-function createAnother() {
-  const tool = lastCreatedTool.value
-  if (!tool) {
-    systemStore.openWorkspaceCategory('tools')
-    return
-  }
-  systemStore.openWorkspaceCategory('tools')
-  activateTool(tool)
-  systemStore.openWorkspaceTask('tools', { category: 'tools', task: 'tool-options' })
-}
 
 function centerSelected() {
   engine?.fitObject(mapStore.selected)

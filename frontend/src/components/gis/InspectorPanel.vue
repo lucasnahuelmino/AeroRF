@@ -1,43 +1,11 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="flex flex-0 items-center justify-between border-b border-borde px-3 py-2">
-      <h2 class="text-xs font-semibold uppercase tracking-widest text-texto-medio">Inspector</h2>
-      <select
-        v-if="systemStore.workspaceHistory.length > 1"
-        class="min-w-0 flex-1 rounded border border-borde bg-panel-hondo px-1 py-1 text-[10px] text-texto-medio"
-        aria-label="Contextos recientes"
-        title="Volver a un contexto inspeccionado"
-        @change="restoreContextFromHistory"
-      >
-        <option value="">Contextos recientes</option>
-        <option
-          v-for="(context, index) in systemStore.workspaceHistory"
-          :key="contextKey(context)"
-          :value="index"
-        >
-          {{ contextLabel(context) }}
-        </option>
-      </select>
-      <button
-        v-if="canCreateAnother"
-        class="gis-mini-btn"
-        type="button"
-        title="Volver a la herramienta y configuración usadas"
-        @click="emit('create-another')"
-      >
-        Crear otro
-      </button>
-      <button
-        v-if="object || aircraft"
-        class="gis-mini-btn"
-        type="button"
-        title="Cerrar inspección"
-        @click="closeInspection()"
-      >
-        ✕
-      </button>
-    </header>
-
+    <!--
+      No header: the panel starts with the selected object itself. The title,
+      the recent-contexts selector, "Crear otro" and the ✕ were chrome around
+      the content — the Workspace back arrow already handles going back, and
+      the context history still works internally.
+    -->
     <div class="flex-1 overflow-y-auto">
       <!--
         Nothing selected. An aircraft counts as something selected: clicking one on
@@ -240,7 +208,6 @@
 
           <div class="flex flex-wrap gap-1">
             <button class="gis-mini-btn" @click="mapStore.engine?.fitObject(object)">⊙ Centrar</button>
-            <button class="gis-mini-btn" @click="mapStore.duplicateObject(object.id)">⧉ Duplicar</button>
             <button class="gis-mini-btn" @click="toggleVisibility">
               {{ object.visible ? '👁 Ocultar' : '👁 Mostrar' }}
             </button>
@@ -363,9 +330,7 @@
             Centro / origen: {{ formatCoordinate(object.latitude) }}, {{ formatCoordinate(object.longitude) }}
           </div>
           <div v-if="hasReferencePosition" class="flex flex-wrap gap-1">
-            <button class="gis-mini-btn" @click="copyCoordinate('latitude')">Copiar latitud</button>
-            <button class="gis-mini-btn" @click="copyCoordinate('longitude')">Copiar longitud</button>
-            <button class="gis-mini-btn" @click="copyCoords">Copiar ambas</button>
+            <button class="gis-mini-btn" @click="copyCoords">Copiar Lat y Lon</button>
             <button class="gis-mini-btn" @click="centerObject">Centrar en mapa</button>
           </div>
 
@@ -601,11 +566,8 @@ import { useExpedientesStore } from '@/stores/expedientes'
 import { formatDistance } from '@/map/geo'
 import PointMarkerPicker from './PointMarkerPicker.vue'
 
-const emit = defineEmits(['create-another'])
-
 const props = defineProps({
   context: { type: Object, default: undefined },
-  canCreateAnother: { type: Boolean, default: false },
 })
 
 const mapStore = useMapStore()
@@ -739,32 +701,6 @@ function fmtTime(unixSeconds) {
   const n = Number(unixSeconds)
   if (!Number.isFinite(n)) return '—'
   return new Date(n * 1000).toLocaleTimeString('es-AR')
-}
-
-/** Close whichever thing is being inspected, not just an object. */
-function closeInspection() {
-  if (props.context !== undefined) {
-    systemStore.clearWorkspaceContext()
-    return
-  }
-  mapStore.clearSelection()
-  flightsStore.selectedIcao24 = null
-}
-
-function contextKey(context) {
-  return context.type === 'object' ? `object:${context.id}` : `aircraft:${context.icao24}`
-}
-
-function contextLabel(context) {
-  return context.type === 'object'
-    ? `Objeto ${context.id}`
-    : `Aeronave ${context.icao24.toUpperCase()}`
-}
-
-function restoreContextFromHistory(event) {
-  const index = Number(event.target.value)
-  const context = systemStore.workspaceHistory[index]
-  if (context) systemStore.restoreWorkspaceContext(context)
 }
 
 /** Send the operator to the aircraft in the flights panel. */
@@ -1075,16 +1011,9 @@ async function copyCoords() {
     mapStore.notice = 'El objeto no tiene coordenadas válidas para copiar.'
     return
   }
+  // One action, both coordinates, six decimals (WGS84 precision as shown).
   const text = `${formatCoordinate(object.value.latitude)}, ${formatCoordinate(object.value.longitude)}`
   await copyText(text)
-}
-
-async function copyCoordinate(field) {
-  if (!hasReferencePosition.value) {
-    mapStore.notice = 'El objeto no tiene coordenadas válidas para copiar.'
-    return
-  }
-  await copyText(formatCoordinate(object.value[field]))
 }
 
 async function copyText(text) {

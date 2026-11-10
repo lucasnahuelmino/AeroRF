@@ -4,6 +4,94 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ---
 
+## AeroRF 2.5 — Fase 2: Inspector contextual y experiencia de objetos
+
+**Estado:** completada. Suite frontend **500 pruebas / 38 archivos**, lint ✓,
+build de producción ✓, `git diff --check` ✓, verificación visual en navegador ✓.
+
+### 2.1 Encabezado del Inspector simplificado
+
+- Se elimina el `<header>` completo del panel: título "Inspector", selector
+  "Contextos recientes", botón "Crear otro" y ✕. El Inspector arranca
+  directamente con la identificación del objeto seleccionado.
+- Se retira el maquinaria muerta asociada: `emit('create-another')`,
+  prop `canCreateAnother`, helpers `closeInspection`, `contextKey`,
+  `contextLabel` y `restoreContextFromHistory`. El historial interno de
+  contextos (`system.workspaceHistory`) **se conserva** en el store: sólo se
+  retira el selector visual. La navegación atrás sigue siendo la flecha del
+  Workspace; `workspaceHeading` sigue devolviendo "Inspector".
+
+### 2.2 "Duplicar" fuera de la interfaz
+
+- Botones eliminados: `InspectorPanel` (acción de objeto), `ObjectsPanel`
+  (fila por objeto) y `GisShell` (barra de objetos seleccionados ⧉), junto con
+  la función local `duplicateObject` de `ObjectsPanel` y el listener
+  `create-another` de GisShell.
+- **Se conservan** el endpoint backend, el servicio y
+  `mapStore.duplicateObject` (sin consumidores visuales): la duplicación
+  sigue disponible internamente y para futuros flujos.
+
+### 2.3 Acciones del Inspector reordenadas
+
+- Orden final: **Centrar → Mostrar/Ocultar → Eliminar**, con sus estados de
+  bloqueo (deshabilitar si `locked`), confirmación de borrado y etiquetas
+  accesibles intactos.
+
+### 2.4 Coordenadas: una sola acción de copiado
+
+- Desaparecen "Copiar latitud", "Copiar longitud" y "Copiar ambas"; aparece
+  **`Copiar Lat y Lon`**, que copia `lat, lon` con **6 decimales**
+  (`formatCoordinate` → `toFixed(6)`), con el mismo aviso de éxito/error.
+- Se mantiene "Centrar en mapa", la edición de coordenadas con validación
+  WGS84 y los resúmenes de línea/polígono/círculo/radial.
+
+### 2.5 PointMarkerPicker: grilla → desplegable
+
+- `PointMarkerPicker.vue` reescrito: previsualización del icono actual
+  (`<img>`) + `<select>` compacto con los **9 ids históricos** (`marker`,
+  `fm`, `tprs`, `antenna`, `radiobase`, `repeater`, `monitoring`, `poi`,
+  `otro`). Emite `update:modelValue` con el mismo contrato.
+- Funciona en **creación** (ToolOptions → `toolOptions.markerType` → payload)
+  y en **edición** (Inspector → `saveField('icon')` → `updateObject`), por lo
+  que actualiza API, store y marcador Leaflet manteniendo id, geometría,
+  historial y demás atributos. La clasificación visual del punto no confunde
+  con las categorías técnicas `antenna`/`rf_source`.
+- Fallback intacto: ids desconocidos (`point`, `circle`, `circle_small`)
+  resuelven a `marker` vía `getPointMarker`.
+
+### 2.6 Disco blanco retirado de los símbolos
+
+- `.aerorf-airport-icon` / `.aerorf-punto-icono`: sin `background`, sin
+  `border`, sin `box-shadow` de ficha. Se conservan `padding` y
+  `border-radius` **sin pintura** (mantienen el tamaño/centrado originales
+  del símbolo — 14,5 px aeropuerto / 17,3 px punto, idénticos a antes — y el
+  aro circular de selección `.aerorf-marker-selected`).
+- Contraste: halo `drop-shadow(0 1px 2px rgba(2,6,23,.5))` + el trazo oscuro
+  propio de los SVG de `public/iconos/` (sin editar SVGs, sin filtros de
+  inversión). Aeronaves: sin cambios (orientación preservada).
+
+### Pruebas
+
+- `components.spec.js`: 4 aserciones adaptadas (estado vacío sin encabezado,
+  "Propiedades generales", selector del ToolOptions y del Inspector ahora
+  `<select>`) + **1 prueba nueva** del desplegable (ids históricos, icono de
+  previsualización, emisión, sin botones).
+- Resultado: **500/500 (38 archivos)**; lint ✓; build ✓ (36,68 s).
+
+### Validación visual (navegador real)
+
+- Inspector del punto id 19: sin encabezado ni "Contextos recientes"/"Crear
+  otro"/✕; acciones en orden; `Copiar Lat y Lon` presente; desplegable con
+  los 9 tipos y valor actual `antenna`.
+- DOM completo: 0 coincidencias de "Duplicar"/"Contextos recientes"/"Crear
+  otro"; estilos computados de los 105 aeropuertos y 7 puntos =
+  `background: transparent`, `border: 0`, `box-shadow: none`, `filter:
+  drop-shadow(...)`.
+- Recortes del PNG: glifo de aeropuerto y marcador de punto **sin disco**,
+  legibles sobre mosaico claro.
+
+---
+
 ## AeroRF 2.5 — Fase 1: cierre técnico GIS 2.4 y exportación PNG
 
 **Estado:** completada. Suite frontend **499 pruebas / 38 archivos**, suite

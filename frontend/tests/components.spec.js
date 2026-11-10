@@ -167,6 +167,7 @@ import ContextMenu from '@/components/gis/ContextMenu.vue'
 import DialogHost from '@/components/DialogHost.vue'
 import FlightPanel from '@/components/gis/FlightPanel.vue'
 import InspectorPanel from '@/components/gis/InspectorPanel.vue'
+import PointMarkerPicker from '@/components/gis/PointMarkerPicker.vue'
 import LayerPanel from '@/components/gis/LayerPanel.vue'
 import Timeline from '@/components/gis/Timeline.vue'
 import ToolOptions from '@/components/gis/ToolOptions.vue'
@@ -248,7 +249,8 @@ describe('CoordinateBar', () => {
 describe('InspectorPanel', () => {
   it('mounts with nothing selected', () => {
     const w = mountComponent(InspectorPanel)
-    expect(w.text()).toContain('Inspector')
+    // No header: the panel opens straight on its empty state.
+    expect(w.text()).toContain('Seleccione un objeto o una aeronave en el mapa.')
     w.unmount()
   })
 
@@ -353,8 +355,9 @@ describe('ToolOptions', () => {
     for (const label of ['Marcador general', 'FM', 'TPRS', 'Antena RF', 'Radiobase celular', 'Repetidora', 'Estación de monitoreo', 'Punto de interés', 'Otro']) {
       expect(w.text()).toContain(label)
     }
-    const fm = w.findAll('button').find((button) => button.text().includes('FM'))
-    await fm.trigger('click')
+    const selector = w.findComponent(PointMarkerPicker).find('select')
+    expect(selector, 'falta el selector desplegable de marcador').toBeTruthy()
+    await selector.setValue('fm')
     expect(map.toolOptions.markerType).toBe('fm')
 
     map.activeTool = 'circle'
@@ -362,6 +365,30 @@ describe('ToolOptions', () => {
     expect(w.text(), 'el tipo de marcador sólo aplica a puntos').not.toContain(
       'Tipo de marcador',
     )
+    w.unmount()
+  })
+})
+
+describe('PointMarkerPicker', () => {
+  it('es un desplegable compacto con el catálogo histórico y previsualización', async () => {
+    // La grilla de nueve botones ocupaba un bloque entero del panel. El
+    // contrato es el mismo: mismos ids históricos, misma emisión, más la
+    // previsualización del icono actual.
+    const w = mount(PointMarkerPicker, {
+      props: { modelValue: 'fm' },
+      attachTo: document.body,
+    })
+    const select = w.find('select')
+    expect(select.exists(), 'debe ser un selector desplegable, no una grilla').toBe(true)
+    expect(w.findAll('button')).toHaveLength(0)
+    const ids = select.findAll('option').map((option) => option.attributes('value'))
+    expect(ids).toEqual([
+      'marker', 'fm', 'tprs', 'antenna', 'radiobase',
+      'repeater', 'monitoring', 'poi', 'otro',
+    ])
+    expect(w.find('img').attributes('src'), 'previsualiza el icono actual').toBe('/iconos/fm.svg')
+    await select.setValue('tprs')
+    expect(w.emitted('update:modelValue')).toEqual([['tprs']])
     w.unmount()
   })
 })
@@ -1450,7 +1477,7 @@ describe('clicking an aircraft fills the inspector', () => {
     map.select(11)
     const w = mountComponent(InspectorPanel, { pinia })
     await flushPromises()
-    expect(w.text(), 'el panel del objeto manda cuando hay objeto').toContain('Inspector')
+    expect(w.text(), 'el panel del objeto manda cuando hay objeto').toContain('Propiedades generales')
     expect(w.text()).not.toContain('Procedencia:')
     w.unmount()
   })
@@ -1471,9 +1498,9 @@ describe('clicking an aircraft fills the inspector', () => {
     const w = mountComponent(InspectorPanel, { pinia })
     await flushPromises()
 
-    const selector = w.findAll('button').find((button) => button.text().includes('TPRS'))
+    const selector = w.findComponent(PointMarkerPicker).find('select')
     expect(selector, 'falta el selector de marcador TPRS en el panel').toBeTruthy()
-    await selector.trigger('click')
+    await selector.setValue('tprs')
     expect(actualizar).toHaveBeenCalledWith(33, { icon: 'tprs' })
     w.unmount()
   })

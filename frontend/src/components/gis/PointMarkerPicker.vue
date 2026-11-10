@@ -1,25 +1,32 @@
 <template>
-  <div class="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Tipo de marcador">
-    <button
-      v-for="marker in POINT_MARKERS"
-      :key="marker.id"
-      type="button"
-      role="radio"
-      :aria-checked="selectedId === marker.id"
+  <!--
+    Compact dropdown instead of the old grid of buttons: the grid took a whole
+    block of the panel for nine options that are chosen once per point. The
+    preview keeps the current icon visible, and the ids are the historical
+    ones (`marker`, `fm`, `tprs`, …), so stored points keep their meaning.
+
+    This is *visual* classification of a point, unrelated to the technical
+    `antenna` / `rf_source` object categories.
+  -->
+  <div class="flex items-center gap-2" role="group" aria-label="Tipo de marcador">
+    <img
+      class="h-7 w-7 shrink-0"
+      :src="selected.icon"
+      :alt="selected.label"
+      :title="selected.description"
+    />
+    <select
+      class="min-w-0 flex-1 rounded border border-borde-fuerte bg-panel-hondo px-2 py-1.5 text-[11px] text-texto disabled:cursor-not-allowed disabled:opacity-50"
+      :value="selectedId"
       :disabled="disabled"
-      class="flex min-w-0 items-center gap-2 rounded border border-borde-fuerte bg-panel-hondo p-1.5 text-left hover:border-cyan-500/60 disabled:cursor-not-allowed disabled:opacity-50"
-      :class="{ 'border-cyan-500 bg-cyan-950/30': selectedId === marker.id }"
-      :title="marker.description"
-      @click="$emit('update:modelValue', marker.id)"
+      :title="selected.description"
+      aria-label="Tipo de marcador"
+      @change="$emit('update:modelValue', $event.target.value)"
     >
-      <img class="h-7 w-7 shrink-0 rounded-full bg-elevado p-1" :src="marker.icon" alt="" />
-      <span class="min-w-0">
-        <strong class="block truncate text-[10px] font-semibold text-texto">{{ marker.label }}</strong>
-        <small class="block truncate text-[9px] leading-tight text-texto-tenue">
-          {{ marker.description }}
-        </small>
-      </span>
-    </button>
+      <option v-for="marker in POINT_MARKERS" :key="marker.id" :value="marker.id">
+        {{ marker.label }}
+      </option>
+    </select>
   </div>
 </template>
 
@@ -34,4 +41,5 @@ const props = defineProps({
 
 defineEmits(['update:modelValue'])
 const selectedId = computed(() => getPointMarker(props.modelValue).id)
+const selected = computed(() => getPointMarker(props.modelValue))
 </script>
