@@ -929,6 +929,28 @@ describe('ToolManager in jsdom', () => {
     expect(tools.active).toBeNull()
   })
 
+  it('ignores tool keys while the operator types in a field', () => {
+    tools.activate(TOOLS.LINE)
+    engine.map.fire('click', { latlng: { lat: -34.6, lng: -58.4 } })
+    engine.map.fire('click', { latlng: { lat: -34.5, lng: -58.3 } })
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }))
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+
+    // The line stays armed, its points are untouched and nothing was emitted.
+    expect(tools.active).toBe(TOOLS.LINE)
+    expect(tools.draft?.points?.length).toBe(2)
+    expect(completed.length).toBe(0)
+
+    // Escape still works when it is not aimed at a field.
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }))
+    input.remove()
+    expect(tools.active).toBeNull()
+  })
+
   it('builds a trace from several clicks', () => {
     tools.activate(TOOLS.TRACE)
     engine.map.fire('click', { latlng: { lat: -34.6, lng: -58.4 } })

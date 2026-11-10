@@ -28,7 +28,7 @@
 
 import L from 'leaflet'
 import { AIRPORTS, AIRPORT_COUNTRIES, findAirport, airportCode, isMajor } from '@/data/airports'
-import { haversine, haversineKm, bearing, normaliseAzimuth } from './geo'
+import { haversine, bearing, normaliseAzimuth } from './geo'
 import { useAirport } from '@/composables/useAirport'
 
 export const AIRPORT_LAYER_KEY = 'airports'

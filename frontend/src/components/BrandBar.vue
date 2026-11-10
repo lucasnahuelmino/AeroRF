@@ -98,7 +98,7 @@ import enacomLogo from '@/assets/logoenacom.png'
 import { useSystemStore } from '@/stores/system'
 import { useFlightsStore } from '@/stores/flights'
 
-const props = defineProps({
+const _props = defineProps({
   /** Thin variant, used on the map where height is scarce. */
   compact: { type: Boolean, default: false },
 })

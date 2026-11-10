@@ -79,8 +79,6 @@ export const TOOL_META = {
   [TOOLS.ANNOTATION]: { label: 'Anotación', icon: '✎', cursor: 'crosshair', hint: 'Haga clic para dejar una anotación en el mapa.' },
 }
 
-const EARTH_RADIUS_M = 6371008.8
-
 export class ToolManager {
   /**
    * @param {import('./MapEngine').MapEngine} engine
@@ -377,6 +375,12 @@ export class ToolManager {
   }
 
   _onKey(event) {
+    // Typing in a field is not a drawing gesture: without this guard an
+    // Escape or Backspace inside the workspace inputs would cancel or edit
+    // the shape under construction (same rule as GisShell's global keys).
+    const target = event.target
+    const tag = target?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
     if (event.key === 'Escape') {
       event.preventDefault()
       this.cancel()
@@ -392,7 +396,7 @@ export class ToolManager {
 
   // ─── Click handling ───────────────────────────────────────────────────────
 
-  _onClick({ latlng, overObject = null, originalEvent } = {}) {
+  _onClick({ latlng, originalEvent } = {}) {
     if (!latlng) return undefined
     if (this.active === TOOLS.LINE && originalEvent?.detail >= 2) return undefined
     const raw = [latlng.lat, latlng.lng]
@@ -482,7 +486,7 @@ export class ToolManager {
 
   // ─── Point accumulation ───────────────────────────────────────────────────
 
-  _pushPoint(point, closeable = false) {
+  _pushPoint(point, _closeable = false) {
     this.draft = this.draft || { type: this.active, points: [] }
     this.draft.points.push(point)
     this._redraw()

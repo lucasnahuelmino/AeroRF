@@ -1,17 +1,55 @@
 # Punto de retorno — AeroRF
 
-**Estado actual:** fase AeroRF 2.4 en `mejora/aerorf-gis-data-markers-export`,
-basada en `origin/main` (`64d89c3`). En curso y sin commit, push ni deploy.
-El cambio preexistente de `start.bat` se conserva fuera del alcance.
+**Estado actual:** AeroRF 2.5 en `main`, sincronizada con `origin/main`.
+Trabajo por fases con commit y push independientes: **Fase 1 publicada**
+(cierre técnico GIS + exportación PNG); siguen Fase 2 (Inspector/objetos),
+Fase 3 (pulido visual), Fase 4 (Calculadora RF) y la regresión global.
+El cambio preexistente de `start.bat` ya no aparece en `git status` y se
+respeta fuera del alcance.
 
-### Bloque actual — Integridad GIS, marcadores y exportación
+### Fase 1 completada — Integridad GIS, Línea y exportación PNG
+
+- **Exportación PNG corregida y validada visualmente.** html2canvas con
+  `scale: 2` no pintaba los símbolos de los marcadores (llamaba `drawImage`
+  por cada uno pero dejaba el canvas sin píxeles nuevos). La solución es un
+  repintado manual (`collectMarkerSymbols` + `paintMarkerSymbols` en
+  `frontend/src/map/exportMap.js`) que mide los marcadores en el DOM vivo,
+  respeta las matrices de rotación (aeronaves) y repinta con transformada
+  identidad sobre el canvas de salida, sin taint. Se conservan validación
+  CORS de mosaicos, nombre con timestamp y exclusión de borradores.
+- **Validación obligatoria ejecutada en navegador:** escena con aeropuerto,
+  aeronave, punto FM, antena, línea, círculo y radial; PNG de 1000×1016
+  inspeccionado y contrastado coordenada por coordenada con el DOM (recortes
+  en las posiciones esperadas): todos los elementos presentes y en su lugar,
+  con escala y atribución y sin controles de UI. Dos exportaciones (zoom 10
+  y zoom 9) revisadas.
+- **Ciclo de la herramienta Línea validado en navegador:** trazo → doble
+  clic → guardado → inspección → segunda línea sin reseleccionar la
+  herramienta → Escape. Además `_onKey` ahora ignora las teclas cuando el
+  destino es un campo de edición (no cancela dibujos mientras se escribe).
+- **Lint habilitado por primera vez:** `frontend/.eslintrc.cjs` nuevo
+  (no existía configuración y `npm run lint` no corría); 12 errores
+  preexistentes corregidos (props sin uso, `v-if` con `v-for`, id de Chart
+  generado con efecto secundario en un `computed`, variables sin usar en
+  MapEngine/aircraft/airports/draw/expedientes).
+- **Pruebas:** frontend **499 / 38 archivos** (497 base + 2 nuevas),
+  backend **708 + 7 deseleccionadas** = línea base, build de producción ✓,
+  lint ✓, `git diff --check` ✓.
+- Datos: se creó una línea de validación (id 20) que permanece como escena
+  de validación de las fases siguientes; la segunda (id 21) se eliminó.
+  Ningún dato real fue modificado.
+
+**Pendiente:** Fases 2 a 4 de AeroRF 2.5 y la regresión global (suite
+completa, build, lint, dependencias y verificación de commits publicados).
+
+### Origen — Bloque AeroRF 2.4 (ya integrado en main)
 
 - El contrato GIS expone descripción y coordenadas WGS84 sin inventar
   ubicaciones; líneas y polígonos reciben resúmenes adecuados a su geometría.
 - Mover un objeto con geometría puntual mantiene sincronizadas sus coordenadas
   y GeoJSON persistido.
-- Se incorporó un catálogo reutilizable de marcadores con fallback para
-  identificadores históricos o desconocidos y resaltado temporal de selección.
+- Catálogo reutilizable de marcadores con fallback para identificadores
+  históricos o desconocidos y resaltado temporal de selección.
 - La herramienta Línea permite guardar trazos consecutivos, finalizar con
   doble clic o Enter y cancelar con Escape.
 - La exportación PNG valida mosaicos/CORS antes de descargar y restaura el
@@ -19,18 +57,6 @@ El cambio preexistente de `start.bat` se conserva fuera del alcance.
 - El Inspector distingue puntos, líneas y polígonos; muestra coordenadas con
   precisión, valida WGS84 y ofrece copiado y centrado cuando hay una posición
   de referencia.
-- Pruebas focalizadas ejecutadas: 120 y 99 pruebas frontend, además de 109
-  pruebas backend. Las suites completas, el build final y la comprobación
-  visual/manual de PNG y dibujo repetido siguen pendientes.
-- La instalación de `html2canvas` mostró 26 avisos de auditoría en el árbol
-  npm; no se ejecutó una corrección automática de dependencias.
-- Documentación de fase actualizada parcialmente; confirmar los resultados
-  completos de validación antes de cerrar esta fase.
-
-**Pendiente:** correr suites frontend y backend completas, build de producción,
-validar exportación real y flujo de Línea en navegador, completar documentos y
-revisar `git diff --check`. No incluir ni modificar el cambio local de
-`start.bat`.
 
 ### Fase publicada anterior — Compact UI Polish 2.3.1
 

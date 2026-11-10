@@ -90,7 +90,7 @@ import { useFlightsStore } from '@/stores/flights'
 import { useSystemStore } from '@/stores/system'
 import { useMapStore } from '@/stores/map'
 
-const props = defineProps({
+const _props = defineProps({
   embedded: { type: Boolean, default: false },
 })
 

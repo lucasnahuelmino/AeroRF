@@ -4,26 +4,82 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ---
 
-## AeroRF 2.4 — Integridad GIS, marcadores y exportación (en curso)
+## AeroRF 2.5 — Fase 1: cierre técnico GIS 2.4 y exportación PNG
 
-- El contrato de objetos GIS aporta descripción y coordenadas válidas sin
-  fabricar posiciones; las geometrías lineales y poligonales se resumen sin
-  confundir vértices con centros.
-- La actualización de la ubicación de una geometría puntual sincroniza su
-  GeoJSON persistido.
-- Se incorpora un catálogo de marcadores configurable, con fallback para
-  valores antiguos o desconocidos y resaltado de selección.
-- La herramienta Línea conserva su ciclo para guardar trazos sucesivos y
-  permite terminar con doble clic o Enter, o cancelar con Escape.
-- Se añade exportación PNG de la vista cartográfica con validación de mosaicos
-  y CORS; el mapa vuelve a su estado previo tras la captura.
-- El Inspector diferencia geometrías, valida coordenadas WGS84 y ofrece
-  acciones de copiado y centrado.
-- Estado: pruebas focalizadas aprobadas; suites completas, build final y
-  validación visual de exportación/dibujo aún pendientes. Sin commit, push ni
-  deploy.
+**Estado:** completada. Suite frontend **499 pruebas / 38 archivos**, suite
+backend **708 pruebas** (7 de integración deseleccionadas), build de
+producción ✓, lint ✓, `git diff --check` ✓.
 
-## Fase 0 — Auditoría y estabilización
+Consolida lo que la 2.4 dejó empezado y corrige lo que faltaba.
+
+### Exportación PNG — símbolos repintados sobre el canvas
+
+- **Raíz del defecto:** html2canvas 1.4.1 con `scale: 2` ejecutaba
+  `drawImage` por cada `<img>`/`<svg>` de marcador con las mismas
+  coordenadas que a escala 1, pero no pintaba píxeles visibles (diff de
+  canvas completo = 0; verificado visualmente: escala 1 muestra el glifo,
+  escala 2 muestra el disco en blanco). No es un defecto de Chromium: un
+  `drawImage` aislado con `ctx.scale(2)` funciona bien — está dentro del
+  render de elementos reemplazados de html2canvas.
+- **Corrección (`frontend/src/map/exportMap.js`):** composición manual —
+  `collectMarkerSymbols` mide en el DOM vivo los rectángulos de cada
+  marcador `<img>`/`<svg>` (incluido `translate3d` de Leaflet) justo antes
+  de invocar html2canvas, y `paintMarkerSymbols` los repinta sobre el canvas
+  de salida con transformada identidad restaurada (html2canvas la deja en
+  `scale`+`translate`), rotación acumulada a partir de las matrices
+  computadas hasta el nodo del marcador (la aeronave lleva `rotate` en el
+  propio `<svg>`), SVG inline serializado a data-URL con
+  `style.transform = 'none'`, mismos orígenes → canvas sin taint, revisión
+  de `isConnected` al momento de pintar y `try/catch` por dibujo.
+- Se mantienen la validación de mosaicos/CORS (`assertReadableTiles`), el
+  nombre de archivo con timestamp (`mapExportFilename`) y la remoción de
+  capas borradoras previa a la captura.
+
+### Herramienta Línea — teclas mientras se escribe
+
+- `draw.js::_onKey` ignora las teclas cuando el destino es un
+  `INPUT`/`TEXTAREA` o `contenteditable` (mismo criterio que
+  `bindGlobalKeys` de GisShell): ya no se cancela un trazo con Escape ni se
+  altera con Retroceso/Enter mientras el operador escribe en un campo.
+
+### Lint habilitado por primera vez
+
+- Nuevo `frontend/.eslintrc.cjs` (`eslint:recommended` +
+  `plugin:vue/vue3-essential`): `npm run lint` existía en `package.json`
+  pero no había configuración y no podía correr.
+- 12 errores preexistentes corregidos: `props` sin uso en BrandBar,
+  AirportPanel y Timeline (la plantilla usa los nombres sueltos); el id de
+  `Chart.vue` se generaba con un efecto secundario dentro de un `computed`
+  (ahora contador de módulo, estable entre reevaluaciones); `v-if` junto a
+  `v-for` en el `<option>` del Inspector (itera `field.options || []`);
+  variables sin usar en MapEngine (`opacity`), aircraft (`size`),
+  airports (`haversineKm`), draw (`EARTH_RADIUS_M`, `overObject`,
+  `closeable`) y expedientes (`computed`).
+
+### Pruebas nuevas
+
+- `export-map.spec.js`: repintado de símbolos sobre el canvas compuesto
+  (mock de html2canvas, aserción de `translate`/`drawImage` en la posición
+  esperada) — antes el archivo sólo cubría nombre de archivo, contenedor
+  faltante y CORS.
+- `components.spec.js`: las teclas de herramienta no actúan dentro de un
+  campo de edición, y Escape sigue cancelando fuera de él.
+
+### Validación visual obligatoria (navegador real)
+
+Escena con aeropuerto, aeronave, punto FM, antena, línea, círculo y radial
+(ajuste de vista con la instancia Leaflet real). PNG exportado a escala 2
+(1000×1016) **inspeccionado**: mosaicos y etiquetas OSM, 4 aeropuertos,
+aeronave naranja rotada con callsign `JAT1399`, marcador FM, marcador de
+antena y objeto técnico `antenna` (anillo en canvas), líneas magenta y cian,
+círculo azul y radial — todos **contrastados coordenada por coordenada con
+los rectángulos del DOM** mediante recortes del PNG en las posiciones
+esperadas. Escala y atribución (`Leaflet | © OpenStreetMap`) presentes;
+controles de UI y elementos temporales ausentes. El ciclo completo de Línea
+(selección → trazo → doble clic → guardado → inspección → segunda línea sin
+reseleccionar → Escape) se validó también en navegador.
+
+## Fase 0 (AeroRF 2.4) — Auditoría y estabilización
 
 **Estado:** completada
 

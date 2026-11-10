@@ -395,7 +395,6 @@ export class AircraftRenderer {
 
   highlight(icao24, color = token('--medicion', '#facc15')) {
     this.markers.forEach((entry, key) => {
-      const size = key === icao24 ? [32, 32] : [26, 26]
       entry.marker.setIcon(this._aircraftIcon(key === icao24 ? color : entry.color, null, { callsign: key }))
     })
   }

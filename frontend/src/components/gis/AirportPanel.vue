@@ -130,7 +130,7 @@ import { computed, ref } from 'vue'
 import { useSystemStore } from '@/stores/system'
 import { findAirport, AIRPORT_COUNTRIES } from '@/data/airports'
 
-const props = defineProps({
+const _props = defineProps({
   /** Whether the layer is currently drawn. */
   visible: { type: Boolean, default: true },
   /** Show the ICAO code beside each symbol. */

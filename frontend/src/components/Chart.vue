@@ -77,7 +77,7 @@
  * mounted last took the box, and the first was left blank with no error
  * anywhere. `useId` is per component instance.
  */
-import { computed, onMounted, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { onMounted, onBeforeUnmount, ref, useId, watch } from 'vue'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -88,11 +88,14 @@ const props = defineProps({
   height: { type: Number, default: 300 },
 })
 
+/**
+ * Stable container id per instance: `useId` on Vue ≥ 3.5, a module counter
+ * below it. The counter used to live inside the `computed` (a side effect in a
+ * computed, which could also renumber the node whenever it re-evaluated).
+ */
+let chartSeq = 0
 const uid = useId ? useId() : null
-const fallbackId = ref(0)
-const hostId = computed(
-  () => `aerorf-chart-${uid || (fallbackId.value += 1)}`,
-)
+const hostId = `aerorf-chart-${uid || (chartSeq += 1)}`
 
 const loading = ref(true)
 const error = ref('')
@@ -171,7 +174,7 @@ async function draw() {
       library = await import('plotly.js/dist/plotly-basic')
     }
     const Plotly = library.default || library
-    const el = document.getElementById(hostId.value)
+    const el = document.getElementById(hostId)
     if (!el) return
     Plotly.react(el, buildTraces(), LAYOUT, CONFIG)
   } catch (e) {
@@ -189,7 +192,7 @@ watch(() => props.data, draw, { deep: true })
 onBeforeUnmount(() => {
   // Leaving a Plotly node behind keeps its ResizeObserver and its inline
   // styles alive in the detached element.
-  const el = document.getElementById(hostId.value)
+  const el = document.getElementById(hostId)
   if (el && library) {
     const Plotly = library.default || library
     Plotly.purge(el)

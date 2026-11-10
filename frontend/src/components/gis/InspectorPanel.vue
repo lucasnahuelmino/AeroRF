@@ -482,7 +482,7 @@
                 :step="field.step"
                 class="w-full rounded border border-borde-fuerte bg-panel-hondo px-2 py-1 text-[11px] text-texto"
               >
-                <option v-if="field.options" v-for="opt in field.options" :key="opt" :value="opt">
+                <option v-for="opt in (field.options || [])" :key="opt" :value="opt">
                   {{ opt }}
                 </option>
               </component>

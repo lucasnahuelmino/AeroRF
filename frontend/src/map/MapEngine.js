@@ -437,7 +437,7 @@ export class MapEngine {
    * outage where an invisible full-map element swallowed every click.
    * @returns {L.LayerGroup}
    */
-  ensureCategory(key, { visible = true, opacity = 1 } = {}) {
+  ensureCategory(key, { visible = true } = {}) {
     if (this.categoryLayers.has(key)) {
       const existing = this.categoryLayers.get(key)
       if (visible && !this.map.hasLayer(existing)) existing.addTo(this.map)
