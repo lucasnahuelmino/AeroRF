@@ -4,9 +4,9 @@
 Trabajo por fases con commit y push independientes: **Fase 1 publicada**
 (cierre técnico GIS + exportación PNG), **Fase 2 publicada** (Inspector y
 experiencia de objetos), **Fase 3 publicada** (pulido visual: exportación
-en Herramientas, marca, barra de coordenadas) y **Fase 4 publicada**
+en Herramientas, marca, barra de coordenadas), **Fase 4 publicada**
 (Calculadora RF en dos modos: armónicos e intermodulación, sin
-probabilidades inventadas); queda la regresión global. El cambio
+probabilidades inventadas) y **regresión global completada**. El cambio
 preexistente de `start.bat` ya no aparece en `git status` y se respeta
 fuera del alcance.
 
@@ -194,9 +194,35 @@ fuera del alcance.
   de validación de las fases siguientes; la segunda (id 21) se eliminó.
   Ningún dato real fue modificado.
 
-**Pendiente:** la regresión global de AeroRF 2.5 (suite completa de frontend
-y backend, build, lint, dependencias, verificación de commits publicados y
-sincronía de `AERORF_ARCHITECTURE.md` y `README.md`).
+### Regresión global completada — AeroRF 2.5
+
+Ejecutada sobre `main` tras publicar las cuatro fases (`b9c5c0f`, `71c8415`,
+`c42e907`, `b1cebb4`) y el fix de validación de parámetros (`86274fb`),
+con el backend en 8010 y el frontend de desarrollo en 5199:
+
+| Chequeo | Resultado |
+|---|---|
+| Frontend (vitest) | **527 pasan / 39 archivos** |
+| Backend `-m "not integration"` | **719 pasan / 7 deseleccionadas** (726 colectadas) |
+| Backend `-m integration` (contra 8010) | **7 pasan** |
+| `npm run lint` | sin errores ni warnings |
+| `npm run build` | ✓ 16,22 s |
+| `git diff --check` | limpio |
+| `npm ls --depth=0` | sin faltantes ni inválidos; sin `plotly.js` |
+| Commits publicados | `HEAD == origin/main` verificado tras cada push |
+
+Validación en navegador (Chromium contra el backend real): los dos modos de
+la calculadora, estados y límite inclusivo, exportaciones CSV/JSON
+descargadas y leídas byte a byte, importación CSV (con `;` y coma decimal),
+alta manual sin `power_dbm` vacío, y el fix de parámetros — tolerancia
+60999 / 501 y referencia 7000 frenan en la vista con su mensaje, botón
+deshabilitado y **cero pedidos**, sin 422 en la consola.
+
+Documentación sincronizada: `AERORF_ARCHITECTURE.md` (totales 719/527,
+filas nuevas de los dos suites de Fase 4, puerto 8010 en la verificación y
+la deuda de `Chart.vue`/plotly retirada porque ya no existe graficado) y
+`README.md` (estado AeroRF 2.5 publicado y los dos modos de la
+calculadora).
 
 ### Origen — Bloque AeroRF 2.4 (ya integrado en main)
 

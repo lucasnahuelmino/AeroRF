@@ -13,11 +13,13 @@ Desarrollado para la **Dirección Nacional de Control y Fiscalización
 
 ---
 
-La fase actual de trabajo (AeroRF 2.4, en curso) amplía el Inspector con un
-contrato de coordenadas más robusto, marcadores configurables por objeto,
-dibujo repetido de líneas y exportación PNG del mapa. Su validación integral
-está en progreso; consultar [RETOMAR.md](./RETOMAR.md) antes de tratarla como
-una versión publicada.
+La fase publicada de trabajo (**AeroRF 2.5**) cerró la integridad de los
+objetos GIS y la exportación PNG, el Inspector contextual, el pulido visual
+del mapa y los controles, y la **Calculadora RF en dos modos** (armónicos e
+intermodulación, sin probabilidades inventadas). El detalle y la verificación
+de cada fase están en [RETOMAR.md](./RETOMAR.md) y
+[AERORF_CHANGELOG.md](./AERORF_CHANGELOG.md); consultarlos antes de tratar
+cualquier cosa como publicada.
 
 ## Qué hace y qué no hace
 
@@ -133,7 +135,15 @@ replay de vuelos; no crean copias independientes. El dock permanece plegable y
 el footer institucional ya no reserva espacio de pantalla dentro del árbol de
 la aplicación.
 
-La calculadora RF sigue disponible como herramienta. **Expedientes** está fuera de la navegación activa y sus rutas antiguas vuelven
+La **Calculadora RF** trabaja en dos modos con una sola entrada de datos:
+**Armónicos** (una fila por emisora contra la referencia, con
+`armónica = fundamental × orden` y la diferencia en kHz, y los estados
+Exacta / En tolerancia / Fuera de tolerancia) e **Intermodulación** (el
+motor completo con detalle del producto, «candidatos matemáticos» de
+`Referencia /2 /3 /4` y exportación CSV/JSON). Los límites de parámetros
+los fija el motor y la pantalla los valida antes de pedir, y no muestra
+probabilidades porque el motor no las calcula. **Expedientes** está fuera de
+la navegación activa y sus rutas antiguas vuelven
 al mapa, pero quedan consumidores internos y APIs legacy. El borrado de un
 expediente con objetos GIS, mediciones, resultados RF o registros espectrales
 se bloquea para proteger esos datos. La retirada completa depende de validar

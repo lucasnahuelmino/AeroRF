@@ -513,15 +513,17 @@ geodesia. Si se cambia una, hay que cambiar la otra y volver a ejecutar
 | `frontend/tests/canvas-hit-targets.spec.js` (8) | **Que recibe un clic con `preferCanvas`**: ningun panel propio, seleccionar no reordena el lienzo, un disco no le gana a una linea | `npx vitest run tests/canvas-hit-targets.spec.js` |
 | `frontend/tests/track-above.spec.js` (10) | **Que el avion se vea por encima de todo**: trayectoria en su propio pane y no en el canvas compartido, extremos como marcadores para conservar el hover, y `pointer-events: none` en el pane. Solo compara datos planos: un `expect` sobre dos renderers de Leaflet deja el runner colgado para siempre | `npx vitest run tests/track-above.spec.js` |
 | `frontend/tests/p011-guardar.spec.js` (5) | **P0-11**: que el botón esté inactivo sin destino, que lo que se manda sean los campos de `EventoRF` con el mapeo medido en vivo, que un error se muestre como error, y que un fallo de carga no se finja «no hay expedientes» | `npx vitest run tests/p011-guardar.spec.js` |
+| `tests/test_f400_matematica_calculadora.py` (11) | **Fase 4 (AeroRF 2.5)**: la aritmética que muestra la Calculadora RF — `90×2`/`60×3`/`45×4` llegan exactos a 180, `diferencia = \|armónica − referencia\| × 1000`, tolerancia inclusiva en su propio borde, deduplicación por fórmula, y el IM3 canónico `2×88.5 − 58` | `pytest tests/test_f400_matematica_calculadora.py` |
+| `frontend/tests/rf-calculadora.spec.js` (26) | **Fase 4**: los dos modos (armónicos por emisora contra la referencia, sin motor espejo; intermodulación por `POST /rf/calculate`), estados Exacta / En tolerancia / Fuera sin porcentajes, candidatos `Referencia /2\|3\|4` etiquetados como aritmética, exportaciones CSV/JSON reales, importación de emisoras y la validación de parámetros que evita el 422 | `npx vitest run tests/rf-calculadora.spec.js` |
 
-**Total: 510 de Python sin integración (22 archivos) + 7 de integración + 30
-del motor RF heredado + 675 de paridad + 454 de frontend (31 archivos) + 78 E2E + 43 de
+**Total: 719 de Python sin integración (39 archivos) + 7 de integración + 30
+del motor RF heredado + 675 de paridad + 527 de frontend (39 archivos) + 78 E2E + 43 de
 recorrido real.**
 
-El 510 se mide con `pytest -m "not integration"` y el 454 con `npm test` desde
+El 719 se mide con `pytest -m "not integration"` y el 527 con `npm test` desde
 `frontend/`; el 7 de integración son los de
 `test_websocket.py`, que van con `-m integration` y hoy quedan **los 7 en
-verde (28 s)** contra el backend de 8010 con 0.30.13: `test_feed_does_not_flood`
+verde (40 s)** contra el backend de 8010: `test_feed_does_not_flood`
 **pasa** —se cuelgaba porque el servidor reenviaba `lost` cada 10 s sin
 deduplicar, y ese es ahora `tests/test_lost_sin_inundar.py` sin servidor ni
 reloj—, y `test_idle` **pasa desde 0.30.9**: su precondición de lista vacía la
@@ -582,7 +584,7 @@ visto fallar no es un guardian.
 La suite se parte en dos para que el ciclo corto siga siendo corto:
 
 ```powershell
-pytest -m "not integration"   # 336 tests, ~7 s, sin backend
+pytest -m "not integration"   # 719 tests, ~40-75 s, sin backend
 pytest -m integration         # 7 tests, requiere el backend en 8010
 ```
 
@@ -605,8 +607,8 @@ reales, no a lo que dice la documentacion.
 ## 8. Verificación de una sesión
 
 ```powershell
-# Backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+# Backend (el frontend espera el proxy en 8010; 8000 pertenece a otro proyecto)
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8010
 
 # Frontend (en otra terminal)
 cd frontend
@@ -630,7 +632,6 @@ Registrada sin adornos, con el motivo:
 | Sin Alembic | El esquema se crea con `create_all`. Alembic hace falta antes de la primera migración real de datos |
 | Caché en proceso | Correcto para un operador único. Con varias instancias habría que ir a Redis |
 | Sin autenticación de usuarios | El spec no la pide. `object_notes.user` y `object_history.user` ya la soportan cuando se añada |
-| `Chart.vue` sigue usando plotly | Aislado en un *lazy chunk* de 4,6 MB. Se puede sustituir por un SVG cuando se quiera |
 | `Vistas` de expediente no son GIS | Son pantallas de gestión de casos. La vista geográfica es `GisShell.vue` |
 | `start.bat` sin verificar | Requiere revision manual tras los cambios de puerto. `start.sh` se elimino en 0.23.0 porque se habia separado del `.bat` sin que nadie lo notara (8000 contra 5173) |
 | Suite de frontend con jsdom | Monta los componentes, no los pixels. jsdom no renderiza Leaflet de verdad: la geometria, el layout y el aspecto siguen sin verificar visualmente |
