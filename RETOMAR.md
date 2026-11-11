@@ -3,10 +3,85 @@
 **Estado actual:** AeroRF 2.5 en `main`, sincronizada con `origin/main`.
 Trabajo por fases con commit y push independientes: **Fase 1 publicada**
 (cierre técnico GIS + exportación PNG), **Fase 2 publicada** (Inspector y
-experiencia de objetos) y **Fase 3 publicada** (pulido visual: exportación
-en Herramientas, marca, barra de coordenadas); siguen Fase 4 (Calculadora
-RF) y la regresión global. El cambio preexistente de `start.bat` ya no
-aparece en `git status` y se respeta fuera del alcance.
+experiencia de objetos), **Fase 3 publicada** (pulido visual: exportación
+en Herramientas, marca, barra de coordenadas) y **Fase 4 publicada**
+(Calculadora RF en dos modos: armónicos e intermodulación, sin
+probabilidades inventadas); queda la regresión global. El cambio
+preexistente de `start.bat` ya no aparece en `git status` y se respeta
+fuera del alcance.
+
+### Fase 4 completada — Calculadora RF: análisis armónico e intermodulación
+
+- **Dos modos en una pantalla** (4.1): pestañas `Armónicos` /
+  `Intermodulación` (`role=tablist`/`role=tab`, `aria-selected`, Armónicos
+  por defecto). Los dos paneles están en el DOM con `v-show`, así el
+  detalle y el guardado del modo B siguen alcanzables por teclado y por los
+  tests. `calcular()` corre los dos a la vez: ninguna pestaña queda
+  desactualizada respecto de la otra.
+- **Modo Armónicos** (4.2): una fila por emisora con Fundamental, 2.ª/3.ª/4.ª
+  armónica (frecuencia + Δ kHz), Mejor diferencia (kHz) y Estado. Todo sale
+  de `GET /rf/harmonics/{freq}?max_order=4`; la diferencia es una resta en
+  pantalla (`|armónica − referencia| × 1000`) contra lo que pidió el
+  operador — **no hay un motor espejo en el frontend**. Orden por diferencia
+  absoluta (empate → orden de carga) y, al cambiar referencia o tolerancia,
+  la tabla se recalcula sin volver a pedir al backend (verificado: el
+  contador de pedidos no crece).
+- **Estados sin puntaje** (4.3): `Exacta` (0), `En tolerancia` (≤
+  tolerancia, límite inclusivo) y `Fuera de tolerancia`. Nunca
+  porcentajes, «proximidad» ni «distribución de scores»: hay una fórmula,
+  una diferencia en kHz y una tolerancia.
+- **Modo Intermodulación** (4.4): consume el motor existente
+  (`POST /rf/calculate`) y muestra las columnas Emisora, Fundamental,
+  Producto (tipo + fórmula del motor, p. ej. `2×88.5 − 58`), Orden,
+  Frecuencia calculada, Diferencia (kHz) y Estado, ordenadas por
+  |diferencia|. Emisora y Fundamental se etiquetan desde la lista
+  compartida. Fila seleccionable (clic o Enter) con detalle: fórmula,
+  emisoras, orden/tipo, frecuencia calculada, diferencia, tolerancia,
+  estado y una explicación en una oración.
+- **Candidatos matemáticos** (4.5): `Referencia /2`, `/3` y `/4` con la
+  etiqueta `Candidato matemático` y el aviso de que **no** son productos de
+  intermodulación calculados por el motor.
+- **Acciones** (4.6): `Exportar CSV`, `Exportar JSON`, `Limpiar cálculo`
+  (vacía el cálculo sin recalcular) y `Volver a calcular`. Módulo nuevo
+  `src/lib/rfFiles.js` con las funciones puras (`parseEmisorasCsv`,
+  `buildCsv` con BOM y guarda de inyección de fórmulas, `buildJson`,
+  `nombreDeArchivo` `AeroRF_Intermodulacion_YYYY-MM-DD_HH-MM-SS.ext`) y un
+  solo I/O (`downloadText`). El JSON incluye la solicitud y la respuesta de
+  la última corrida (`lastRequest`/`lastResponse`, aditivos en el store).
+- **Importación CSV y alta manual** (4.7): columnas `nombre, frecuencia,
+  observaciones`; con encabezado (buscadas por nombre), `;` con coma
+  decimal o sin encabezado; fila inválida numerada (`Fila N`) sin frenar a
+  las buenas; sin columna de frecuencia, error claro en vez de adivinar.
+  Alta manual con señal **FM por defecto**, rango `0 < f < 6000` y
+  `power_dbm` vacío que no viaja al motor (evita el 422 que podía producir
+  `""`).
+- **Gráficos dados de baja** (4.8): se eliminó `Chart.vue` y la dependencia
+  `plotly.js` (cero referencias en `package.json` y en el lock). El único
+  gráfico era la «Distribución de Scores», dibujada sobre un score que
+  **no** era una probabilidad. `chart-loading.spec.js` se reescribió para
+  proteger la propiedad fuerte: sin chunk `plotly` ni `Chart`, sin la
+  cadena «plotly» en ningún `src/**/*.vue|js`, `Chart.vue` inexistente, la
+  vista de la calculadora liviana y sin `modulepreload`. Comentarios
+  obsoletos ajustados en `router/index.js`, `vite.config.js`,
+  `tokens.js` y `tokens.css`.
+- **Guardado P0-11 intacto** (4.9): el flujo «Guardar en Expediente» se
+  conserva sin tocar (`p011-guardar.spec.js` pasa igual, sin cambios):
+  destino obligatorio, payload `EventoRF`, error en la página. **No se
+  reintrodujo** la navegación de Expedientes (la ruta sigue redirigida al
+  mapa) ni el Inspector derecho ni la barra GIS retirada; las tablas
+  históricas (`eventos_rf`, `ExpedientesView`, `ExpedienteDetalleView`)
+  siguen sin cambios. `score` viaja como `score_probabilidad` en el payload
+  porque así se llama la columna, pero no se muestra como probabilidad.
+- **Pruebas:** frontend **525 / 39 archivos** (502 de Fase 3 + 24 nuevas en
+  `tests/rf-calculadora.spec.js`, con `chart-loading` pasando de 9 a 8
+  tests al reescribirse); backend **719 + 7 deseleccionadas** (708 + 11
+  nuevas en `tests/test_f400_matematica_calculadora.py`). lint ✓, build ✓
+  (25,05 s), `git diff --check` ✓, `npm ls --depth=0` sin problemas.
+  **Detalle importante:** `pytest.ini` tiene `testpaths = tests`, así que
+  `app/rf_engine/test_rf_engine.py` **no se colecta** en la corrida por
+  defecto (0 de las 726 que colecta hoy: 719 + 7 deseleccionadas); por
+  eso los tests nuevos viven en `tests/`. El archivo del motor quedó
+  exactamente como estaba y sus 30 pruebas pasan al correrlo a mano.
 
 ### Fase 3 completada — Pulido visual del mapa y los controles
 
@@ -109,8 +184,9 @@ aparece en `git status` y se respeta fuera del alcance.
   de validación de las fases siguientes; la segunda (id 21) se eliminó.
   Ningún dato real fue modificado.
 
-**Pendiente:** Fases 2 a 4 de AeroRF 2.5 y la regresión global (suite
-completa, build, lint, dependencias y verificación de commits publicados).
+**Pendiente:** la regresión global de AeroRF 2.5 (suite completa de frontend
+y backend, build, lint, dependencias, verificación de commits publicados y
+sincronía de `AERORF_ARCHITECTURE.md` y `README.md`).
 
 ### Origen — Bloque AeroRF 2.4 (ya integrado en main)
 

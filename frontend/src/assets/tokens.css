@@ -30,7 +30,7 @@
  *
  * ─── Leaflet no puede leer esto ────────────────────────────────────────────
  *
- * Leaflet y Chart.js necesitan el color como cadena: no resuelven `var(--x)`.
+ * Leaflet necesita el color como cadena: no resuelve `var(--x)`.
  * Por eso `tokens.js` existe y lee estas variables desde JS. El mapa entero de
  * AeroRF se dibuja con Leaflet, así que cualquier color que se le pase tiene que
  * venir de `token()` y no de una constante escrita a mano.

@@ -87,7 +87,9 @@ const emit = defineEmits(['submit'])
 
 const formData = ref({
   freq_mhz: '',
-  signal_type: 'UNKNOWN',
+  // Por defecto FM: es el caso de uso de la calculadora (emisoras que
+  // interfieren con la banda aeronáutica). Se puede cambiar en el selector.
+  signal_type: 'FM',
   power_dbm: '',
   label: '',
 })
@@ -100,7 +102,7 @@ const handleSubmit = () => {
 const resetForm = () => {
   formData.value = {
     freq_mhz: '',
-    signal_type: 'UNKNOWN',
+    signal_type: 'FM',
     power_dbm: '',
     label: '',
   }

@@ -4,6 +4,198 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ---
 
+## AeroRF 2.5 — Fase 4: calculadora de análisis armónico e intermodulación
+
+**Estado:** completada. Suite frontend **525 pruebas / 39 archivos**, backend
+**719 pruebas / 7 deseleccionadas**, lint ✓, build de producción ✓ (25,05 s),
+`git diff --check` ✓, `npm ls --depth=0` sin problemas.
+
+### 4.1 Dos modos, una sola entrada de datos
+
+- La pantalla pasa de un único cálculo a dos modos con pestañas:
+  **Armónicos** (`role="tab"`, `aria-selected`, activo por defecto) e
+  **Intermodulación**.
+- Los dos paneles están en el DOM con `v-show`. No es un detalle de
+  implementación: el modo B contiene el detalle y el «Guardar en
+  Expediente» de P0-11, y con `v-if` ese flujo dejaría de existir para
+  quien navega por teclado y para `p011-guardar.spec.js`.
+- `calcular()` dispara **los dos** modos en paralelo (`Promise.all` del
+  motor y de los armónicos): la pestaña por defecto es Armónicos, pero
+  Intermodulación no depende de un clic previo.
+- Los parámetros son compartidos (referencia `#calc-referencia`,
+  tolerancia `#calc-tolerancia`, botón Calcular). Un fallo del motor se
+  muestra con `role="alert"` **al lado del botón**, fuera de las pestañas,
+  para que se vea sin importar qué modo esté activo.
+
+### 4.2 Modo Armónicos
+
+- Una fila por emisora: Emisora (nombre + tipo + observaciones),
+  Fundamental, `2.ª armónica`, `3.ª armónica`, `4.ª armónica` (frecuencia y
+  `Δ … kHz`), `Mejor diferencia (kHz)` y `Estado`.
+- **De dónde salen los números:** `GET /rf/harmonics/{freq}?max_order=4`
+  por emisora (móvil a `stores/rf.js::getHarmonics`, que ahora acepta
+  `maxOrder`). La leyenda de la tabla escribe la cuenta —
+  `armónica = fundamental × orden` y
+  `diferencia (kHz) = |armónica − referencia| × 1000` — y las celdas la
+  muestran hecha. **El frontend no replica ninguna fórmula del motor.**
+- Orden: de la menor diferencia absoluta a la mayor, con empate resuelto
+  por orden de carga. Cambiar la referencia o la tolerancia recalcula la
+  vista **sin un solo pedido nuevo** al backend (asertado en el test:
+  el contador de cálculos no se mueve).
+- Estados: `Exacta` (0), `En tolerancia` (≤ tolerancia, límite inclusivo:
+  61000 kHz de diferencia pasa con tolerancia 61000 y no con 60999) y
+  `Fuera de tolerancia`. `Sin datos` sólo si una emisora no trae armónicos.
+- Si un armónico no se pudo cargar, se avisa en la pestaña
+  (`No se pudieron cargar algunas armónicas. Volvé a calcular.`) sin
+  borrar el resto de las filas.
+
+### 4.3 Modo Intermodulación
+
+- Sigue siendo `POST /rf/calculate` (motor existente, cero lógica nueva en
+  el backend). Columnas: **Emisora, Fundamental, Producto, Orden,
+  Frecuencia calculada, Diferencia (kHz), Estado**.
+- `Emisora` y `Fundamental` se arman etiquetando `frequencies_involved`
+  con la lista compartida (`FM Radio + TV Señal`, `88.5 MHz + 58 MHz`).
+- `Producto` muestra el tipo del motor en un chip (`IM2`/`IM3`/`IM5`/`IM7`)
+  y su fórmula tal cual (`2×88.5 − 58`). Filas ordenadas por |diferencia|.
+- Fila seleccionable con clic o `Enter` (`tabindex`, `calc-fila-on`): el
+  **Análisis detallado** muestra fórmula, emisoras, orden y producto,
+  frecuencia calculada, diferencia, tolerancia, estado y «Qué está
+  pasando» — una oración que explica la mezcla o la armónica y cierra con
+  la diferencia contra la referencia y el veredicto de tolerancia.
+
+### 4.4 Candidatos matemáticos
+
+- Tabla `Referencia / 2`, `/ 3`, `/ 4` con la frecuencia candidata en MHz
+  (6 decimales) y la etiqueta **`Candidato matemático`**.
+- El párrafo aclara que **no** son productos de intermodulación calculados
+  por el motor: es aritmética pura para que el operador sepa en qué
+  frecuencias buscar una emisora cuya armónica cae exacta sobre la
+  referencia.
+
+### 4.5 Acciones y exportaciones
+
+- `Exportar CSV`, `Exportar JSON`, `Limpiar cálculo` y `Volver a calcular`
+  (los tres primeros deshabilitados sin resultados).
+- Módulo nuevo **`src/lib/rfFiles.js`**: `parseEmisorasCsv`, `buildCsv`,
+  `buildJson`, `nombreDeArchivo` y `downloadText`. Sólo `downloadText` hace
+  I/O; el resto es puro y se prueba sin navegador.
+- **CSV:** BOM UTF-8, encabezados (`Emisora, Fundamental (MHz), Producto,
+  Orden, Tipo, Frecuencia calculada (MHz), Diferencia (kHz), Estado`) y una
+  fila por producto visible. Las celdas que una planilla ejecutaría como
+  fórmula (`=`, `+`, `@` o `-` no numérico) se anteponen con `'`; un `-5`
+  es número y no se toca (RFC 4180 para comas y comillas).
+- **JSON:** parámetros, emisoras, los tres candidatos, y la **solicitud y
+  la respuesta completas de la última corrida** (`lastRequest` /
+  `lastResponse`, nuevos en `stores/rf.js` con copia profunda en el momento
+  del pedido, más `clearCalculation()`).
+- Nombre de archivo `AeroRF_Intermodulacion_YYYY-MM-DD_HH-MM-SS.{csv|json}`,
+  mismo patrón que la exportación del mapa.
+- `Limpiar cálculo` vacía resultados, detalle y avisos **sin recalcular**
+  (el contador de pedidos queda igual, asertado).
+
+### 4.6 Emisoras: alta manual e importación CSV
+
+- Lista compartida por los dos modos, con quitar por emisora y contador en
+  el título (`Emisoras (N)`).
+- **Alta manual** (`FrequencyInput`): señal **FM por defecto** (era
+  `UNKNOWN`), rango `0 < f < 6000` validado en la vista, y `power_dbm`
+  vacío que **no viaja al motor** — el campo se omite en el payload en vez
+  de mandar `""`, que producía un 422 de Pydantic.
+- **`Importar CSV`** abre un `input[type=file]` oculto (`#calc-csv`) y pasa
+  por `FileReader`: el parser acepta encabezado (columnas ubicadas por
+  nombre: `nombre|name|emisora`, `frec|freq`, `observ|nota`), `;` con coma
+  decimal (`88,5` → 88.5) o CSV sin encabezado
+  (`nombre,frecuencia,observaciones`).
+- Fila inválida numerada como en el archivo (`Fila 3: frecuencia inválida
+  («abc»).`) sin frenar a las buenas; sin columna de frecuencia, error
+  claro; archivo vacío, reportado. El mensaje resume agregadas + errores.
+
+### 4.7 Sin probabilidades inventadas
+
+- Ninguna pantalla muestra `Proximidad`, `Distribución`, `score` ni `%`:
+  hay diferencia en kHz y tolerancia, y los estados son Exacta / En
+  tolerancia / Fuera de tolerancia (test sobre el texto completo del DOM,
+  ambos modos incluidos).
+- `score` sigue **sólo** en el payload de guardado, como
+  `score_probabilidad`, porque así se llama la columna histórica
+  `eventos_rf` (lo exige `p011-guardar.spec.js`); en pantalla no aparece.
+
+### 4.8 Gráficos dados de baja
+
+- El conflicto con `chart-loading.spec.js` (que exigía un chunk `plotly`
+  >100 KB) se resolvió del lado fuerte: **se quitó el graficado entero**.
+- `src/components/Chart.vue` eliminado y `npm uninstall plotly.js` en
+  `frontend/`: `package.json` y `package-lock.json` con **cero** referencias
+  (verificado con `grep -c`). El único gráfico era la «Distribución de
+  Scores», dibujada sobre un score que no era una probabilidad.
+- `chart-loading.spec.js` reescrito: sin chunk `plotly`, sin chunk `Chart`,
+  sin la cadena `plotly` en ningún `src/**/*.vue|js`, sin `<Chart` ni
+  «Distribución de Scores» en la vista, `Chart.vue` inexistente en disco,
+  vista de la calculadora <60 KB (mide 27,31 KB), mapa liviano y sin
+  `modulepreload`.
+- Comentarios que nombraban la librería actualizados en
+  `src/router/index.js`, `frontend/vite.config.js`, `src/assets/tokens.js`
+  y `src/assets/tokens.css`.
+
+### 4.9 Lo que NO se tocó (guardado P0-11 y histórico)
+
+- El flujo «Guardar en Expediente» quedó **verbatim**: destino obligatorio,
+  payload `EventoRF`, aviso en la página, error en español.
+  `tests/p011-guardar.spec.js` pasa sin una sola línea modificada.
+- **No se reintrodujo** la navegación de Expedientes (la ruta sigue
+  redirigida a `/`), ni el Inspector derecho, ni la barra GIS retirada en
+  Fase 1. `ExpedientesView`, `ExpedienteDetalleView` y `RankingTable` no
+  se modifican en esta fase (el `Score: …%` que queda en
+  `ExpedienteDetalleView` queda explícitamente fuera de alcance, con su
+  propio spec) y las tablas históricas siguen intactas.
+
+### 4.10 Pruebas nuevas
+
+**Frontend — `tests/rf-calculadora.spec.js` (24 pruebas):**
+
+| Bloque | Qué fija |
+|---|---|
+| Modo Armónicos | modo por defecto, dos pedidos `?max_order=4`, encabezados exactos, orden por diferencia, `Δ 3000.000 kHz`, `Exacta` con referencia 116, límite inclusivo 61000/60999, y que cambiar parámetros **no** vuelve a llamar al backend |
+| Modo Intermodulación | 7 columnas, orden por diferencia, etiquetas de emisora/fundamental, detalle al seleccionar (119.004500 MHz / 4.500 kHz), candidatos 59.500000 / 39.666667 / 29.750000 con `Candidato matemático` |
+| Exportaciones | nombre `AeroRF_Intermodulacion_…`, BOM, encabezados, filas visibles, JSON parseable con parámetros + solicitud + respuesta |
+| Limpiar / volver | vacía sin recalcular y `Volver a calcular` repite el pedido |
+| Errores | fallo del motor visible con `role="alert"` en **ambos** modos |
+| Discurso | 0 `%`, sin Proximidad/Distribución/probabilidad/score, con los tres estados |
+| Emisoras | FM por defecto, `power_dbm` ausente en el payload (y `25` cuando se cargó), rango rechazado, quitar emisora |
+| CSV | parser puro (encabezado, `;`+coma decimal, sin encabezado, filas malas numeradas, sin columna de frecuencia, vacío), `buildCsv` anti-inyección + BOM, nombre de archivo, e integración real con `FileReader` |
+
+**Backend — `tests/test_f400_matematica_calculadora.py` (11 pruebas):**
+`90×2`, `60×3` y `45×4` llegan **exactos** a 180 (y la tabla del endpoint
+también da 180 con órdenes `[2, 3, 4]`); `88.5×2 = 177` con fórmula
+`2 × 88.5`; `|armónica − referencia| × 1000` da 2 kHz contra 180.002 y
+ningún producto contra 180.011 con tolerancia 10; tabla y motor comparten
+la misma cuenta; la tolerancia **incluye su propio borde** (con el error
+redondeado a 3 decimales, que es como lo devuelve el motor); frecuencia
+inválida rechazada en el modelo y con 422 en el endpoint; deduplicación
+por fórmula con dos entradas de 88.5; producto fuera de banda → vacío con
+aviso; el IM3 no depende de `max_harmonic_order`; y el caso canónico
+`2×88.5 − 58 = 119.000000`.
+
+> **Nota de recolección:** `pytest.ini` declara `testpaths = tests`, así
+> que `app/rf_engine/test_rf_engine.py` **no entra** en
+> `pytest -m "not integration"` (0 de 726). Por eso la matemática de esta
+> fase vive en `tests/`. Ese archivo se dejó **byte a byte** como estaba y
+> sus 30 pruebas pasan al invocarlo por ruta.
+
+### 4.11 Verificación de la fase
+
+| Chequeo | Resultado |
+|---|---|
+| Frontend (vitest) | **525 pasan / 39 archivos** |
+| Backend (`-m "not integration"`) | **719 pasan / 7 deseleccionadas** (base 708 + 11) |
+| `npm run lint` | sin errores ni warnings |
+| `npm run build` | ✓ 25,05 s (`CalculadoraRFView` 27,31 kB) |
+| `git diff --check` | limpio |
+| `npm ls --depth=0` | sin faltantes ni inválidos; sin `plotly.js` |
+
+---
+
 ## AeroRF 2.5 — Fase 3: pulido visual del mapa y los controles
 
 **Estado:** completada. Suite frontend **502 pruebas / 38 archivos**, lint ✓,

@@ -6,8 +6,11 @@ import { createRouter, createWebHistory } from 'vue-router'
  * The map is the application, so `/` resolves to the GIS shell and the
  * remaining views are supporting workspaces.
  *
- * Every view except the shell is lazy-loaded. That keeps plotly (~3.5 MB)
- * out of the initial bundle, which previously made the first paint 5 MB.
+ * Every view except the shell is lazy-loaded: the initial bundle carries
+ * the map, and each workspace arrives in its own chunk. The rule started
+ * when a ~3.5 MB charting library still rode along with the calculator;
+ * AeroRF 2.5 removed it, and lazy views stayed because they keep the first
+ * paint small.
  */
 const GisShell = () => import('../views/GisShell.vue')
 

@@ -5,7 +5,7 @@
  *
  * Por qué hace falta
  * ─────────────────
- * Leaflet y Chart.js necesitan el color como cadena: no resuelven `var(--x)`. Si
+ * Leaflet necesita el color como cadena: no resuelve `var(--x)`. Si
  * una capa del mapa recibiera `var(--trazo)`, Leaflet lo pasaría tal cual al
  * atributo `stroke` del SVG o al color del canvas, y ahí no hay nada que resuelva
  * una variable: se dibuja literalmente `var(--trazo)`, o no se dibuja.

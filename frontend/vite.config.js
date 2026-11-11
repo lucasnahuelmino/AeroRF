@@ -50,9 +50,10 @@ export default defineConfig({
     },
   },
   build: {
-    // Plotly (~3.5 MB) sólo lo usa la calculadora RF —vía Chart.vue—, y lo
-    // carga bajo demanda: así el bundle inicial sigue chico. La vista de
-    // Espectro, que también lo usaba, se dio de baja en 0.30.32.
+    // AeroRF 2.5 dio de baja plotly y `Chart.vue`: ya no hay librería de
+    // graficación que separar. Quedan los chunks manuales de siempre
+    // (Leaflet aparte del resto de los vendors) y el límite de aviso, que
+    // sigue sirviendo para detectar que algo pesado vuelva al bundle.
     rollupOptions: {
       output: {
         manualChunks: {
