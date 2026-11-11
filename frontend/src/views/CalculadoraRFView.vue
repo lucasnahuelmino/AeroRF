@@ -57,8 +57,11 @@
                 v-model.number="form.target_mhz"
                 type="number"
                 step="0.001"
+                min="0.001"
+                max="5999.999"
                 class="w-full px-3 py-2 bg-panel-hondo border border-borde rounded-lg text-texto focus:outline-none focus:border-blue-500 font-mono"
               />
+              <p class="text-xs text-texto-invisible mt-1">El motor la acepta entre 0 y 6000 MHz.</p>
             </div>
             <div>
               <label for="calc-tolerancia" class="block text-sm text-texto-tenue mb-2">
@@ -69,22 +72,28 @@
                 v-model.number="form.tolerance_khz"
                 type="number"
                 step="0.1"
+                min="0.1"
+                max="500"
                 class="w-full px-3 py-2 bg-panel-hondo border border-borde rounded-lg text-texto focus:outline-none focus:border-blue-500 font-mono"
               />
+              <p class="text-xs text-texto-invisible mt-1">El motor la acepta entre 0 y 500 kHz.</p>
             </div>
             <button
               type="button"
               class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-panel-alto rounded-lg font-semibold transition-colors text-white"
-              :disabled="calculando"
+              :disabled="calculando || !!problemaParametros"
               @click="calcular"
             >
               {{ calculando ? '⏳ Calculando...' : '🚀 Calcular' }}
             </button>
 
             <!-- Un error de cálculo se ve sin importar el modo activo: vive
-                 al lado del botón que lo dispara, no adentro de una pestaña. -->
-            <p v-if="errorCalculo" role="alert" class="text-sm text-red-400">
-              {{ errorCalculo }}
+                 al lado del botón que lo dispara, no adentro de una pestaña.
+                 Primero se chequea lo que el motor va a rechazar igual
+                 (`RFCalculationRequest`): preferible decirlo acá que mandar
+                 un 422 y devolver un error genérico. -->
+            <p v-if="problemaParametros || errorCalculo" role="alert" class="text-sm text-red-400">
+              {{ problemaParametros || errorCalculo }}
             </p>
           </div>
         </div>
@@ -247,7 +256,7 @@
                 >
                   Limpiar cálculo
                 </button>
-                <button type="button" class="calc-accion" :disabled="calculando" @click="calcular">
+                <button type="button" class="calc-accion" :disabled="calculando || !!problemaParametros" @click="calcular">
                   Volver a calcular
                 </button>
               </div>
@@ -473,6 +482,14 @@ const selectedResult = ref(null)
 const errorCalculo = ref(null)
 const accionMsg = ref(null)
 
+// Límites del motor (`RFCalculationRequest` en `app/models/rf_models.py`):
+// `tolerance_khz` con `gt=0, le=500`, `target_mhz` con `gt=0, lt=6000` y
+// `frequencies` con `min_length=1, max_length=50`. Fuera de esos rangos el
+// backend responde 422, así que la vista los chequea antes de pedir.
+const TOLERANCIA_MAX_KHZ = 500
+const REFERENCIA_MAX_MHZ = 6000
+const EMISORAS_MAX = 50
+
 // Modo A: una fila de armónicos por emisora, cargadas con
 // `GET /rf/harmonics/{freq}?max_order=4` (2.ª, 3.ª y 4.ª).
 const armonicasPorEstacion = ref([])
@@ -505,6 +522,28 @@ const puedeGuardar = computed(
 )
 const calculando = computed(() => rfStore.loading || cargandoArmonicas.value)
 
+/**
+ * Parámetros que el motor rechazaría igual (422). Se dice antes de pedir,
+ * en español y al lado del botón, en vez de un error genérico. `null` =
+ * todo en rango.
+ */
+const problemaParametros = computed(() => {
+  const refMhz = Number(form.value.target_mhz)
+  if (!Number.isFinite(refMhz) || refMhz <= 0 || refMhz >= REFERENCIA_MAX_MHZ) {
+    return 'La frecuencia de referencia tiene que ser mayor a 0 y menor a 6000 MHz.'
+  }
+  const tol = Number(form.value.tolerance_khz)
+  if (!Number.isFinite(tol) || tol <= 0 || tol > TOLERANCIA_MAX_KHZ) {
+    return `La tolerancia tiene que ser mayor a 0 y como máximo ${TOLERANCIA_MAX_KHZ} kHz.`
+  }
+  const validas = form.value.frequencies.filter((f) => Number(f.freq_mhz) > 0)
+  if (validas.length < 1) return 'Agregá al menos una emisora para calcular.'
+  if (validas.length > EMISORAS_MAX) {
+    return `El motor acepta como máximo ${EMISORAS_MAX} emisoras por cálculo.`
+  }
+  return null
+})
+
 // ── Formato ───────────────────────────────────────────────────────────────────
 // MHz con 6 decimales (precisión hasta 1 Hz) y kHz con 3; lo que no sea un
 // número se muestra como «—» en vez de «NaN».
@@ -524,14 +563,17 @@ const redondearKhz = (v) => Math.round(Number(v) * 1000) / 1000
  * Estado de una diferencia contra la tolerancia — el mismo criterio que el
  * motor (`≤ tolerancia` entra; en el borde exacto sigue entrando):
  * Exacta (0) / En tolerancia / Fuera de tolerancia. Nunca «probabilidad».
+ * Con una tolerancia fuera del rango del motor no se juzga: «Sin datos»
+ * (la vista ya lo dice con `problemaParametros`).
  */
 const estadoDe = (diffKhz, tolerancia) => {
   const d = Number(diffKhz)
   if (!Number.isFinite(d)) return 'Sin datos'
   const dif = redondearKhz(d)
-  const tol = Number(tolerancia)
   if (dif === 0) return 'Exacta'
-  if (Number.isFinite(tol) && dif <= tol) return 'En tolerancia'
+  const tol = Number(tolerancia)
+  if (!Number.isFinite(tol) || tol <= 0 || tol > TOLERANCIA_MAX_KHZ) return 'Sin datos'
+  if (dif <= tol) return 'En tolerancia'
   return 'Fuera de tolerancia'
 }
 
@@ -655,6 +697,10 @@ const explicacion = (r) => {
 const calcular = async () => {
   errorCalculo.value = null
   accionMsg.value = null
+  // Si el motor va a rechazar los parámetros (422), no se pide nada: la
+  // pantalla ya lo dice con `problemaParametros` y el botón está fuera de
+  // rango. Esta guarda es el respaldo por si algo llama a `calcular()`.
+  if (problemaParametros.value) return
   // Los dos modos comparten parámetros y emisoras: se calculan juntos para
   // que ninguna pestaña quede desactualizada respecto de la otra.
   await Promise.all([calcularMotor(), calcularArmonicas()])

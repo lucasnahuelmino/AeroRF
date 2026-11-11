@@ -72,11 +72,21 @@ fuera del alcance.
   históricas (`eventos_rf`, `ExpedientesView`, `ExpedienteDetalleView`)
   siguen sin cambios. `score` viaja como `score_probabilidad` en el payload
   porque así se llama la columna, pero no se muestra como probabilidad.
-- **Pruebas:** frontend **525 / 39 archivos** (502 de Fase 3 + 24 nuevas en
+- **Validación de parámetros antes del 422** (4.11): la validación en
+  navegador contra el backend real mostró un **422 real** — el motor
+  valida `tolerance_khz ≤ 500`, `target_mhz < 6000` y `1..50` emisoras
+  (`RFCalculationRequest`), pero la vista aceptaba cualquier número. Fix en
+  la vista (sin tocar el motor): `problemaParametros` con mensaje en
+  español junto al botón (`role="alert"`), `min`/`max` + pista de rango en
+  los dos inputs, botones `Calcular` y `Volver a calcular` deshabilitados y
+  guarda temprana en `calcular()` — **cero pedidos** con parámetros
+  ilegales. `estadoDe()` devuelve `Sin datos` con tolerancia fuera de
+  rango.
+- **Pruebas:** frontend **527 / 39 archivos** (502 de Fase 3 + 26 nuevas en
   `tests/rf-calculadora.spec.js`, con `chart-loading` pasando de 9 a 8
   tests al reescribirse); backend **719 + 7 deseleccionadas** (708 + 11
   nuevas en `tests/test_f400_matematica_calculadora.py`). lint ✓, build ✓
-  (25,05 s), `git diff --check` ✓, `npm ls --depth=0` sin problemas.
+  (16,22 s), `git diff --check` ✓, `npm ls --depth=0` sin problemas.
   **Detalle importante:** `pytest.ini` tiene `testpaths = tests`, así que
   `app/rf_engine/test_rf_engine.py` **no se colecta** en la corrida por
   defecto (0 de las 726 que colecta hoy: 719 + 7 deseleccionadas); por

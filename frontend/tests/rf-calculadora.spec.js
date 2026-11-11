@@ -225,18 +225,78 @@ describe('modo Armónicos', () => {
 
   it('la tolerancia decide En tolerancia o Fuera, con el límite inclusivo', async () => {
     const w = await montar()
-    await w.find('#calc-referencia').setValue('116')
-    await w.find('#calc-tolerancia').setValue('61000')
+    // 116.05 MHz deja la 2.ª armónica de 58 MHz (116.000000) a 50 kHz.
+    await w.find('#calc-referencia').setValue('116.05')
+    await w.find('#calc-tolerancia').setValue('50')
     await flushPromises()
 
-    const mejor = () => filasDe(tablaDe(w, 'a'))[1].text().replace(/\s+/g, ' ')
-    expect(mejor()).toContain('61000.000')
-    expect(mejor()).toContain('En tolerancia')
+    const tv = () => filasDe(tablaDe(w, 'a'))[0].text().replace(/\s+/g, ' ')
+    expect(tv()).toContain('TV Señal')
+    expect(tv()).toContain('50.000')
+    expect(tv()).toContain('En tolerancia')
 
     // Un kHz menos y la misma diferencia queda afuera: el borde es ≤.
+    await w.find('#calc-tolerancia').setValue('49')
+    await flushPromises()
+    expect(tv()).toContain('Fuera de tolerancia')
+  })
+
+  it('parámetros que el motor rechazaría se dicen antes de pedir (422)', async () => {
+    const w = await montar()
+    const alerta = () => w.find('[role="alert"]').text()
+    const calcularBoton = () => boton(w, '🚀 Calcular')
+    // El montaje ya calculó una vez: lo que no puede pasar es que crezca.
+    const pedidosCalculo = () =>
+      fetchStub.mock.calls.filter(([u]) => String(u).startsWith('/api/v1/rf/calculate')).length
+    const pedidosArmonicas = () =>
+      fetchStub.mock.calls.filter(([u]) => String(u).includes('/rf/harmonics/')).length
+    const baseCalculo = pedidosCalculo()
+    const baseArmonicas = pedidosArmonicas()
+    expect(baseCalculo).toBe(1)
+
+    // Tolerancia fuera del rango del backend (RFCalculationRequest: le=500).
+    await w.find('#calc-tolerancia').setValue('501')
+    await flushPromises()
+    expect(alerta()).toContain('La tolerancia tiene que ser mayor a 0 y como máximo 500 kHz.')
+    expect(calcularBoton().attributes('disabled')).toBe('')
+
     await w.find('#calc-tolerancia').setValue('60999')
     await flushPromises()
-    expect(mejor()).toContain('Fuera de tolerancia')
+    expect(alerta()).toContain('500 kHz')
+    expect(calcularBoton().attributes('disabled')).toBe('')
+
+    // Referencia fuera de banda (gt=0, lt=6000).
+    await w.find('#calc-tolerancia').setValue('10')
+    await w.find('#calc-referencia').setValue('7000')
+    await flushPromises()
+    expect(alerta()).toContain('La frecuencia de referencia tiene que ser mayor a 0 y menor a 6000 MHz.')
+    expect(calcularBoton().attributes('disabled')).toBe('')
+
+    // Sin emisoras no hay nada que calcular (min_length=1).
+    await w.find('#calc-referencia').setValue('119')
+    await w.findAll('button[title="Quitar emisora"]')[0].trigger('click')
+    await w.findAll('button[title="Quitar emisora"]')[0].trigger('click')
+    await flushPromises()
+    expect(alerta()).toContain('Agregá al menos una emisora para calcular.')
+    expect(calcularBoton().attributes('disabled')).toBe('')
+
+    // Nada de eso hizo un solo pedido nuevo: se frenó en la vista.
+    expect(pedidosCalculo()).toBe(baseCalculo)
+    expect(pedidosArmonicas()).toBe(baseArmonicas)
+  })
+
+  it('un parámetro ilegal también frena a «Volver a calcular»', async () => {
+    const w = await montar()
+    await pestaña(w, 1).trigger('click')
+    expect(calculos).toBe(1)
+
+    await w.find('#calc-tolerancia').setValue('501')
+    await flushPromises()
+
+    const volver = boton(w, 'Volver a calcular')
+    expect(volver.attributes('disabled')).toBe('')
+    await volver.trigger('click')
+    expect(calculos).toBe(1)
   })
 })
 

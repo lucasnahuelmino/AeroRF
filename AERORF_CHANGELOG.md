@@ -6,8 +6,8 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ## AeroRF 2.5 — Fase 4: calculadora de análisis armónico e intermodulación
 
-**Estado:** completada. Suite frontend **525 pruebas / 39 archivos**, backend
-**719 pruebas / 7 deseleccionadas**, lint ✓, build de producción ✓ (25,05 s),
+**Estado:** completada. Suite frontend **527 pruebas / 39 archivos**, backend
+**719 pruebas / 7 deseleccionadas**, lint ✓, build de producción ✓ (16,22 s),
 `git diff --check` ✓, `npm ls --depth=0` sin problemas.
 
 ### 4.1 Dos modos, una sola entrada de datos
@@ -43,8 +43,10 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
   vista **sin un solo pedido nuevo** al backend (asertado en el test:
   el contador de cálculos no se mueve).
 - Estados: `Exacta` (0), `En tolerancia` (≤ tolerancia, límite inclusivo:
-  61000 kHz de diferencia pasa con tolerancia 61000 y no con 60999) y
-  `Fuera de tolerancia`. `Sin datos` sólo si una emisora no trae armónicos.
+  50 kHz de diferencia pasa con tolerancia 50 y no con 49) y
+  `Fuera de tolerancia`. Con una tolerancia fuera del rango del motor
+  (> 500 kHz), `Sin datos` — la vista lo dice aparte (4.11). También
+  `Sin datos` si una emisora no trae armónicos.
 - Si un armónico no se pudo cargar, se avisa en la pestaña
   (`No se pudieron cargar algunas armónicas. Volvé a calcular.`) sin
   borrar el resto de las filas.
@@ -152,11 +154,12 @@ Registro de cambios por fase. Cada fase deja la aplicación funcionando.
 
 ### 4.10 Pruebas nuevas
 
-**Frontend — `tests/rf-calculadora.spec.js` (24 pruebas):**
+**Frontend — `tests/rf-calculadora.spec.js` (26 pruebas):**
 
 | Bloque | Qué fija |
 |---|---|
-| Modo Armónicos | modo por defecto, dos pedidos `?max_order=4`, encabezados exactos, orden por diferencia, `Δ 3000.000 kHz`, `Exacta` con referencia 116, límite inclusivo 61000/60999, y que cambiar parámetros **no** vuelve a llamar al backend |
+| Modo Armónicos | modo por defecto, dos pedidos `?max_order=4`, encabezados exactos, orden por diferencia, `Δ 3000.000 kHz`, `Exacta` con referencia 116, límite inclusivo (Δ 50 kHz con tolerancia 50 → `En tolerancia`, con 49 → `Fuera`), y que cambiar parámetros **no** vuelve a llamar al backend |
+| Validación de parámetros | tolerancia 501/60999, referencia 7000 y 0 emisoras → mensaje en `role="alert"` + botón deshabilitado + **cero pedidos nuevos**; el mismo freno en «Volver a calcular» |
 | Modo Intermodulación | 7 columnas, orden por diferencia, etiquetas de emisora/fundamental, detalle al seleccionar (119.004500 MHz / 4.500 kHz), candidatos 59.500000 / 39.666667 / 29.750000 con `Candidato matemático` |
 | Exportaciones | nombre `AeroRF_Intermodulacion_…`, BOM, encabezados, filas visibles, JSON parseable con parámetros + solicitud + respuesta |
 | Limpiar / volver | vacía sin recalcular y `Volver a calcular` repite el pedido |
@@ -183,14 +186,37 @@ aviso; el IM3 no depende de `max_harmonic_order`; y el caso canónico
 > fase vive en `tests/`. Ese archivo se dejó **byte a byte** como estaba y
 > sus 30 pruebas pasan al invocarlo por ruta.
 
-### 4.11 Verificación de la fase
+### 4.11 Validación de parámetros antes del 422
+
+- **Defecto detectado en la validación en vivo:** `RFCalculationRequest`
+  valida `tolerance_khz` con `gt=0, le=500`, `target_mhz` con `gt=0, lt=6000`
+  y `frequencies` con `1..50`, pero la vista aceptaba cualquier número: una
+  tolerancia de 60999 producía un **422 real** del backend y un mensaje
+  genérico al lado del botón.
+- Corregido en la vista, sin tocar el motor: `problemaParametros` (computed)
+  chequea los tres límites con el texto en español al lado del botón
+  (`role="alert"`), los inputs llevan `min`/`max` + pista de rango
+  («El motor la acepta entre 0 y 6000 MHz.» / «…entre 0 y 500 kHz.»), y
+  `Calcular` y `Volver a calcular` quedan deshabilitados
+  (`:disabled="calculando || !!problemaParametros"`) con guarda temprana en
+  `calcular()`: **no se hace ningún pedido** con parámetros ilegales.
+- `estadoDe()` con una tolerancia fuera del rango devuelve `Sin datos` en
+  lugar de juzgar con un número que el motor rechazaría.
+- Pruebas nuevas (26 en `rf-calculadora.spec.js`, eran 24): el caso borde
+  ilegal 61000/60999 se reemplazó por uno en rango (referencia 116.05 →
+  Δ 50 kHz; tolerancia 50 → `En tolerancia`, 49 → `Fuera de tolerancia`),
+  y se agregó el bloque de validación en vivo: tolerancia 501/60999,
+  referencia 7000 y 0 emisoras → mensaje + botón deshabilitado + **cero
+  pedidos nuevos**, y el mismo freno en «Volver a calcular».
+
+### 4.12 Verificación de la fase
 
 | Chequeo | Resultado |
 |---|---|
-| Frontend (vitest) | **525 pasan / 39 archivos** |
+| Frontend (vitest) | **527 pasan / 39 archivos** |
 | Backend (`-m "not integration"`) | **719 pasan / 7 deseleccionadas** (base 708 + 11) |
 | `npm run lint` | sin errores ni warnings |
-| `npm run build` | ✓ 25,05 s (`CalculadoraRFView` 27,31 kB) |
+| `npm run build` | ✓ 16,22 s |
 | `git diff --check` | limpio |
 | `npm ls --depth=0` | sin faltantes ni inválidos; sin `plotly.js` |
 
