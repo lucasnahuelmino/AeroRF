@@ -93,6 +93,14 @@ async function prepareMarkerSymbol(element, node, area, svgCache) {
   let width = rect.width
   let height = rect.height
 
+  if (element.tagName.toLowerCase() === 'img') {
+    // El recurso tiene que estar cargado antes de pintarlo: si no, el PNG
+    // saldría con un hueco silencioso. Se falla de forma explícita.
+    if (!element.complete || element.naturalWidth === 0) {
+      throw new Error('Un recurso de marcador no se cargó (imagen no encontrada o no decodificada).')
+    }
+  }
+
   if (element.tagName.toLowerCase() === 'svg') {
     // A live SVG node cannot be drawn onto another canvas: serialize it once
     // (without its own rotation, applied below through the context).
@@ -103,7 +111,16 @@ async function prepareMarkerSymbol(element, node, area, svgCache) {
     if (!image) {
       image = new Image()
       image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`
-      if (typeof image.decode === 'function') await image.decode().catch(() => {})
+      if (typeof image.decode === 'function') {
+        try {
+          await image.decode()
+        } catch (error) {
+          throw new Error('Un recurso de marcador no se pudo decodificar (SVG inválido).', { cause: error })
+        }
+      }
+      if (image.naturalWidth === 0) {
+        throw new Error('Un recurso de marcador no se decodificó (imagen vacía).')
+      }
       svgCache.set(markup, image)
     }
     source = image
@@ -143,10 +160,12 @@ async function prepareMarkerSymbol(element, node, area, svgCache) {
 function paintMarkerSymbols(canvas, symbols, scale) {
   if (!symbols.length) return
   const context = canvas.getContext('2d')
-  if (!context) return
+  if (!context) throw new Error('El navegador no pudo preparar el lienzo PNG.')
 
   for (const symbol of symbols) {
-    if (symbol.element.isConnected === false) continue
+    if (symbol.element.isConnected === false) {
+      throw new Error('Un recurso de marcador dejó de estar disponible antes de dibujarse.')
+    }
     context.save()
     context.setTransform(1, 0, 0, 1, 0, 0)
     context.translate(symbol.x * scale, symbol.y * scale)
@@ -159,8 +178,8 @@ function paintMarkerSymbols(canvas, symbols, scale) {
         symbol.width * scale,
         symbol.height * scale,
       )
-    } catch {
-      // A broken symbol must not invalidate the rest of the export.
+    } catch (error) {
+      throw new Error('Un recurso de marcador no se pudo dibujar (bloqueo CORS o recurso inválido).', { cause: error })
     }
     context.restore()
   }
@@ -187,7 +206,13 @@ export async function renderMapPng(container, { engine, scale = 2 } = {}) {
       logging: false,
       scale,
       useCORS: true,
-      ignoreElements: (element) => element.closest?.('.leaflet-control-zoom') !== null,
+      // Se excluye la cromática de la interfaz (controles de zoom y demás)
+      // pero se conserva la atribución, que es parte del mapa exportado.
+      ignoreElements: (element) => {
+        const control = element.closest?.('.leaflet-control')
+        if (control && !control.classList?.contains('leaflet-control-attribution')) return true
+        return false
+      },
     })
     if (canvas.width === 0 || canvas.height === 0) {
       throw new Error('La imagen cartográfica resultó vacía.')

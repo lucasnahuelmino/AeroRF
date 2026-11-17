@@ -73,6 +73,10 @@ describe('PNG map export', () => {
     marker.className = 'leaflet-marker-icon'
     const icon = document.createElement('img')
     icon.src = '/iconos/aeropuerto.svg'
+    Object.defineProperties(icon, {
+      complete: { value: true },
+      naturalWidth: { value: 18 },
+    })
     marker.append(icon)
     container.append(tile, marker)
     document.body.append(container)
@@ -94,5 +98,34 @@ describe('PNG map export', () => {
     expect(context.rotate).not.toHaveBeenCalled()
 
     html2canvas.mockReset()
+  })
+
+  it('rechaza un recurso de marcador no cargado en vez de entregar un PNG incompleto', async () => {
+    const container = document.createElement('div')
+    const tile = document.createElement('img')
+    tile.className = 'leaflet-tile'
+    Object.defineProperties(tile, { complete: { value: true }, naturalWidth: { value: 256 } })
+    container.append(tile)
+
+    const marker = document.createElement('div')
+    marker.className = 'leaflet-marker-icon'
+    const icon = document.createElement('img')
+    icon.src = '/iconos/no-existe.svg'
+    Object.defineProperties(icon, { complete: { value: false }, naturalWidth: { value: 0 } })
+    marker.append(icon)
+    container.append(marker)
+    document.body.append(container)
+
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+    })
+
+    container.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 300, right: 400, bottom: 300 })
+    marker.getBoundingClientRect = () => ({ left: 100, top: 80, width: 26, height: 26, right: 126, bottom: 106 })
+    icon.getBoundingClientRect = () => ({ left: 104, top: 84, width: 18, height: 18, right: 122, bottom: 102 })
+
+    await expect(renderMapPng(container, { scale: 2 })).rejects.toThrow('no se cargó')
   })
 })
