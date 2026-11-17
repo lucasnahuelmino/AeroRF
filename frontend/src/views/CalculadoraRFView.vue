@@ -153,6 +153,33 @@
           >
             {{ csvMsg.texto }}
           </p>
+          <div v-if="csvPendiente" class="mt-3 p-3 bg-panel-hondo border border-borde rounded-lg text-xs space-y-2">
+            <p class="text-texto">
+              Se van a importar {{ csvPendiente.agregadas.length }} emisoras
+              ({{ csvPendiente.resumen?.leidas ?? 0 }} leídas,
+              {{ csvPendiente.resumen?.rechazadas ?? 0 }} rechazadas,
+              {{ csvPendiente.resumen?.duplicados ?? 0 }} duplicadas).
+            </p>
+            <ul
+              v-if="csvPendiente.errores.length"
+              class="text-orange-400 space-y-1 max-h-24 overflow-y-auto"
+            >
+              <li v-for="(e, i) in csvPendiente.errores" :key="i">{{ e }}</li>
+            </ul>
+            <div class="calc-acciones">
+              <button
+                type="button"
+                class="calc-accion"
+                :disabled="!csvPendiente.agregadas.length"
+                @click="confirmarCsv"
+              >
+                Confirmar importación
+              </button>
+              <button type="button" class="calc-accion" @click="cancelarCsv">
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -548,6 +575,7 @@ const historialMsg = ref({ tipo: null, texto: '' })
 // Importación CSV de emisoras.
 const csvInput = ref(null)
 const csvMsg = ref(null)
+const csvPendiente = ref(null)
 
 const historialCargando = computed(() => rfStore.historialLoading)
 const historialError = computed(() => rfStore.historialError)
@@ -825,18 +853,17 @@ const importarCsv = (event) => {
   if (!archivo) return
   const lector = new FileReader()
   lector.onload = () => {
-    const { agregadas, errores } = parseEmisorasCsv(String(lector.result || ''))
-    if (agregadas.length) form.value.frequencies.push(...agregadas)
+    const resultado = parseEmisorasCsv(String(lector.result || ''))
+    csvPendiente.value = resultado
+    const r = resultado.resumen || {}
     const partes = []
     partes.push(
-      agregadas.length
-        ? `CSV importado: ${agregadas.length} ${
-            agregadas.length === 1 ? 'emisora agregada' : 'emisoras agregadas'
-          }.`
-        : 'CSV importado: no se agregó ninguna emisora.'
+      resultado.agregadas.length
+        ? `CSV leído: ${r.leidas ?? resultado.agregadas.length} filas, ${resultado.agregadas.length} para importar.`
+        : 'CSV leído: no hay emisoras para importar.'
     )
-    if (errores.length) partes.push(errores.slice(0, 3).join(' '))
-    csvMsg.value = { tipo: errores.length ? 'aviso' : 'ok', texto: partes.join(' ') }
+    if (resultado.errores.length) partes.push(`${resultado.errores.length} rechazadas.`)
+    csvMsg.value = { tipo: resultado.errores.length ? 'aviso' : 'ok', texto: partes.join(' ') }
     input.value = ''
   }
   lector.onerror = () => {
@@ -844,6 +871,22 @@ const importarCsv = (event) => {
     input.value = ''
   }
   lector.readAsText(archivo)
+}
+
+const confirmarCsv = () => {
+  if (!csvPendiente.value) return
+  const { agregadas } = csvPendiente.value
+  if (agregadas.length) form.value.frequencies.push(...agregadas)
+  csvMsg.value = {
+    tipo: 'ok',
+    texto: `Importadas ${agregadas.length} ${agregadas.length === 1 ? 'emisora' : 'emisoras'}.`,
+  }
+  csvPendiente.value = null
+}
+
+const cancelarCsv = () => {
+  csvPendiente.value = null
+  csvMsg.value = { tipo: 'aviso', texto: 'Importación cancelada.' }
 }
 
 // ── Exportaciones del modo B ──────────────────────────────────────────────────

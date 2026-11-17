@@ -648,7 +648,7 @@ describe('nombreDeArchivo', () => {
 })
 
 describe('importar CSV desde la pantalla', () => {
-  it('lee el archivo y agrega las emisoras a la lista', async () => {
+  it('lee el archivo y permite revisar antes de importar', async () => {
     const w = await montar()
     const antes = w.text().match(/Emisoras \((\d+)\)/)[1]
 
@@ -663,9 +663,22 @@ describe('importar CSV desde la pantalla', () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
     await flushPromises()
 
-    expect(w.text()).toContain(`Emisoras (${Number(antes) + 1})`)
-    expect(w.text()).toContain('CSV importado: 1 emisora agregada.')
+    // Revisión previa: todavía no se agregó nada.
+    expect(w.text()).toContain(`Emisoras (${antes})`)
+    expect(w.text()).toContain('CSV leído: 2 filas, 1 para importar.')
+    expect(w.text()).toContain('1 rechazadas.')
     expect(w.text()).toContain('Fila 3: frecuencia inválida («abc»).')
+    expect(w.text()).toContain('Se van a importar 1 emisoras')
+    expect(w.text()).not.toContain('88.9 MHz')
+
+    // Confirmación explícita: ahí sí se agregan.
+    const confirmar = w.findAll('button').find((b) => b.text().includes('Confirmar importación'))
+    expect(confirmar).toBeTruthy()
+    await confirmar.trigger('click')
+    await flushPromises()
+
+    expect(w.text()).toContain(`Emisoras (${Number(antes) + 1})`)
+    expect(w.text()).toContain('Importadas 1 emisora.')
     expect(w.text()).toContain('88.9 MHz')
     expect(w.text()).toContain('Jazz')
   })
