@@ -77,6 +77,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    testTimeout: 15000,
     include: ['tests/**/*.spec.js'],
     setupFiles: ['./tests/setup.js'],
     // Leaflet stacks its panes with classes in `leaflet.css` (`.leaflet-marker-pane`

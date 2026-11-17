@@ -114,6 +114,19 @@ const montar = async () => {
   const pinia = createPinia()
   const wrapper = mount(CalculadoraRFView, { global: { plugins: [pinia] } })
   await flushPromises()
+
+  // La calculadora arranca vacía (AeroRF 2.6): se carga el ejemplo y se
+  // calcula, como haría el operador antes de guardar.
+  const cargar = wrapper.findAll('button').find((b) => b.text().includes('Cargar ejemplo'))
+  if (cargar) {
+    await cargar.trigger('click')
+    await flushPromises()
+  }
+  const calcularBtn = wrapper.findAll('button').find((b) => b.text().includes('Calcular') && !b.text().includes('Volver'))
+  if (calcularBtn && !calcularBtn.attributes('disabled')) {
+    await calcularBtn.trigger('click')
+    await flushPromises()
+  }
   return { w: wrapper, pinia }
 }
 
