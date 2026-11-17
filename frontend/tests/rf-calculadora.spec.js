@@ -101,6 +101,18 @@ let calculos
 const montar = async () => {
   const wrapper = mount(CalculadoraRFView, { global: { plugins: [createPinia()] } })
   await flushPromises()
+  // La calculadora arranca vacía (AeroRF 2.6); los tests que necesitan datos
+  // cargan el ejemplo y calculan, como haría el operador.
+  const cargar = wrapper.findAll('button').find((b) => b.text().includes('Cargar ejemplo'))
+  if (cargar) {
+    await cargar.trigger('click')
+    await flushPromises()
+  }
+  const calcularBtn = wrapper.findAll('button').find((b) => b.text().includes('Calcular') && !b.text().includes('Volver'))
+  if (calcularBtn && !calcularBtn.attributes('disabled')) {
+    await calcularBtn.trigger('click')
+    await flushPromises()
+  }
   return wrapper
 }
 
@@ -644,6 +656,41 @@ describe('nombreDeArchivo', () => {
     expect(nombreDeArchivo('Intermodulacion', 'csv')).toMatch(
       /^AeroRF_Intermodulacion_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.csv$/
     )
+  })
+})
+
+describe('calculadora vacía al arrancar (AeroRF 2.6)', () => {
+  it('arranca sin referencia ni emisoras y muestra la guía', async () => {
+    const w = mount(CalculadoraRFView, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+
+    expect(w.text()).toContain(
+      'Ingresá una frecuencia de referencia y agregá las emisoras que quieras analizar.'
+    )
+    expect(llamadasCalculo()).toHaveLength(0)
+    expect(w.text()).toContain('Sin emisoras agregadas')
+    expect(w.text()).not.toContain('DATOS DE EJEMPLO')
+  })
+
+  it('«Cargar ejemplo» repone los datos, marca DATOS DE EJEMPLO y se puede quitar', async () => {
+    const w = mount(CalculadoraRFView, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+
+    const cargar = w.findAll('button').find((b) => b.text().includes('Cargar ejemplo'))
+    expect(cargar).toBeTruthy()
+    await cargar.trigger('click')
+    await flushPromises()
+
+    expect(w.text()).toContain('DATOS DE EJEMPLO')
+    expect(w.text()).toContain('88.5')
+
+    const quitar = w.findAll('button').find((b) => b.text().includes('Quitar ejemplo'))
+    expect(quitar).toBeTruthy()
+    await quitar.trigger('click')
+    await flushPromises()
+
+    expect(w.text()).not.toContain('DATOS DE EJEMPLO')
+    expect(w.text()).toContain('Sin emisoras agregadas')
   })
 })
 

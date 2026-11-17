@@ -87,6 +87,28 @@
               {{ calculando ? '⏳ Calculando...' : '🚀 Calcular' }}
             </button>
 
+            <p
+              v-if="!form.target_mhz || form.frequencies.length === 0"
+              class="text-sm text-texto-tenue mt-2"
+            >
+              Ingresá una frecuencia de referencia y agregá las emisoras que quieras analizar.
+            </p>
+
+            <div class="flex flex-wrap items-center gap-2 mt-3">
+              <button type="button" class="calc-accion" @click="cargarEjemplo">
+                Cargar ejemplo
+              </button>
+              <span
+                v-if="ejemploCargado"
+                class="text-xs font-semibold uppercase tracking-wide text-amber-300 border border-amber-500/40 rounded px-2 py-1"
+              >
+                DATOS DE EJEMPLO
+              </span>
+              <button v-if="ejemploCargado" type="button" class="calc-accion" @click="quitarEjemplo">
+                Quitar ejemplo
+              </button>
+            </div>
+
             <!-- Un error de cálculo se ve sin importar el modo activo: vive
                  al lado del botón que lo dispara, no adentro de una pestaña.
                  Primero se chequea lo que el motor va a rechazar igual
@@ -303,7 +325,12 @@
             </p>
 
             <div v-else-if="filasMotor.length === 0" class="text-texto-tenue text-center py-8">
-              Ejecutá un cálculo para ver resultados
+              <p v-if="!form.target_mhz || form.frequencies.length === 0">
+                Ingresá una frecuencia de referencia y agregá las emisoras que quieras analizar.
+              </p>
+              <p v-else>
+                Ejecutá un cálculo para ver resultados
+              </p>
             </div>
 
             <div v-else class="calc-tabla-wrap">
@@ -554,16 +581,46 @@ const armonicasPorEstacion = ref([])
 const cargandoArmonicas = ref(false)
 const armonicasFallo = ref(false)
 
-// Lista de emisoras compartida por los dos modos. La señal por defecto es FM
-// (el caso de uso de la pantalla); el CSV trae el nombre y las observaciones.
-const form = ref({
+// Lista de emisoras compartida por los dos modos. La calculadora arranca
+// vacía (AeroRF 2.6): sin frecuencia de referencia ni emisoras, y un
+// mensaje guía invita a ingresarlas. «Cargar ejemplo» repone los datos de
+// ejemplo (que antes eran el preset) marcados como «DATOS DE EJEMPLO».
+const EJEMPLO_FORM = {
   target_mhz: 119.0,
   tolerance_khz: 10,
   frequencies: [
     { freq_mhz: 88.5, signal_type: 'FM', label: 'FM Radio', observaciones: '', power_dbm: null },
     { freq_mhz: 58.0, signal_type: 'TV_UHF', label: 'TV Señal', observaciones: '', power_dbm: null },
   ],
+}
+
+const form = ref({
+  target_mhz: null,
+  tolerance_khz: 10,
+  frequencies: [],
 })
+
+const ejemploCargado = ref(false)
+
+const cargarEjemplo = () => {
+  form.value = {
+    target_mhz: EJEMPLO_FORM.target_mhz,
+    tolerance_khz: EJEMPLO_FORM.tolerance_khz,
+    frequencies: EJEMPLO_FORM.frequencies.map((f) => ({ ...f })),
+  }
+  ejemploCargado.value = true
+  errorCalculo.value = null
+  accionMsg.value = { tipo: 'ok', texto: 'Datos de ejemplo cargados.' }
+}
+
+const quitarEjemplo = () => {
+  form.value = { target_mhz: null, tolerance_khz: 10, frequencies: [] }
+  ejemploCargado.value = false
+  rfStore.clearCalculation()
+  selectedResult.value = null
+  errorCalculo.value = null
+  accionMsg.value = { tipo: 'ok', texto: 'Datos de ejemplo quitados.' }
+}
 
 // Guardado en el historial propio de análisis (AeroRF 2.6): `guardando`
 // acompaña al botón de guardar, `historialMsg` cuenta qué pasó y
