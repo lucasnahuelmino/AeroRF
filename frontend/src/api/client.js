@@ -160,10 +160,9 @@ export const rf = {
   updateReference: (id, patch) =>
     client.put(`/references/${id}`, patch).then((r) => r.data),
 
-  summary: (expedienteId = null) =>
-    client
-      .get('/rf/summary', { params: { expediente_id: expedienteId } })
-      .then((r) => r.data),
+  // El filtro `expediente_id` del backend queda sólo para clientes
+  // históricos: la pantalla de Situación resume todo el dominio RF.
+  summary: () => client.get('/rf/summary').then((r) => r.data),
 }
 
 /**
@@ -276,21 +275,12 @@ export const correlation = {
     client.get(`/correlation/aircraft/${icao24}`, { params }).then((r) => r.data),
 }
 
-// ─── Expedientes (legacy SIARI, preserved) ──────────────────────────────────
-
-export const expedientes = {
-  list: (params = {}) => client.get('/expedientes/', { params }).then((r) => r.data),
-  get: (id) => client.get(`/expedientes/${id}`).then((r) => r.data),
-  create: (payload) => client.post('/expedientes/', payload).then((r) => r.data),
-  update: (id, patch) => client.put(`/expedientes/${id}`, patch).then((r) => r.data),
-  remove: (id) => client.delete(`/expedientes/${id}`).then((r) => r.data),
-  mediciones: (id) => client.get(`/expedientes/${id}/mediciones`).then((r) => r.data),
-  eventos: (id) => client.get(`/expedientes/${id}/eventos`).then((r) => r.data),
-  // P0-11: guardaba un resultado de la calculadora. El GET de arriba ya
-  // existía; lo que faltaba era la escritura.
-  crearEvento: (id, payload) =>
-    client.post(`/expedientes/${id}/eventos`, payload).then((r) => r.data),
-}
+// ─── Expedientes ─────────────────────────────────────────────────────────────
+//
+// No hay cliente para Expedientes: AeroRF 2.6 lo retiró como dependencia
+// funcional (Bloque 1). Los endpoints `/expedientes/*` siguen existiendo en
+// el backend como legado para clientes históricos, y la calculadora guarda
+// sus corridas en `POST /rf/analisis`, con identidad propia.
 
 // ─── Export (spec §46) ──────────────────────────────────────────────────────
 

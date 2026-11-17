@@ -27,6 +27,9 @@ from app.models.evento_rf import EventoRF
 from app.models.expediente import Expediente
 from app.models.medicion import Medicion
 
+# ─── AeroRF 2.6 — historial propio de análisis RF ────────────────────────────
+from app.models.analisis_rf import AnalisisRF
+
 # ─── AeroRF GIS models ───────────────────────────────────────────────────────
 from app.models.flight import (
     AircraftPosition,
@@ -47,6 +50,8 @@ __all__ = [
     "Medicion",
     "RegistroEspectral",
     "EventoRF",
+    # AeroRF 2.6 — propio de la calculadora
+    "AnalisisRF",
     # GIS
     "MapObject",
     "Layer",

@@ -401,64 +401,96 @@
                 <p class="text-sm text-texto">{{ explicacion(selectedResult) }}</p>
               </div>
             </div>
-
-            <!-- P0-11: la calculadora es una ruta suelta (`/calculadora`), no
-                 recibe id y en la app no hay «expediente activo», así que el
-                 destino se elige acá. Sin esto el botón no sabía adónde guardar,
-                 que era justamente lo que lo hacía mentir. -->
-            <div class="mb-4">
-              <label for="expediente-destino" class="block text-sm text-texto-tenue mb-1">
-                Expediente de destino
-              </label>
-              <select
-                id="expediente-destino"
-                v-model="expedienteId"
-                class="w-full px-3 py-2 bg-panel-hondo border border-borde-fuerte rounded text-texto focus:outline-none focus:border-sky-600"
-              >
-                <option :value="null" disabled>Seleccioná un expediente…</option>
-                <option v-for="e in expedientes" :key="e.id" :value="e.id">
-                  {{ e.numero_expediente }}{{ e.aeropuerto ? ' — ' + e.aeropuerto : '' }}
-                </option>
-              </select>
-              <p v-if="expedientesStore.loading" class="text-xs text-texto-tenue mt-1">
-                Cargando expedientes…
-              </p>
-              <!-- Distinguir «no pude cargar» de «no hay ninguno»: decir
-                   «todavía no hay expedientes» cuando en realidad falló la
-                   carga sería repetir el defecto que arregla este commit. -->
-              <p v-else-if="expedientesStore.error" class="text-xs text-red-400 mt-1">
-                No se pudieron cargar los expedientes. Revisá que el backend esté
-                levantado.
-              </p>
-              <p v-else-if="expedientes.length === 0" class="text-xs text-texto-tenue mt-1">
-                No hay expedientes creados todavía. Creá uno desde Expedientes y volvé
-                a esta pantalla.
-              </p>
-              <p v-else-if="expedientes.length >= 100" class="text-xs text-texto-tenue mt-1">
-                Se muestran los primeros 100 expedientes.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-panel-alto disabled:text-texto-tenue disabled:cursor-not-allowed rounded-lg font-semibold transition-colors text-white"
-              :disabled="!puedeGuardar"
-              @click="storeResult"
-            >
-              {{ guardando ? 'Guardando…' : '💾 Guardar en Expediente' }}
-            </button>
-
-            <!-- El aviso vive en la página: reemplaza al diálogo nativo que
-                 decía «guardado» sin guardar nada. -->
-            <p
-              v-if="aviso.texto"
-              role="status"
-              class="mt-3 text-sm"
-              :class="aviso.tipo === 'ok' ? 'text-green-400' : 'text-red-400'"
-            >
-              {{ aviso.texto }}
-            </p>
           </div>
+
+        </div>
+
+        <!-- ══════════ Historial propio de análisis (AeroRF 2.6) ══════════
+             La calculadora ya no guarda en Expedientes: la corrida que el
+             operador decide conservar vive en `POST /rf/analisis`, con
+             identidad propia, y se puede volver a consultar desde acá.
+             Vive fuera de las pestañas: guardar y consultar es de los dos
+             modos, no de uno. -->
+        <div class="bg-panel border border-borde rounded-2xl p-6" data-historial>
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 class="text-lg font-semibold text-texto">🗂 Historial de análisis</h3>
+            <div class="calc-acciones">
+              <button
+                type="button"
+                class="calc-accion"
+                data-guardar-analisis
+                :disabled="!rfStore.lastResponse || guardando"
+                @click="guardarAnalisis"
+              >
+                {{ guardando ? 'Guardando…' : '💾 Guardar análisis actual' }}
+              </button>
+              <button
+                type="button"
+                class="calc-accion"
+                :disabled="historialCargando"
+                @click="recargarHistorial"
+              >
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          <p
+            v-if="historialMsg.texto"
+            role="status"
+            class="text-sm mb-3"
+            :class="historialMsg.tipo === 'error' ? 'text-red-400' : 'text-emerald-300'"
+          >
+            {{ historialMsg.texto }}
+          </p>
+
+          <p v-if="historialCargando" class="text-texto-tenue text-sm py-4 text-center">
+            Cargando historial…
+          </p>
+          <p v-else-if="historialError" role="alert" class="text-orange-400 text-sm py-4 text-center">
+            {{ historialError }}
+          </p>
+          <div
+            v-else-if="rfStore.historial.length === 0"
+            class="text-texto-tenue text-sm text-center py-4"
+          >
+            Todavía no guardaste ningún análisis. «Guardar análisis actual» conserva la corrida
+            con sus parámetros y sus resultados, sin necesidad de ningún expediente.
+          </div>
+          <ul v-else class="space-y-2">
+            <li
+              v-for="a in rfStore.historial"
+              :key="a.id"
+              class="p-3 bg-panel-hondo border border-borde rounded-lg flex flex-wrap items-center justify-between gap-2"
+            >
+              <div class="min-w-0">
+                <div class="text-sm text-texto">
+                  #{{ a.id }} · {{ fechaCorta(a.created_at) }} ·
+                  {{ a.modo === 'armonicos' ? 'Armónicos' : 'Intermodulación' }}
+                </div>
+                <div class="text-xs text-texto-tenue font-mono">
+                  Ref {{ fmtMhz(a.frecuencia_referencia_mhz) }} MHz ·
+                  ±{{ fmtKhz(a.tolerancia_khz) }} kHz ·
+                  {{ a.n_emisoras }} {{ a.n_emisoras === 1 ? 'emisora' : 'emisoras' }} ·
+                  {{ a.n_productos }} {{ a.n_productos === 1 ? 'producto' : 'productos' }}
+                  <template v-if="a.objeto_id"> · objeto GIS #{{ a.objeto_id }}</template>
+                </div>
+              </div>
+              <div class="calc-acciones">
+                <button type="button" class="calc-accion" @click="cargarAnalisis(a)">
+                  Ver resultados
+                </button>
+                <button
+                  type="button"
+                  class="calc-accion"
+                  :disabled="borrandoId === a.id"
+                  @click="eliminarAnalisis(a)"
+                >
+                  {{ borrandoId === a.id ? 'Eliminando…' : 'Eliminar' }}
+                </button>
+              </div>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
@@ -468,13 +500,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRFStore } from '../stores/rf'
-import { useExpedientesStore } from '../stores/expedientes'
-import { expedientes as apiExpedientes } from '../api/client'
+import { useSystemStore } from '../stores/system'
 import FrequencyInput from '../components/FrequencyInput.vue'
 import { parseEmisorasCsv, buildCsv, buildJson, downloadText, nombreDeArchivo } from '../lib/rfFiles'
 
 const rfStore = useRFStore()
-const expedientesStore = useExpedientesStore()
+const systemStore = useSystemStore()
 
 // ── Estado de la vista ────────────────────────────────────────────────────────
 const modo = ref('a') // 'a' = armónicos (por defecto), 'b' = intermodulación
@@ -507,19 +538,19 @@ const form = ref({
   ],
 })
 
-// P0-11: el destino del guardado, y el aviso que reemplaza al diálogo nativo.
-const expedienteId = ref(null)
+// Guardado en el historial propio de análisis (AeroRF 2.6): `guardando`
+// acompaña al botón de guardar, `historialMsg` cuenta qué pasó y
+// `borrandoId` evita dobles clics sobre «Eliminar».
 const guardando = ref(false)
-const aviso = ref({ tipo: null, texto: '' })
+const borrandoId = ref(null)
+const historialMsg = ref({ tipo: null, texto: '' })
 
 // Importación CSV de emisoras.
 const csvInput = ref(null)
 const csvMsg = ref(null)
 
-const expedientes = computed(() => expedientesStore.expedientes)
-const puedeGuardar = computed(
-  () => !!selectedResult.value && !!expedienteId.value && !guardando.value
-)
+const historialCargando = computed(() => rfStore.historialLoading)
+const historialError = computed(() => rfStore.historialError)
 const calculando = computed(() => rfStore.loading || cargandoArmonicas.value)
 
 /**
@@ -723,7 +754,6 @@ const calcularMotor = async () => {
         })),
     })
     selectedResult.value = filasMotor.value[0] || null
-    aviso.value = { tipo: null, texto: '' }
   } catch (err) {
     // El backend no calculó: se dice como error, en español, sin alarmas.
     errorCalculo.value =
@@ -877,103 +907,144 @@ const limpiarCalculo = () => {
   rfStore.clearCalculation()
   selectedResult.value = null
   errorCalculo.value = null
-  aviso.value = { tipo: null, texto: '' }
   accionMsg.value = { tipo: 'ok', texto: 'Cálculo limpiado.' }
 }
 
 const selectResult = (result) => {
   selectedResult.value = result
-  // El aviso habla de un resultado concreto: al cambiar de uno deja de ser
-  // cierto, así que no queda colgado diciendo «guardado».
-  aviso.value = { tipo: null, texto: '' }
 }
 
+// ── Historial propio de análisis (AeroRF 2.6) ───────────────────────────────
 /**
- * Guarda el resultado seleccionado en el expediente elegido.
+ * Guarda la corrida actual en `POST /rf/analisis`.
  *
- * Este era P0-11: la función no guardaba nada y respondía con un diálogo
- * nativo que daba por hecho el guardado. El texto literal de entonces está
- * en `AERORF_CHANGELOG.md`; acá no se repite a propósito, porque
- * `tests/p011-guardar.spec.js` comprueba que no vuelva a aparecer.
- *
- * Ahora se manda de verdad a `POST /expedientes/{id}/eventos`, que escribe en
- * `eventos_rf`, la tabla que ya leía `GET /expedientes/{id}/eventos`. Los
- * nombres de campo del cuerpo son los de ese modelo, y los del cálculo son los
- * de `RFMatch` (`result_mhz`, `tipo`, `error_khz`, `score`,
- * `frequencies_involved`), medidos en vivo contra `/rf/calculate` antes de
- * escribir esto. `score` viaja como `score_probabilidad` porque así se llama
- * la columna histórica; en la pantalla no se muestra como probabilidad.
+ * Reemplaza al guardado de entonces (el destino era un expediente elegido
+ * con un selector): el análisis tiene identidad propia — los parámetros que
+ * se mandaron al motor y la respuesta que devolvió — y no depende de ningún
+ * expediente. Lo que se persiste no es un resumen escrito a mano: es
+ * exactamente `lastRequest` y `lastResponse`, los mismos objetos que ya
+ * alimentan las exportaciones CSV/JSON. El `alert` mentiroso del P0-11 sigue
+ * fuera: si el backend no guarda, el aviso lo dice como error.
  */
-const storeResult = async () => {
-  aviso.value = { tipo: null, texto: '' }
+const guardarAnalisis = async () => {
+  historialMsg.value = { tipo: null, texto: '' }
 
-  if (!expedienteId.value) {
-    aviso.value = {
+  if (!rfStore.lastRequest || !rfStore.lastResponse) {
+    historialMsg.value = {
       tipo: 'error',
-      texto: 'Elegí a qué expediente guardarlo.',
-    }
-    return
-  }
-  if (!selectedResult.value) {
-    aviso.value = {
-      tipo: 'error',
-      texto: 'No hay ningún resultado seleccionado para guardar.',
+      texto: 'No hay ningún cálculo para guardar. Ejecutá un cálculo primero.',
     }
     return
   }
 
-  const r = selectedResult.value
   guardando.value = true
   try {
-    const guardado = await apiExpedientes.crearEvento(expedienteId.value, {
-      expediente_id: expedienteId.value,
-      frecuencia_resultado_mhz: r.result_mhz ?? r.resultado,
-      tipo_producto: r.tipo,
-      formula: r.formula,
-      error_khz: r.error_khz ?? 0,
-      score_probabilidad: r.score,
-      freq_1_mhz: r.frequencies_involved?.[0] ?? null,
-      freq_2_mhz: r.frequencies_involved?.[1] ?? null,
-    })
-    const destino = expedientes.value.find((e) => e.id === expedienteId.value)
-    aviso.value = {
+    const modoAnalisis = modo.value === 'a' ? 'armonicos' : 'intermodulacion'
+    const creado = await rfStore.guardarAnalisis(modoAnalisis)
+    historialMsg.value = {
       tipo: 'ok',
-      texto: `Guardado en el expediente ${
-        destino?.numero_expediente ?? expedienteId.value
-      } (evento ${guardado.id}).`,
+      texto: `Análisis n.º ${creado.id} guardado: ${creado.n_productos} ${
+        creado.n_productos === 1 ? 'producto' : 'productos'
+      } contra ${fmtMhz(creado.frecuencia_referencia_mhz)} MHz.`,
     }
   } catch (err) {
-    aviso.value = { tipo: 'error', texto: mensajeDeError(err) }
+    historialMsg.value = {
+      tipo: 'error',
+      texto: err?.message || 'No se pudo guardar el análisis.',
+    }
   } finally {
     guardando.value = false
   }
 }
 
+/** Refresca la lista desde el backend; el estado queda en el store. */
+const recargarHistorial = () => rfStore.cargarHistorial()
+
 /**
- * Traduce el error a un mensaje que se pueda leer. Los `detail` que salen de
- * nuestros propios endpoints ya vienen en español (404 y 400 del nuevo POST);
- * los 422 de validación los arma FastAPI en inglés, así que esos se reemplazan
- * en vez de mandarlos tal cual al operador.
+ * Carga un análisis guardado en la pantalla: los parámetros vuelven al
+ * formulario y los resultados del motor vuelven a la tabla, así «Ver
+ * resultados» muestra lo que se guardó, no un cálculo nuevo.
  */
-const mensajeDeError = (err) => {
-  const detalle = err?.response?.data?.detail
-  if (typeof detalle === 'string' && detalle.trim()) return detalle
-  if (Array.isArray(detalle)) {
-    return 'El resultado no tiene los datos que hace falta para guardarlo.'
+const cargarAnalisis = async (a) => {
+  historialMsg.value = { tipo: null, texto: '' }
+  try {
+    rfStore.loadRun(a.parametros, a.resultados)
+    form.value.target_mhz = a.parametros.target_mhz
+    form.value.tolerance_khz = a.parametros.tolerance_khz
+    form.value.frequencies = (a.parametros.frequencies || []).map((f) => ({
+      freq_mhz: f.freq_mhz,
+      signal_type: f.signal_type || 'FM',
+      label: f.label || `${f.freq_mhz} MHz`,
+      power_dbm: f.power_dbm ?? null,
+      observaciones: '',
+    }))
+    modo.value = a.modo === 'armonicos' ? 'a' : 'b'
+    selectedResult.value = filasMotor.value[0] || null
+    errorCalculo.value = null
+    // La pestaña Armónicas se deriva de las emisoras del formulario:
+    // se vuelven a pedir las armónicas de la corrida cargada.
+    await calcularArmonicas()
+    historialMsg.value = {
+      tipo: 'ok',
+      texto: `Análisis n.º ${a.id} cargado en la tabla.`,
+    }
+  } catch {
+    historialMsg.value = {
+      tipo: 'error',
+      texto: 'No se pudo cargar el análisis guardado.',
+    }
   }
-  if (err?.message === 'Network Error') {
-    return 'No se pudo hablar con el backend. ¿Está levantado?'
+}
+
+/**
+ * Borra un análisis propio. Antes de mandar nada se confirma: es la única
+ * escritura destructiva de esta pantalla, y acá se confirma en la aplicación
+ * (mismo diálogo que el resto de AeroRF), no con un `confirm()` nativo.
+ */
+const eliminarAnalisis = async (a) => {
+  const ok = await systemStore.ask({
+    title: 'Eliminar análisis',
+    message: `¿Eliminar el análisis n.º ${a.id} del ${fechaCorta(a.created_at)}? Esta acción no se puede deshacer.`,
+    confirmLabel: 'Eliminar',
+    danger: true,
+  })
+  if (!ok) return
+
+  borrandoId.value = a.id
+  historialMsg.value = { tipo: null, texto: '' }
+  try {
+    await rfStore.eliminarAnalisis(a.id)
+    historialMsg.value = { tipo: 'ok', texto: `Análisis n.º ${a.id} eliminado.` }
+  } catch (err) {
+    historialMsg.value = {
+      tipo: 'error',
+      texto: err?.message || 'No se pudo eliminar el análisis.',
+    }
+  } finally {
+    borrandoId.value = null
   }
-  return 'No se pudo guardar el resultado.'
+}
+
+/** Fecha corta para las filas del historial; sin fecha legible, «—». */
+const fechaCorta = (iso) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 onMounted(() => {
-  // `limit: 100` porque el endpoint corta en 10 por defecto.
-  expedientesStore.fetchExpedientes({ limit: 100 })
   // Arranca con los dos modos listos: la pestaña por defecto es Armónicos,
-  // pero el motor se corre también para que el detalle y el guardado del
-  // modo Intermodulación no dependan de un clic previo.
+  // pero el motor se corre también para que el detalle del modo
+  // Intermodulación no dependa de un clic previo.
   calcular()
+  // El historial propio es parte de la pantalla desde AeroRF 2.6.
+  recargarHistorial()
 })
 </script>
 

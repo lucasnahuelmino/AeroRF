@@ -246,17 +246,17 @@
                 {{ provenanceLabel(object.provenance) }}
               </dd>
             </div>
-            <div class="flex justify-between gap-2">
+            <!-- Atributo histórico (spec 3.2): sólo aparece si el objeto viejo
+                 trae valor. La asociación como operación desapareció con
+                 Expedientes en AeroRF 2.6: un objeto nuevo no tiene, ni
+                 necesita, expediente. -->
+            <div
+              v-if="object.expediente_id || object.properties?.expediente"
+              class="flex justify-between gap-2"
+            >
               <dt class="text-texto-tenue">Expediente</dt>
-              <dd class="text-texto-medio">
-                {{ object.properties?.expediente || '—' }}
-                <button
-                  v-if="!object.expediente_id"
-                  class="ml-1 underline hover:text-blue-400"
-                  @click="linkExpediente"
-                >
-                  asociar
-                </button>
+              <dd class="text-right text-texto-medio">
+                {{ object.properties?.expediente || `#${object.expediente_id}` }}
               </dd>
             </div>
             <div class="flex justify-between gap-2">
@@ -562,7 +562,6 @@ import { describeError, mapObjects, updateTyped } from '@/api/client'
 import { useMapStore, typeName } from '@/stores/map'
 import { useSystemStore } from '@/stores/system'
 import { useFlightsStore } from '@/stores/flights'
-import { useExpedientesStore } from '@/stores/expedientes'
 import { formatDistance } from '@/map/geo'
 import PointMarkerPicker from './PointMarkerPicker.vue'
 
@@ -573,7 +572,6 @@ const props = defineProps({
 const mapStore = useMapStore()
 const systemStore = useSystemStore()
 const flightsStore = useFlightsStore()
-const expedientesStore = useExpedientesStore()
 
 const object = computed(() => {
   if (props.context === undefined) return mapStore.selected
@@ -1057,20 +1055,6 @@ function formatCoordinate(value) {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
     ? Number(value).toFixed(6)
     : '—'
-}
-
-async function linkExpediente() {
-  if (!expedientesStore.expedientes.length) {
-    await expedientesStore.fetchExpedientes()
-  }
-  const list = expedientesStore.expedientes
-  if (!list.length) {
-    mapStore.notice = 'Cree primero un expediente en el panel Expediente.'
-    return
-  }
-  const first = list[0]
-  await mapStore.updateObject(object.value.id, { expediente_id: first.id })
-  mapStore.notice = `Asociado a ${first.numero_expediente}`
 }
 
 async function remove() {

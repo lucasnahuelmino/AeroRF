@@ -115,21 +115,6 @@ onBeforeUnmount(() => {
   color: var(--texto-tenue);
 }
 
-/* Una tarjeta de sección, usada por las vistas de gestión (expedientes). */
-.card {
-  border-radius: 0.625rem;
-  border: 1px solid var(--panel-alto);
-  background: var(--fondo);
-  padding: 0.875rem 1rem;
-}
-.card-title {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--texto-invisible);
-  margin-bottom: 0.5rem;
-}
-
 /* The old stylesheet styled `button` globally with a blue background and
    8px/12px padding, which turned every control in the interface into an
    oversized blue rectangle. Tailwind's preflight resets that; these two rules

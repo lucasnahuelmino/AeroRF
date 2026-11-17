@@ -15,7 +15,9 @@ What is registered here
 * **Legacy SIARI, untouched** — the RF calculation engine and the
   expediente CRUD that were already working: ``rf``, ``rf_expediente``,
   ``expedientes``. Their routes keep the ``/api/v1`` prefix so existing
-  clients and the existing frontend views continue to work.
+  clients and the existing frontend views continue to work. Nothing new
+  depends on ``expedientes``: since AeroRF 2.6 the calculator persists its
+  runs in ``rf_analisis`` (``analisis_rf``), which has its own identity.
 * **AeroRF GIS** — ``map`` (objects, layers, GeoJSON), ``rf_objects``
   (sources, antennas, events, references), ``flights`` (search, tracks,
   live, sessions, watchlist), ``correlation``, ``export``, ``system``, and
@@ -42,6 +44,9 @@ from app.database.database import init_db
 from app.api.routes.expedientes import router as expedientes_router
 from app.api.routes.rf import router as rf_router
 from app.api.routes.rf_expediente import router as rf_exp_router
+
+# ─── AeroRF 2.6 — historial propio de análisis de la calculadora ────────────
+from app.api.routes.rf_analisis import router as rf_analisis_router
 
 # ─── AeroRF GIS routers ─────────────────────────────────────────────────────
 from app.api.routes.correlation import router as correlation_router
@@ -138,6 +143,9 @@ app.include_router(rf_router, prefix=API)
 app.include_router(rf_exp_router, prefix=API)
 app.include_router(expedientes_router, prefix=API)
 
+# Historial propio de la calculadora (AeroRF 2.6): no depende de Expedientes.
+app.include_router(rf_analisis_router, prefix=API)
+
 # AeroRF GIS. `flights` replaces the previous demo-flight implementation:
 # the old /flights/search fabricated routes, and fabrication is exactly
 # what this platform must not do.
@@ -192,6 +200,7 @@ def root() -> dict:
             "websocket": "/ws/flights",
             # Legacy RF engine, preserved.
             "motor_rf": f"{API}/rf/calculate",
+            "analisis_calculadora": f"{API}/rf/analisis",
             "expedientes": f"{API}/expedientes/",
         },
     }

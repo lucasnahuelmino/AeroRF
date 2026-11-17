@@ -167,6 +167,7 @@ def init_db(create_all: bool = True, mantenimiento: bool = True) -> None:
         medicion,
         evento_rf,
         espectro,
+        analisis_rf,
     )
     from app.models.constants import DEFAULT_LAYERS
     from app.models.layer import Layer

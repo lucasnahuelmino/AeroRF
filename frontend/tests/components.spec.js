@@ -171,7 +171,6 @@ import PointMarkerPicker from '@/components/gis/PointMarkerPicker.vue'
 import LayerPanel from '@/components/gis/LayerPanel.vue'
 import Timeline from '@/components/gis/Timeline.vue'
 import ToolOptions from '@/components/gis/ToolOptions.vue'
-import ExpedientePanel from '@/components/gis/ExpedientePanel.vue'
 import GisShell from '@/views/GisShell.vue'
 
 import { useMapStore } from '@/stores/map'
@@ -180,7 +179,6 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { useFlightsStore } from '@/stores/flights'
-import { useExpedientesStore } from '@/stores/expedientes'
 
 import { MapEngine } from '@/map/MapEngine'
 import { ToolManager, TOOLS, TOOL_META } from '@/map/draw'
@@ -499,11 +497,62 @@ describe('Timeline', () => {
   })
 })
 
-describe('ExpedientePanel', () => {
-  it('mounts with no expedientes', async () => {
-    const w = mountComponent(ExpedientePanel)
+// AeroRF 2.6 · Bloque 1: el módulo Expedientes dejó de existir en la
+// interfaz (su panel y sus vistas se retiraron junto con la dependencia).
+// El inspector conserva el dato histórico que un objeto viejo traiga, pero
+// no ofrece ninguna operación de asociación: un objeto nuevo no tiene, ni
+// necesita, expediente.
+describe('InspectorPanel · Expedientes retirado (2.6)', () => {
+  const baseObject = (extra) => ({
+    type: 'point',
+    name: 'Punto de prueba',
+    status: 'Activo',
+    geometry_type: 'Point',
+    latlng: [-34.6, -58.4],
+    latlngs: [[-34.6, -58.4]],
+    latitude: -34.6,
+    longitude: -58.4,
+    visible: true,
+    locked: false,
+    layer: 'points',
+    provenance: 'user',
+    properties: { layer_name: 'Puntos' },
+    created_at: '2026-09-25T10:00:00',
+    updated_at: '2026-09-25T10:00:00',
+    ...extra,
+  })
+
+  it('no ofrece asociar objetos a expedientes', async () => {
+    const pinia = makePinia()
+    const map = useMapStore()
+    map.upsert(baseObject({ id: 71 }))
+    const w = mountComponent(InspectorPanel, { pinia })
+    map.select(71)
     await flushPromises()
-    expect(w.text()).toContain('Expedientes')
+
+    expect(w.text(), 'sigue visible el botón de asociación').not.toContain('asociar')
+    expect(w.text(), 'aparece la fila Expediente de un objeto sin dato histórico').not.toContain(
+      'Expediente'
+    )
+    w.unmount()
+  })
+
+  it('muestra el expediente histórico si el objeto lo trae, sin operación de asociación', async () => {
+    const pinia = makePinia()
+    const map = useMapStore()
+    map.upsert(
+      baseObject({
+        id: 72,
+        expediente_id: 3,
+        properties: { layer_name: 'Puntos', expediente: 'E-LEGACY' },
+      })
+    )
+    const w = mountComponent(InspectorPanel, { pinia })
+    map.select(72)
+    await flushPromises()
+
+    expect(w.text()).toContain('E-LEGACY')
+    expect(w.text(), 'sigue visible el botón de asociación').not.toContain('asociar')
     w.unmount()
   })
 })

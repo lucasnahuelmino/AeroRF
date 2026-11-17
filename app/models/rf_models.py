@@ -4,6 +4,7 @@ Covers all I/O contracts for the RF calculation API.
 """
 
 from __future__ import annotations
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
@@ -113,3 +114,58 @@ class HarmonicsResponse(BaseModel):
     """Response for single-frequency harmonic lookup."""
     base_freq_mhz: float
     harmonics: list[dict]   # [{order, freq_mhz, formula}]
+
+
+# ─── Historial propio de análisis (AeroRF 2.6, Bloque 1) ─────────────────────
+#
+# La calculadora ya no guarda en Expedientes: cada corrida que el operador
+# decide conservar se persiste en `analisis_rf` con su request y su response
+# completos. No se copian campos sueltos del cálculo (eso duplicaría el
+# almacenamiento del motor); `parametros` y `resultados` son los contratos que
+# ya existían para `POST /rf/calculate`, reutilizados tal cual.
+#
+# OJO al evolucionar estos dos modelos: se validan también al *leer* filas
+# guardadas, así que un campo nuevo tiene que ser opcional o las corridas
+# viejas dejarían de poder consultarse.
+
+class ModoAnalisis(str, Enum):
+    """Pestaña de la calculadora desde la que se guardó el análisis."""
+    ARMONICOS = "armonicos"
+    INTERMODULACION = "intermodulacion"
+
+
+class AnalisisRFCreate(BaseModel):
+    """Body for `POST /rf/analisis`: one saved calculator run."""
+
+    modo: ModoAnalisis = Field(
+        ..., description="Pestaña activa al guardar: 'armonicos' o 'intermodulacion'"
+    )
+    parametros: RFCalculationRequest = Field(
+        ..., description="Request tal como se envió a POST /rf/calculate"
+    )
+    resultados: RFCalculationResponse = Field(
+        ..., description="Response tal como lo devolvió el motor"
+    )
+    objeto_id: Optional[int] = Field(
+        None,
+        ge=1,
+        description=(
+            "Objeto GIS opcional al que asocia el análisis (fuente RF, "
+            "evento RF o antena). Nunca exigido."
+        ),
+    )
+
+
+class AnalisisRFResponse(BaseModel):
+    """A stored analysis, readable on its own (spec 3.3, «consultables»)."""
+
+    id: int
+    created_at: datetime
+    modo: ModoAnalisis
+    frecuencia_referencia_mhz: Optional[float] = None
+    tolerancia_khz: Optional[float] = None
+    n_emisoras: int = Field(..., description="Cantidad de emisoras del request")
+    n_productos: int = Field(..., description="Cantidad de productos en la respuesta")
+    objeto_id: Optional[int] = None
+    parametros: RFCalculationRequest
+    resultados: RFCalculationResponse

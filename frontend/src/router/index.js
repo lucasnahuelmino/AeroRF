@@ -38,9 +38,11 @@ const routes = [
     component: () => import('../views/SituationView.vue'),
     meta: { title: 'Centro de Situación' },
   },
-  // Expedientes queda archivado y fuera de la navegación activa: la ruta
-  // histórica se redirige al mapa para conservar el acceso a la aplicación
-  // sin exponer un módulo de trabajo ya sin estrategia de preservación.
+  // Expedientes quedó retirado como dependencia funcional (AeroRF 2.6,
+  // Bloque 1): su interfaz ya no existe y ninguna pantalla lo necesita. La
+  // ruta histórica sigue redirigiendo al mapa para no romper enlaces
+  // viejos, y los datos — así como el API legado `/expedientes/*` — siguen
+  // intactos en el backend.
   { path: '/expedientes', redirect: '/' },
   { path: '/expedientes/:id', redirect: '/' },
   // Espectro se dio de baja total (0.30.32): sin ruta propia, la dirección
