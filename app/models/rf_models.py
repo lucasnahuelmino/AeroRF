@@ -89,10 +89,16 @@ class RFMatch(BaseModel):
     tipo: IMOrder     = Field(..., description="Product type (H2, IM3, etc.)")
     order: int        = Field(..., description="Intermod/harmonic order (2, 3, 5, 7…)")
     error_khz: float  = Field(..., description="Absolute frequency error vs target in kHz")
-    score: int        = Field(..., ge=0, le=99, description="Probability score 0–99")
+    score: int = Field(
+        ..., ge=0, le=99,
+        description=(
+            "Métrica interna del motor (0–99). No es una probabilidad de "
+            "interferencia: AeroRF no afirma causalidad."
+        ),
+    )
     score_breakdown: dict[str, float] = Field(
         default_factory=dict,
-        description="Score component breakdown for transparency",
+        description="Desglose de la métrica interna, para transparencia.",
     )
     frequencies_involved: list[float] = Field(
         default_factory=list,

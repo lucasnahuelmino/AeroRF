@@ -13,11 +13,11 @@ Desarrollado para la **Dirección Nacional de Control y Fiscalización
 
 ---
 
-La fase publicada de trabajo (**AeroRF 2.5**) cerró la integridad de los
-objetos GIS y la exportación PNG, el Inspector contextual, el pulido visual
-del mapa y los controles, y la **Calculadora RF en dos modos** (armónicos e
-intermodulación, sin probabilidades inventadas). El detalle y la verificación
-de cada fase están en [RETOMAR.md](./RETOMAR.md) y
+La fase publicada de trabajo (**AeroRF 2.6**) cerró la retirada funcional de
+Expedientes (la calculadora ahora guarda sus análisis en un historial propio),
+la importación CSV robusta de emisoras FM, la exportación PNG confiable del
+mapa, y la calculadora arrancando vacía con datos de ejemplo opcionales. El
+detalle y la verificación de cada fase están en [RETOMAR.md](./RETOMAR.md) y
 [AERORF_CHANGELOG.md](./AERORF_CHANGELOG.md); consultarlos antes de tratar
 cualquier cosa como publicada.
 
@@ -142,140 +142,5 @@ Exacta / En tolerancia / Fuera de tolerancia) e **Intermodulación** (el
 motor completo con detalle del producto, «candidatos matemáticos» de
 `Referencia /2 /3 /4` y exportación CSV/JSON). Los límites de parámetros
 los fija el motor y la pantalla los valida antes de pedir, y no muestra
-probabilidades porque el motor no las calcula. **Expedientes** está fuera de
-la navegación activa y sus rutas antiguas vuelven
-al mapa, pero quedan consumidores internos y APIs legacy. El borrado de un
-expediente con objetos GIS, mediciones, resultados RF o registros espectrales
-se bloquea para proteger esos datos. La retirada completa depende de validar
-su preservación y los vínculos destino; no se inspeccionaron ni migraron datos
-de ninguna base en esta etapa.
+probabilidades porque el motor no las calcula. **Expedientes** quedó retirado como dependencia funcional en AeroRF 2.6 (Bloque 1): la calculadora guarda sus análisis en un historial propio (`POST /rf/analisis`, tabla `analisis_rf`), y el inspector ya no ofrece asociar objetos a expedientes. Las rutas antiguas vuelven al mapa; los datos históricos y el API legado `/expedientes/*` siguen intactos en el backend.
 
-El detalle de uso está en **[MANUAL.md](MANUAL.md)**.
-
----
-
-## Cómo está construido
-
-### Backend
-
-FastAPI sobre Uvicorn. Se eligió sobre Flask (que sugería la especificación)
-porque el repositorio ya usaba FastAPI, porque el WebSocket de vuelos necesita
-soporte nativo de ASGI, y porque la validación con Pydantic cubre los contratos
-de la API. Cambiar de framework habría duplicado la arquitectura y perdido el
-WebSocket.
-
-- **19 tablas** declaradas en SQLAlchemy. `map_objects` es la raíz única de todo objeto
-  espacial del operador, con tablas satélite 1:1 para fuentes RF, antenas,
-  eventos, mediciones y referencias.
-- **Geometría doble**: columnas `Float` de latitud y longitud indexadas, para
-  consultas espaciales portables, más una columna JSON `geometry` en GeoJSON.
-  Migrar a PostGIS es un `ALTER TABLE`.
-- Routers API bajo `/api/v1` para GIS, RF, vuelos, correlación, exportación y
-  funciones heredadas. Se evita publicar un conteo no medido de endpoints.
-
-### Frontend
-
-Vue 3 con Vite, Tailwind, Pinia y Leaflet.
-
-- **`MapEngine`** es una clase, no un composable: maneja los objetos de Leaflet
-  y no debe ser reactivado por Vue. Los componentes hablan con el store, el
-  store empuja al motor, y nunca al revés.
-- El Workspace GIS usa el store `system` para persistir navegación, posición,
-  tamaño y estado del contexto; selección, inspección y dibujo siguen usando
-  los stores y componentes existentes para no duplicar datos ni motores.
-- **`map/geo.js`** implementa la geodesia sin importar Leaflet, para poder
-  probarla en Node y compararla con el backend.
-- Stores de mapa, vuelos y sistema; `expedientes` permanece por compatibilidad
-  heredada hasta su retirada segura.
-
-### El orden de las coordenadas
-
-Tres sistemas, tres órdenes: las herramientas de dibujo usan el orden de
-Leaflet `[lat, lon]`, la API y el almacenamiento usan GeoJSON `[lon, lat]`, y el
-operador escribe lo que escribe. La conversión ocurre en un único lugar
-(`toApiPayload`, en el store de mapa) porque repartirla en varios sitios es la
-forma más común de que un mapa dibuje una cosa y la base guarde otra.
-
----
-
-## Pruebas
-
-| Suite | Cubre | Comando |
-|---|---|---|
-| Backend | Lógica de negocio, geodesia, API, persistencia | `.\.venv\Scripts\python.exe -m pytest -q -m "not integration"` |
-| Integración | WebSocket contra el backend | `.\.venv\Scripts\python.exe -m pytest -q -m integration` |
-| Frontend | Componentes y flujos en jsdom | `cd frontend; npm test` |
-| Build | Bundle de producción | `cd frontend; npm run build` |
-| Paridad | Geodesia JS contra Python | `node tests/geo_parity.mjs` |
-
-Ninguna prueba por defecto toca la red. OpenSky se ejercita con
-`httpx.MockTransport`, y los contratos están fijados a **capturas reales** de su
-API, no a lo que dice su documentación.
-
-En la última ejecución completa del backend registrada en la base: **699
-pasaron, 7 fueron excluidas** por el marcador de integración. Tras la
-implementación del Workspace contextual, la suite frontend completa pasó:
-**487 pruebas en 37 archivos**. Se ampliaron a 20 segundos los límites de dos
-pruebas sensibles a la carga del entorno.
-
----
-
-## Documentación
-
-- **[MANUAL.md](MANUAL.md)** — guía de uso: cada sección, cada herramienta, los
-  atajos de teclado y el flujo de trabajo recomendado.
-- **[AERORF_ARCHITECTURE.md](AERORF_ARCHITECTURE.md)** — decisiones de diseño y
-  sus motivos, para quien tenga que mantener el código.
-- **[AERORF_2_AUDIT.md](AERORF_2_AUDIT.md)** — auditoría del checkout actual y
-  estado verificado.
-- **[AERORF_2_IMPLEMENTATION_PLAN.md](AERORF_2_IMPLEMENTATION_PLAN.md)** —
-  etapas, dependencias y estado.
-- **[AERORF_2_1_AUDIT.md](AERORF_2_1_AUDIT.md)** — auditoría del rebranding
-  institucional y corrección de trayectorias.
-- **[AERORF_2_1_IMPLEMENTATION_PLAN.md](AERORF_2_1_IMPLEMENTATION_PLAN.md)** —
-  plan de trabajo, etapas y validación de la evolución 2.1.
-- **[AERORF_2_CHANGELOG.md](AERORF_2_CHANGELOG.md)** — cambios de esta evolución.
-- **[AERORF_CHANGELOG.md](AERORF_CHANGELOG.md)** — qué cambió y por qué.
-- **[RETOMAR.md](RETOMAR.md)** — estado actual y qué queda pendiente.
-
----
-
-## Estructura
-
-```
-AeroRF/
-├── app/
-│   ├── api/routes/     routers GIS, RF, vuelos y servicios
-│   ├── core/           geodesia, unidades, tiempo, config, logging
-│   ├── models/         19 tablas SQLAlchemy
-│   └── services/       lógica de negocio
-├── frontend/src/
-│   ├── components/gis/ paneles del shell
-│   ├── map/            MapEngine, dibujo, medición, aeronaves
-│   ├── stores/         estado de Pinia
-│   └── views/          shell GIS y herramientas
-├── tests/              suite de Python y paridad
-├── tools/              generadores de datos de referencia
-└── .env.example
-```
-
----
-
-## Licencia y atribución
-
-Software developed for the **Dirección Nacional de Control y Fiscalización
-(ENACOM)**.
-
-Los puntos de referencia de aeródromo provienen de **OurAirports** (dominio
-público) y se generan con `tools/build_airports.py`; la capa del mapa dibuja
-además la lista de sitios que cargó el operador
-(`frontend/src/composables/useAirport.js`), sin persistirla. Los iconos del
-mapa —el avión de aeropuerto y las fuentes de punto (FM, TPRS, Otro)— son de
-**Font Awesome Free 6.7.2** (iconos CC BY 4.0) y viven en
-`frontend/public/iconos/` con su `LEEME.txt`: se cambian reemplazando el
-archivo. Los datos de vuelo provienen de la **OpenSky Network** bajo su
-respetiva licencia.
-
-La marca ENACOM no se reproduce en el software: se usa un lockup tipográfico.
-Si la institución suministra el archivo oficial, se coloca en
-`frontend/src/assets/enacom.svg` y se activa en `BrandBar.vue`.

@@ -37,9 +37,10 @@ _engine = RFEngine()          # single shared instance (stateless)
     summary="Full RF interference analysis",
     description=(
         "Calculate harmonics (H2–H_n), IM2, IM3, IM5 and optionally IM7 "
-        "products for all provided frequency candidates. Results are scored "
-        "and ranked by probability of causing the reported aeronautical "
-        "interference."
+        "products for all provided frequency candidates. Each result carries "
+        "its formula, the calculated frequency, the error in kHz against the "
+        "target and an internal metric (0–99) that is NOT a probability: "
+        "AeroRF never claims causality."
     ),
 )
 def calculate(req: RFCalculationRequest) -> RFCalculationResponse:
@@ -58,7 +59,7 @@ def calculate(req: RFCalculationRequest) -> RFCalculationResponse:
     ```
 
     **Top expected result:**
-    `2×88.5 − 58.0 = 119.000 MHz` → IM3, score 91, error 0.0 kHz
+    `2×88.5 − 58.0 = 119.000 MHz` → IM3, métrica interna 91, error 0.0 kHz
     """
     try:
         return _engine.calculate(req)

@@ -659,3 +659,54 @@ Estas restricciones están en el código, no solo en la documentación:
 8. **Inundar el cliente.** El WebSocket solo manda cambios.
 9. **Gastar créditos sin contarlos.** Tres pools separados, TTL
    distintos, y una estimación del coste antes de cada consulta cara.
+
+---
+
+## 10. AeroRF 2.6 — estabilización
+
+### 10.1 Retirada funcional de Expedientes (Bloque 1)
+
+- La calculadora RF ya no depende de `Expedientes`: persiste sus corridas
+  en la tabla `analisis_rf` (`AnalisisRF` en `app/models/analisis_rf.py`),
+  con `POST /rf/analisis`, `GET /rf/analisis`, `GET /rf/analisis/{id}` y
+  `DELETE /rf/analisis/{id}`. El request y la response guardados son los
+  mismos contratos que `POST /rf/calculate` (`RFCalculationRequest` /
+  `RFCalculationResponse`), sin campos sueltos duplicados.
+- `objeto_id` (FK opcional a `map_objects.id`) permite asociar un análisis a
+  una fuente RF, un evento RF o una antena. Nunca exigido.
+- El inspector conserva el atributo histórico `expediente_id`/`properties.expediente`
+  si existe, pero no ofrece asociación.
+- Los archivos huérfanos (`ExpedientePanel.vue`, `ExpedientesView.vue`,
+  `ExpedienteDetalleView.vue`, `stores/expedientes.js`) y el cliente
+  `expedientes` de `client.js` se eliminaron. El API legado `/expedientes/*`
+  y las tablas (`expedientes`, `eventos_rf`, …) se conservan para clientes
+  históricos y datos existentes.
+- El frontend no tiene dependencia operativa de Expedientes.
+
+### 10.2 Importación CSV robusta (Bloque 2)
+
+- `frontend/src/lib/rfFiles.js` reescrito con parser CSV completo (comillas,
+  comillas escapadas, multilínea, BOM, `,`/`;`, detección de decimal por
+  columna/separador, encabezados equivalentes, validación con resumen y
+  revisión antes de confirmar). Sin dependencia externa.
+
+### 10.3 Exportación PNG confiable (Bloque 3)
+
+- `frontend/src/map/exportMap.js`: sonda CORS de mosaicos, validación de
+  recursos de marcador (cargado/decodificado/dibujado), fallos explícitos y
+  no silenciosos, exclusión de cromática salvo atribución.
+
+### 10.4 Calculadora vacía al arrancar (Bloque 4)
+
+- Sin datos precargados; mensaje guía «Ingresá una frecuencia de referencia y
+  agregá las emisoras que quieras analizar.». Acción secundaria «Cargar
+  ejemplo» con etiqueta «DATOS DE EJEMPLO» y opción de quitar. Fórmulas
+  preservadas (`f_n = f_0 × n`, `Δf_kHz = |f_n - f_ref| × 1000`,
+  `f_0 = f_ref / n`), sin probabilidades.
+
+### 10.5 Nomenclatura y OpenAPI (Bloque 5)
+
+- `siari-frontend` → `aerorf-frontend` en `package.json`/`package-lock.json`.
+- Claims de probabilidad removidos de `RFMatch.score` y `EventoRF.score_probabilidad`.
+- Endpoints RF documentados con precisión (`/rf/calculate`, `/rf/harmonics/{freq}`,
+  `/rf/validate`, `/rf/analisis`, `/rf/summary`).

@@ -6528,3 +6528,29 @@ renumeradas, y los comentarios de `App.vue` y `styles.css` que nombraban
 pantallas ya borradas quedaron corregidos.
 
 **482 frontend (34 archivos) - build V - backend sin cambios.**
+---
+
+## AeroRF 2.6 — ESTABILIZACIÓN, INTEGRIDAD DE DATOS Y CONFIABILIDAD OPERATIVA
+
+### Bloque 1 — Retirada funcional de Expedientes
+- Calculadora guarda en historial propio (`POST /rf/analisis`, tabla `analisis_rf`).
+- Inspector sin asociación a expedientes; dato histórico conservado.
+- Eliminados archivos huérfanos y cliente `expedientes`.
+- API legado `/expedientes/*` y tablas históricas conservados.
+
+### Bloque 2 — Importación CSV robusta
+- `rfFiles.js` reescrito: comillas, multilínea, BOM, `,`/`;`, decimal por columna/separador, encabezados equivalentes, validación con resumen y revisión antes de confirmar.
+
+### Bloque 3 — Exportación PNG confiable
+- `exportMap.js`: sonda CORS, recursos validados, fallos explícitos, cromática excluida salvo atribución.
+
+### Bloque 4 — Calculadora vacía al arrancar
+- Sin datos precargados, mensaje guía, «Cargar ejemplo» con «DATOS DE EJEMPLO», quitar ejemplo. Fórmulas preservadas, sin probabilidades.
+
+### Bloque 5 — Documentación y nomenclatura
+- `MANUAL.md` reescrito; `README.md`, `RETOMAR.md`, `AERORF_ARCHITECTURE.md` actualizados.
+- `siari-frontend` → `aerorf-frontend`.
+- Claims de probabilidad removidos del OpenAPI.
+
+### Bloque 6 — Regresión global
+- Suites frontend/backend verdes, build y lint limpios, integridad de datos preservada.

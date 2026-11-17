@@ -1,6 +1,6 @@
 # Punto de retorno — AeroRF
 
-**Estado actual:** AeroRF 2.5 en `main`, sincronizada con `origin/main`.
+**Estado actual:** AeroRF 2.6 en `main`, sincronizada con `origin/main`.
 Trabajo por fases con commit y push independientes: **Fase 1 publicada**
 (cierre técnico GIS + exportación PNG), **Fase 2 publicada** (Inspector y
 experiencia de objetos), **Fase 3 publicada** (pulido visual: exportación
@@ -1386,3 +1386,14 @@ una anotación (id 3).
 | `AERORF_ARCHITECTURE.md` | Decisiones de diseño |
 | `AERORF_CHANGELOG.md` | Cada cambio, con su motivo (0.16.0 → 0.30.11) |
 | `docs/archive/AERORF_AUDIT.md` | Por qué se quitó cada parte del SIARI |
+
+---
+
+## AeroRF 2.6 (Bloques 1–6)
+
+- **Bloque 1 — Expedientes retirado como dependencia funcional.** La calculadora guarda sus análisis en un historial propio (`POST /rf/analisis`, tabla `analisis_rf`, con `objeto_id` opcional). El inspector ya no ofrece asociar objetos a expedientes (el dato histórico se muestra si existe). Se eliminaron los archivos huérfanos (`ExpedientePanel.vue`, `ExpedientesView.vue`, `ExpedienteDetalleView.vue`, `stores/expedientes.js`) y el cliente `expedientes` de `client.js`. El API legado `/expedientes/*` y las tablas históricas se conservan.
+- **Bloque 2 — CSV robusto.** `rfFiles.js` reescrito: comillas, comillas escapadas, multilínea, BOM, separadores `,`/`;`, detección de decimal por columna y separador, encabezados equivalentes, validación con resumen (leídas/válidas/importadas/duplicadas/rechazadas + motivo) y revisión antes de confirmar.
+- **Bloque 3 — Exportación PNG confiable.** `exportMap.js`: sonda CORS de mosaicos, recursos de marcador validados (cargado/decodificado/dibujado), fallos explícitos y no silenciosos, cromática excluida salvo atribución.
+- **Bloque 4 — Calculadora vacía al arrancar.** Sin datos precargados, mensaje guía «Ingresá una frecuencia de referencia y agregá las emisoras que quieras analizar.», acción secundaria «Cargar ejemplo» con etiqueta «DATOS DE EJEMPLO» y opción de quitar. Fórmulas preservadas, sin probabilidades.
+- **Bloque 5 — Documentación y nomenclatura.** `MANUAL.md` reescrito, `README.md`/`RETOMAR.md`/`AERORF_ARCHITECTURE.md`/`AERORF_CHANGELOG.md` actualizados, `siari-frontend` → `aerorf-frontend`, claims de probabilidad removidos del OpenAPI.
+- **Bloque 6 — Regresión global.** Suites frontend/backend verdes, build y lint limpios, integridad de datos preservada.

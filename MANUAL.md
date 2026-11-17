@@ -1,7 +1,7 @@
 # Manual de uso — AeroRF
 
-Guía de las tres secciones y las diez herramientas del mapa. Para quien opera
-la herramienta, no para quien la mantiene.
+Guía de las dos secciones activas y las herramientas del mapa. Para quien
+opera la herramienta, no para quien la mantiene.
 
 > Para instalar y para el diseño interno, ver **[README.md](README.md)** y
 > **[AERORF_ARCHITECTURE.md](AERORF_ARCHITECTURE.md)**.
@@ -15,13 +15,14 @@ Dos cosas que conviene tener presentes al trabajar:
 **Todo dato declara de dónde viene.** Cada punto, cada tramo de trayectoria y
 cada valor guardado lleva su procedencia: *observado*, *histórico*, *en vivo*,
 *calculado* o *introducido por el usuario*. Cuando un dato no existe, AeroRF
-muestra «dato no disponible». No rellena, no estima, no completa. Es lo que hace
-que un expediente suyo sea defendible.
+muestra «dato no disponible». No rellena, no estima, no completa. Es lo que
+hace que un expediente suyo sea defendible.
 
 **La correlación no es causalidad.** La herramienta informa qué tan cerca está
 una fuente de interferencia de una aeronave. Que dos cosas estén cerca no
 significa que una moleste a la otra, y ningún informe de AeroRF sugiere lo
-contrario.
+contrario. Lo mismo vale para la calculadora: una coincidencia matemática no
+es evidencia de interferencia.
 
 ---
 
@@ -33,9 +34,13 @@ altura al mapa.
 | Elemento | Qué hace |
 |---|---|
 | Marca **AeroRF** | Vuelve al mapa, que es la pantalla principal. |
-| **Mapa · Expedientes · Calculadora RF** | Navegación. El elemento activo lleva un filo celeste. |
+| **Mapa · Calculadora RF** | Navegación. El elemento activo lleva un filo celeste. |
 | **Tres puntos** | Estado: backend, OpenSky, canal de vuelos en vivo. Verde = bien, ámbar = atención, gris = inactivo. Pasá el cursor sobre cada uno para el detalle. |
 | **ENACOM** | Lockup institucional: Dirección Nacional de Control y Fiscalización. |
+
+> **Expedientes** ya no es una sección de la aplicación: quedó retirado como
+> dependencia funcional en AeroRF 2.6. Los datos históricos y el API legado
+> (`/expedientes/*`) siguen intactos en el backend para clientes históricos.
 
 ---
 
@@ -53,13 +58,13 @@ La pantalla principal. Todo el trabajo geográfico ocurre acá.
 │  Capas        │                               │              │
 │  Vuelos       ├───────────────────────────────┤              │
 │  Aeropuertos  │  coordenadas · escala · hora   │              │
-│  Expediente   ├───────────────────────────────┤              │
+│               ├───────────────────────────────┤              │
 │               │  línea de tiempo (opcional)    │              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 Los dos paneles laterales se pliegan y se arrastran por su borde: el mapa toma
-todo el ancho que le dejen. Los anchos quedan recordado.
+todo el ancho que le dejen. Los anchos quedan recordados.
 
 ### Las cuatro pestañas del panel izquierdo
 
@@ -78,13 +83,15 @@ distancia desde un aeropuerto a cualquier punto del mapa. Los aeropuertos
 se dibujan con un avión: para cambiar el dibujo basta con reemplazar
 `frontend/public/iconos/aeropuerto.svg` (mismo nombre, ver `LEEME.txt`).
 
-**Expediente.** Vincular los objetos del mapa a un expediente en curso.
-
 ### El panel derecho: inspector
 
 Muestra el objeto seleccionado: propiedades, geometría, notas e historial. Es
 append-only: las notas se conservan para siempre y no se sobrescriben, y cada
 cambio de un campo queda registrado con su valor anterior.
+
+Si un objeto viejo trae un expediente asociado (dato histórico), el inspector
+lo muestra, pero ya no ofrece ninguna operación de asociación: un objeto nuevo
+no tiene, ni necesita, expediente.
 
 **Aquí es donde está toda la información de un objeto.** Al hacer clic en un
 objeto no aparece ninguna ventana sobre el mapa: el mapa queda despejado y los
@@ -148,46 +155,72 @@ lector entender la otra.
 
 ---
 
-## Sección 2 — Expedientes
+## Exportar el mapa a PNG
 
-Un expediente es un caso de investigación: un conjunto de objetos del mapa,
-notas, mediciones y Radio_events, con su historial.
+El botón de exportación genera una imagen PNG del área cartográfica visible.
 
-**Para crear uno:** botón «Nuevo» arriba a la derecha. Complete número,
-asunto y fechas.
-
-**Para vincular objetos:** vaya al mapa, seleccione un objeto, y en el panel
-derecho use «asociar a expediente». El objeto quedavinculado y aparece en la
-ficha del expediente.
-
-**Historial.** Cada cambio de un objeto queda registrado con su valor anterior
-y el nuevo. No se puede perder: es lo que sostiene una denuncia.
+- Se exporta el mapa base, los objetos dibujados y los marcadores, **incluida
+  la atribución** del mapa base.
+- Se excluye la cromática de la interfaz (controles de zoom y paneles).
+- Si el servidor de mosaicos bloquea la composición por CORS, o algún recurso
+  de marcador no se cargó o no se pudo dibujar, la exportación **falla con un
+  mensaje explícito** y no se descarga un PNG incompleto.
 
 ---
 
-## Sección 3 — Calculadora RF
+## Sección 2 — Calculadora RF
 
 Motor de cálculo de frecuencias, sin mapa. Para el trabajo de gabinete.
 
+La calculadora **arranca vacía**: sin frecuencia de referencia y sin emisoras,
+con el mensaje «Ingresá una frecuencia de referencia y agregá las emisoras que
+quieras analizar.». No hay datos precargados; los datos de ejemplo se cargan
+con el botón secundario **Cargar ejemplo**, que marca la pantalla con la
+etiqueta **DATOS DE EJEMPLO** y se puede quitar con **Quitar ejemplo**.
+
 - **Armónicos:** hasta qué frecuencia llega un equipo, y a qué nivel.
+  Fórmulas: `f_n = f_0 × n`, `Δf_kHz = |f_n - f_ref| × 1000`,
+  `f_0 = f_ref / n`.
 - **Intermodulación:** qué combinaciones de dos frecuencias generan una tercera
   no deseable, y cuál de ellas cae dentro de una banda aeronáutica.
 - **Bandas aeronáuticas:** referencia de las bandas de vuelo.
 
-### Guardar un resultado en un expediente
+Los resultados se expresan como diferencias en kHz y estados (Exacta / En
+tolerancia / Fuera de tolerancia). No hay probabilidades: AeroRF no afirma
+causalidad.
 
-1. Haga el cálculo y seleccione el resultado que le interesa.
-2. En **Análisis detallado**, elija el **expediente de destino** en el
-   desplegable. Si la lista está vacía, cree primero un expediente desde
-   **Expedientes**.
-3. Pulse **Guardar en Expediente**. El aviso de abajo confirma en qué
-   expediente quedó y con qué número de evento. Si algo falla, el aviso lo
-   dice en rojo y no se guardó nada.
+### Importar emisoras desde CSV
 
-Los resultados guardados aparecen en **Expedientes → detalle → Análisis RF →
-Guardados en este expediente**. Se guardan en la base, así que siguen ahí
-cuando vuelve a entrar, a diferencia de **Resultados del último cálculo**, que
-es lo que arrojó el cálculo de esta sesión y se pierde al salir.
+La importación acepta archivos CSV reales:
+
+- separadores `,` y `;`;
+- UTF-8 con BOM;
+- campos entrecomillados, comillas escapadas (`""`) y campos multilínea;
+- encabezados alternativos: `nombre`, `emisora`, `estación`, `frecuencia`,
+  `frecuencia_mhz`, `mhz`, `observaciones`, `localidad`, `provincia`,
+  `identificador` (y sus equivalentes en inglés);
+- decimales con punto o coma, según el separador de campos.
+
+Antes de importar se muestra un resumen (filas leídas, válidas, a importar,
+duplicadas, rechazadas) y los motivos de rechazo, con la opción de confirmar
+o cancelar. No se duplican emisoras sin aviso.
+
+### Guardar un análisis
+
+1. Haga el cálculo y, si quiere, seleccione el resultado que le interesa.
+2. Pulse **Guardar análisis actual** en el panel **Historial de análisis**.
+   El análisis se guarda con sus parámetros y sus resultados completos, con
+   identidad propia: **no depende de ningún expediente**.
+3. El aviso cuenta lo que devolvió el backend (número de análisis y cantidad
+   de productos). Si algo falla, lo dice en rojo y no se guardó nada.
+
+Los análisis guardados aparecen en el mismo panel, con fecha, modo, referencia,
+emisoras y productos. Con **Ver resultados** se restaura la corrida en la tabla
+sin recalcular; con **Eliminar** se borra (con confirmación). También se pueden
+exportar como CSV y JSON.
+
+La asociación opcional a un objeto GIS (fuente RF, evento RF o antena) se
+admite vía el API (`objeto_id` en `POST /rf/analisis`), cuando corresponda.
 
 ---
 
@@ -195,19 +228,20 @@ es lo que arrojó el cálculo de esta sesión y se pierde al salir.
 
 **Para una denuncia de interferencia:**
 
-1. **Ubicar.** Abra el mapa. active la capa **Aeropuertos** para tener el
-   contexto de qué estación estás cerca.
+1. **Ubicar.** Abra el mapa. Active la capa **Aeropuertos** para tener el
+   contexto de qué estación está cerca.
 2. **Medir.** Cree un círculo alrededor de la estación afectada, con el radio
    que sea pertinente. El radio queda en NM y km.
 3. **Documentar.** Cree el punto de la fuente, con sus características RF en
    el inspector.
-4. **Vincular.** Asocie cada objeto al expediente.
-5. **Registrar vuelos.** En **Vuelos**, busque el tráfico que atraviesa la
+4. **Registrar vuelos.** En **Vuelos**, busque el tráfico que atraviesa la
    zona y agregue hasta 5 aeronaves a la lista de seguimiento. Pulse
    **Trayectoria** para ver su ruta.
-6. **Cotejar.** La correlación espacial muestra qué fuentes están dentro del
+5. **Cotejar.** La correlación espacial muestra qué fuentes están dentro del
    radio. **Lea la advertencia:** proximidad no es causalidad.
-7. **Exportar.** Desde el expediente, exporte a GeoJSON, KML o CSV.
+6. **Calcular.** Use la **Calculadora RF** para armónicos e intermodulación;
+   guarde el análisis en el historial si lo necesita.
+7. **Exportar.** Exporte el mapa a PNG o los datos a GeoJSON, KML o CSV.
 
 **Para un estudio de protección:**
 

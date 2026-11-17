@@ -104,7 +104,9 @@ class EventoRFBase(BaseModel):
     tipo_producto: str
     formula: str
     error_khz: float
-    score_probabilidad: float
+    score_probabilidad: float = Field(
+        ..., description="Métrica histórica del motor (0–99). No es una probabilidad."
+    )
     proximidad: Optional[float] = None
     freq_1_mhz: Optional[float] = None
     freq_2_mhz: Optional[float] = None
