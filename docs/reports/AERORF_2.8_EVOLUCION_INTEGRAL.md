@@ -127,7 +127,7 @@ npm run dev  # puerto 5199
 ## 17. SHA final y estado de GitHub
 
 - Rama: `main`.
-- `HEAD == origin/main == 298acaf` (tras este commit).
+- `HEAD == origin/main == ee3c1ac` (tras este commit).
 - Árbol limpio salvo los dos archivos locales preservados.
 
 ## 18. Validación manual del usuario
