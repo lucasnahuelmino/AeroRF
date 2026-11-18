@@ -144,6 +144,24 @@ export const useRFStore = defineStore('rf', () => {
    * vuelven a la tabla sin recalcular, para que «ver» un análisis muestre lo
    * que se guardó y no una corrida nueva.
    */
+  const asociarAnalisis = async (id, objetoId) => {
+    let response
+    try {
+      response = await fetch(`/api/v1/rf/analisis/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objeto_id: objetoId }),
+      })
+    } catch {
+      throw new Error('No se pudo hablar con el backend. ¿Está levantado?')
+    }
+    if (!response.ok) {
+      throw new Error(await detalleDeError(response, 'No se pudo asociar el análisis.'))
+    }
+    const actualizado = await response.json()
+    historial.value = historial.value.map((a) => (a.id === id ? actualizado : a))
+    return actualizado
+  }
   const loadRun = (parametros, resultados) => {
     lastRequest.value = JSON.parse(JSON.stringify(parametros))
     lastResponse.value = JSON.parse(JSON.stringify(resultados))
@@ -166,6 +184,7 @@ export const useRFStore = defineStore('rf', () => {
     cargarHistorial,
     guardarAnalisis,
     eliminarAnalisis,
+    asociarAnalisis,
     loadRun,
   }
 })

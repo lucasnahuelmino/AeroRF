@@ -31,7 +31,7 @@ from app.database.database import get_db
 from app.models.analisis_rf import AnalisisRF
 from app.models.constants import TYPE_ANTENNA, TYPE_RF_EVENT, TYPE_RF_SOURCE
 from app.models.map_object import MapObject
-from app.models.rf_models import AnalisisRFCreate, AnalisisRFResponse
+from app.models.rf_models import AnalisisRFCreate, AnalisisRFResponse, AnalisisRFPatch
 
 router = APIRouter(prefix="/rf", tags=["RF Analysis"])
 
@@ -135,11 +135,51 @@ def obtener_analisis(analisis_id: int, db: Session = Depends(get_db)):
     return _fila_a_response(row)
 
 
+@router.patch(
+    "/analisis/{analisis_id}",
+    response_model=AnalisisRFResponse,
+    summary="Asociar o desvincular un análisis de un objeto GIS",
+    description=(
+        "Modifica únicamente `objeto_id`. Enviar `null` desvincula el análisis "
+        "sin borrarlo. Valida que el objeto exista y sea fuente RF, evento RF o "
+        "antena."
+    ),
+)
+def asociar_analisis(
+    analisis_id: int,
+    payload: AnalisisRFPatch,
+    db: Session = Depends(get_db),
+):
+    row = db.get(AnalisisRF, analisis_id)
+    if row is None:
+        raise HTTPException(404, f"No existe el análisis {analisis_id}.")
+    if payload.objeto_id is not None:
+        obj = db.get(MapObject, payload.objeto_id)
+        if obj is None:
+            raise HTTPException(404, f"No existe el objeto GIS {payload.objeto_id}.")
+        if obj.type not in TIPOS_ASOCIABLES:
+            raise HTTPException(
+                400,
+                "Sólo se puede asociar un análisis a una fuente RF, un evento "
+                "RF o una antena.",
+            )
+    row.objeto_id = payload.objeto_id
+    db.commit()
+    db.refresh(row)
+    return _fila_a_response(row)
+
+
 @router.delete(
     "/analisis/{analisis_id}",
     status_code=204,
     summary="Eliminar un análisis guardado",
 )
+def eliminar_analisis(analisis_id: int, db: Session = Depends(get_db)):
+    row = db.get(AnalisisRF, analisis_id)
+    if row is None:
+        raise HTTPException(404, f"No existe el análisis {analisis_id}.")
+    db.delete(row)
+    db.commit()
 def eliminar_analisis(analisis_id: int, db: Session = Depends(get_db)):
     row = db.get(AnalisisRF, analisis_id)
     if row is None:

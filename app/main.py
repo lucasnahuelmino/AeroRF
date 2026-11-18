@@ -65,6 +65,18 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown."""
     setup_logging()
     init_db()
+    try:
+        from app.database.database import SessionLocal
+        from app.services.flight_service import recover_interrupted_sessions
+        db = SessionLocal()
+        try:
+            n = recover_interrupted_sessions(db)
+            if n:
+                log.info("flight.session_recovery", f"{n} sesiones interrumpidas marcadas como error", count=n)
+        finally:
+            db.close()
+    except Exception as exc:  # pragma: no cover - best effort
+        log.warning("flight.session_recovery_failed", str(exc))
     log.info(
         "app.startup",
         f"{settings.app_name} ready",

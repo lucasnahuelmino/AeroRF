@@ -529,6 +529,36 @@
                   {{ a.n_productos }} {{ a.n_productos === 1 ? 'producto' : 'productos' }}
                   <template v-if="a.objeto_id"> · objeto GIS #{{ a.objeto_id }}</template>
                 </div>
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                  <template v-if="a.objeto_id">
+                    <button
+                      type="button"
+                      class="calc-accion"
+                      :disabled="asociandoId === a.id"
+                      @click="desvincularAnalisis(a)"
+                    >
+                      {{ asociandoId === a.id ? 'Desvinculando…' : 'Desvincular objeto' }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <input
+                      type="number"
+                      min="1"
+                      class="w-24 px-2 py-1 text-xs bg-panel-hondo border border-borde rounded text-texto"
+                      placeholder="# objeto GIS"
+                      v-model.number="objetoInput[a.id]"
+                      @keydown.enter.prevent="asociarAnalisisUI(a)"
+                    />
+                    <button
+                      type="button"
+                      class="calc-accion"
+                      :disabled="asociandoId === a.id"
+                      @click="asociarAnalisisUI(a)"
+                    >
+                      {{ asociandoId === a.id ? 'Asociando…' : 'Asociar a objeto GIS' }}
+                    </button>
+                  </template>
+                </div>
               </div>
               <div class="calc-acciones">
                 <button type="button" class="calc-accion" @click="cargarAnalisis(a)">
@@ -627,6 +657,8 @@ const quitarEjemplo = () => {
 // `borrandoId` evita dobles clics sobre «Eliminar».
 const guardando = ref(false)
 const borrandoId = ref(null)
+const asociandoId = ref(null)
+const objetoInput = ref({})
 const historialMsg = ref({ tipo: null, texto: '' })
 
 // Importación CSV de emisoras.
@@ -1136,6 +1168,37 @@ const fechaCorta = (iso) => {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+const asociarAnalisisUI = async (a) => {
+  const id = Number(objetoInput.value[a.id])
+  if (!Number.isFinite(id) || id < 1) {
+    historialMsg.value = { tipo: 'error', texto: 'Ingresá un ID de objeto GIS válido.' }
+    return
+  }
+  asociandoId.value = a.id
+  historialMsg.value = { tipo: null, texto: '' }
+  try {
+    await rfStore.asociarAnalisis(a.id, id)
+    historialMsg.value = { tipo: 'ok', texto: `Análisis n.º ${a.id} asociado al objeto GIS #${id}.` }
+  } catch (err) {
+    historialMsg.value = { tipo: 'error', texto: err?.message || 'No se pudo asociar.' }
+  } finally {
+    asociandoId.value = null
+  }
+}
+
+const desvincularAnalisis = async (a) => {
+  asociandoId.value = a.id
+  historialMsg.value = { tipo: null, texto: '' }
+  try {
+    await rfStore.asociarAnalisis(a.id, null)
+    historialMsg.value = { tipo: 'ok', texto: `Análisis n.º ${a.id} desvinculado.` }
+  } catch (err) {
+    historialMsg.value = { tipo: 'error', texto: err?.message || 'No se pudo desvincular.' }
+  } finally {
+    asociandoId.value = null
+  }
 }
 
 onMounted(() => {

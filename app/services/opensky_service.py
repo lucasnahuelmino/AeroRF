@@ -528,7 +528,7 @@ class OpenSkyService:
         url = f"{self.base_url}/api/{path.lstrip('/')}"
         anonymous = not self.configured
 
-        for attempt in (1, 2):
+        for attempt in (1, 2, 3):
             headers = await self._headers(path, pool=pool)
             query = {k: v for k, v in (params or {}).items() if v is not None}
 
@@ -540,25 +540,38 @@ class OpenSkyService:
                 try:
                     response = await self._client.get(url, params=query, headers=headers)
                 except httpx.TimeoutException as exc:
-                    opensky_log.error(
-                        "opensky.timeout", "request timed out",
-                        endpoint=path, pool=pool,
+                    opensky_log.warning(
+                        "opensky.timeout", "request timed out, retrying",
+                        endpoint=path, pool=pool, attempt=attempt,
                     )
+                    if attempt < 3:
+                        await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))))
+                        continue
                     raise OpenSkyError(
                         f"OpenSky no respondió en "
                         f"{self.settings.opensky_timeout_s:.0f}s ({path}).",
                         pool=pool,
                     ) from exc
                 except httpx.HTTPError as exc:
-                    opensky_log.error(
-                        "opensky.network_error", "network failure",
+                    opensky_log.warning(
+                        "opensky.network_error", "network failure, retrying",
                         endpoint=path, error=type(exc).__name__, pool=pool,
+                        attempt=attempt,
                     )
+                    if attempt < 3:
+                        await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))))
+                        continue
                     raise OpenSkyError(
                         f"No se pudo contactar a OpenSky ({path}): {exc}", pool=pool
                     ) from exc
 
             status = response.status_code
+
+            # Reintentos ante errores transitorios del servidor (5xx): backoff
+            # corto con jitter para no martillar a OpenSky ni bloquear tests.
+            if status >= 500 and status < 600 and attempt < 3:
+                await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))))
+                continue
 
             if status == 401:
                 if anonymous:

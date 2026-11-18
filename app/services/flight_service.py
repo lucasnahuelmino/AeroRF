@@ -889,27 +889,54 @@ def record_sample(
     if session.status != SESSION_RECORDING:
         return None
 
-    position = AircraftPosition(
-        session_id=session.id,
-        timestamp=state.get("time_position"),
-        latitude=state.get("latitude"),
-        longitude=state.get("longitude"),
-        altitude=state.get("altitude"),
-        heading=state.get("heading"),
-        velocity=state.get("velocity"),
-        vertical_rate=state.get("vertical_rate"),
-        on_ground=state.get("on_ground"),
-        callsign=state.get("callsign") or session.callsign,
-        icao24=state.get("icao24") or session.icao24,
-        source=TRACK_SOURCE_OPENSKY,
+    # Deduplicación: no insertar la misma observación dos veces.
+    ts = state.get("time_position")
+    lat = state.get("latitude")
+    lon = state.get("longitude")
+    existing = (
+        db.query(AircraftPosition)
+        .filter(
+            AircraftPosition.session_id == session.id,
+            AircraftPosition.timestamp == ts,
+            AircraftPosition.latitude == lat,
+            AircraftPosition.longitude == lon,
+        )
+        .first()
     )
-    db.add(position)
-    session.sample_count = (session.sample_count or 0) + 1
-    if state.get("callsign"):
-        session.callsign = state["callsign"]
-    db.commit()
-    db.refresh(position)
-    return position
+    if existing is not None:
+        return existing
+
+    try:
+        position = AircraftPosition(
+            session_id=session.id,
+            timestamp=ts,
+            latitude=lat,
+            longitude=lon,
+            altitude=state.get("altitude"),
+            heading=state.get("heading"),
+            velocity=state.get("velocity"),
+            vertical_rate=state.get("vertical_rate"),
+            on_ground=state.get("on_ground"),
+            callsign=state.get("callsign") or session.callsign,
+            icao24=state.get("icao24") or session.icao24,
+            source=TRACK_SOURCE_OPENSKY,
+        )
+        db.add(position)
+        session.sample_count = (session.sample_count or 0) + 1
+        if state.get("callsign"):
+            session.callsign = state["callsign"]
+        db.commit()
+        db.refresh(position)
+        return position
+    except Exception as exc:
+        db.rollback()
+        try:
+            session.status = SESSION_ERROR
+            session.error = f"record_sample failed: {exc}"
+            db.commit()
+        except Exception:
+            db.rollback()
+        raise FlightServiceError(f"Error registrando muestra: {exc}") from exc
 
 
 def stop_session(db: Session, session_id: int, notes: Optional[str] = None) -> FlightSession:
@@ -1232,3 +1259,32 @@ def correlate_event(
         "disclaimer": DISCLAIMER,
         "provenance": "calculated",
     }
+
+
+def recover_interrupted_sessions(db: Session) -> int:
+    """Marca como `error` las sesiones que quedaron grabando al reiniciar.
+
+    Las posiciones ya registradas se conservan; el estado queda trazable en
+    `session.error`. No se borra ni se sobrescribe información histórica.
+    Devuelve la cantidad de sesiones afectadas.
+    """
+    affected = 0
+    try:
+        rows = (
+            db.query(FlightSession)
+            .filter(FlightSession.status == SESSION_RECORDING)
+            .all()
+        )
+        for session in rows:
+            session.status = SESSION_ERROR
+            session.error = (
+                "Sesión interrumpida por reinicio del backend. "
+                "Las posiciones registradas se conservan."
+            )
+            session.ended_at = utcnow()
+            affected += 1
+        if affected:
+            db.commit()
+    except Exception:
+        db.rollback()
+    return affected

@@ -175,3 +175,15 @@ class AnalisisRFResponse(BaseModel):
     objeto_id: Optional[int] = None
     parametros: RFCalculationRequest
     resultados: RFCalculationResponse
+
+
+class AnalisisRFPatch(BaseModel):
+    """Patch for an existing analysis: only the GIS association is mutable."""
+
+    objeto_id: Optional[int] = Field(
+        None,
+        description=(
+            "Objeto GIS al que se asocia (fuente RF, evento RF o antena). "
+            "Enviar null para desvincular."
+        ),
+    )

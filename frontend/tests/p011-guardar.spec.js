@@ -300,7 +300,7 @@ describe('el historial de análisis', () => {
     expect(w.text()).toContain('#12')
     expect(w.text()).toContain('Armónicos')
     expect(w.text(), 'sin asociación no se pinta el chip de objeto GIS').not.toContain(
-      'objeto GIS'
+      '· objeto GIS #'
     )
   })
 
