@@ -80,12 +80,12 @@ limpios.
 
 ## 11. Commits generados
 
-- `ec3984d` — feat: hardening operativo (dedup persistente, OpenSky retry/backoff, Playwright)
+- `959ccca` — feat+docs: hardening operativo (dedup persistente, OpenSky retry/backoff, Playwright)
 
 ## 12. Estado final de sincronización con GitHub
 
 - Rama: `main`.
-- `HEAD == origin/main == ec3984d` (tras este commit).
+- `HEAD == origin/main == 959ccca` (tras este commit).
 - Árbol limpio salvo los dos archivos locales preservados.
 
 ## 13. Confirmación de preservación de datos
