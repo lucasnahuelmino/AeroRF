@@ -1304,3 +1304,62 @@ def recover_interrupted_sessions(db: Session) -> int:
     except Exception:
         db.rollback()
     return affected
+
+
+def query_history(
+    db: Session,
+    icao24: Optional[str] = None,
+    session_id: Optional[int] = None,
+    begin: Optional[int] = None,
+    end: Optional[int] = None,
+    min_altitude: Optional[float] = None,
+    max_altitude: Optional[float] = None,
+    min_speed: Optional[float] = None,
+    max_speed: Optional[float] = None,
+    limit: int = 500,
+    offset: int = 0,
+) -> dict:
+    """Consulta paginada de posiciones históricas con filtros combinables."""
+    q = db.query(AircraftPosition)
+    if icao24:
+        q = q.filter(AircraftPosition.icao24 == icao24.strip().lower())
+    if session_id is not None:
+        q = q.filter(AircraftPosition.session_id == session_id)
+    if begin is not None:
+        q = q.filter(AircraftPosition.timestamp >= begin)
+    if end is not None:
+        q = q.filter(AircraftPosition.timestamp <= end)
+    if min_altitude is not None:
+        q = q.filter(AircraftPosition.altitude >= min_altitude)
+    if max_altitude is not None:
+        q = q.filter(AircraftPosition.altitude <= max_altitude)
+    if min_speed is not None:
+        q = q.filter(AircraftPosition.velocity >= min_speed)
+    if max_speed is not None:
+        q = q.filter(AircraftPosition.velocity <= max_speed)
+
+    total = q.count()
+    rows = (
+        q.order_by(AircraftPosition.timestamp.asc(), AircraftPosition.id.asc())
+        .offset(max(0, offset))
+        .limit(min(max(1, limit), 2000))
+        .all()
+    )
+    items = []
+    for p in rows:
+        items.append({
+            "id": p.id,
+            "icao24": p.icao24,
+            "session_id": p.session_id,
+            "timestamp": p.timestamp,
+            "received_at": p.received_at.isoformat() if p.received_at else None,
+            "latitude": p.latitude,
+            "longitude": p.longitude,
+            "altitude": p.altitude,
+            "velocity": p.velocity,
+            "heading": p.heading,
+            "on_ground": p.on_ground,
+            "callsign": p.callsign,
+            "source": p.source,
+        })
+    return {"total": total, "limit": limit, "offset": offset, "items": items}
