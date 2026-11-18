@@ -89,12 +89,10 @@
 
 ## 8. SHA del commit final
 
-`95a469fdd0460a6671a20d7df88101327d92d276` (último de la campaña 2.6) más los
-cambios de esta campaña pendientes de commit (ver §9).
+`660838ad5f67d7644640d34cc5f6784a393b8097`.
 
 ## 9. Estado de `main` y sincronización con `origin/main`
 
 - Rama: `main`.
-- `HEAD == origin/main == 95a469f` al inicio de esta campaña.
-- Los cambios de esta campaña (fases A–G) se aplican sobre `main` y se
-  commitean/pushean al finalizar la validación.
+- `HEAD == origin/main == 660838a` tras la publicación de esta campaña.
+- Publicado en `origin/main` (commit `660838a`).
