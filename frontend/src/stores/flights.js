@@ -422,6 +422,7 @@ export const useFlightsStore = defineStore('flights', () => {
 
   let socket = null
   let reconnectTimer = null
+  let reconnectAttempts = 0
 
   function connectSocket() {
     if (socket && socket.readyState <= 1) return
@@ -433,6 +434,7 @@ export const useFlightsStore = defineStore('flights', () => {
 
     socket.onopen = () => {
       socketState.value = 'connected'
+      reconnectAttempts = 0
       subscribeSocket()
     }
 
@@ -449,10 +451,12 @@ export const useFlightsStore = defineStore('flights', () => {
     socket.onclose = () => {
       socketState.value = 'disconnected'
       socket = null
-      // Reconnect with a backoff; the server pushes on change, so a
-      // dropped socket means the map goes stale until it returns.
+      // Reconexión con backoff exponencial acotado (1s → 30s) para no
+      // inundar al backend ni al navegador cuando el servicio cae.
       clearTimeout(reconnectTimer)
-      reconnectTimer = setTimeout(connectSocket, 5000)
+      const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts))
+      reconnectAttempts = Math.min(reconnectAttempts + 1, 5)
+      reconnectTimer = setTimeout(connectSocket, delay)
     }
 
     socket.onerror = () => {
@@ -500,6 +504,7 @@ export const useFlightsStore = defineStore('flights', () => {
 
   function disconnectSocket() {
     clearTimeout(reconnectTimer)
+    reconnectAttempts = 0
     if (socket) {
       socket.onclose = null
       socket.close()

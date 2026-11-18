@@ -84,6 +84,14 @@ async def lifespan(app: FastAPI):
             "OPENSKY_ALLOW_ANONYMOUS. Ver .env.example.",
         )
     yield
+    # Cierre ordenado del cliente HTTP de OpenSky (si se creó).
+    try:
+        from app.services.opensky_service import _service as _os, get_opensky_service
+        svc = _service if _service is not None else None
+        if svc is not None:
+            await svc.aclose()
+    except Exception:  # pragma: no cover - best effort on shutdown
+        pass
     log.info("app.shutdown", "shutting down")
 
 

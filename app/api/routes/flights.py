@@ -212,9 +212,8 @@ async def flights_all(
         raise _credentials_required()
     begin, end = _resolve(begin, end, hours)
     try:
-        return {"count": len(await service.get_flights_all(begin, end)),
-                "flights": await service.get_flights_all(begin, end),
-                "begin": begin, "end": end}
+        flights = await service.get_flights_all(begin, end)
+        return {"count": len(flights), "flights": flights, "begin": begin, "end": end}
     except Exception as exc:
         raise _handle(exc)
 
