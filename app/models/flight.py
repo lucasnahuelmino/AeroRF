@@ -40,8 +40,8 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import relationship
-
 from app.core.time import utcnow
 from app.database.database import Base
 from app.models.constants import (
@@ -262,6 +262,13 @@ class AircraftPosition(Base):
     __table_args__ = (
         Index("ix_positions_session_ts", "session_id", "timestamp"),
         Index("ix_positions_icao_ts", "icao24", "timestamp"),
+        Index(
+            "uq_positions_session_icao_ts",
+            "session_id", "icao24", "timestamp",
+            unique=True,
+            sqlite_where=sa_text("timestamp IS NOT NULL"),
+            postgresql_where=sa_text("timestamp IS NOT NULL"),
+        ),
     )
 
     def __repr__(self) -> str:

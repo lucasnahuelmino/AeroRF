@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import random
 import statistics
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional, Sequence
@@ -545,7 +546,7 @@ class OpenSkyService:
                         endpoint=path, pool=pool, attempt=attempt,
                     )
                     if attempt < 3:
-                        await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))))
+                        await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))) * (0.5 + random.random()))
                         continue
                     raise OpenSkyError(
                         f"OpenSky no respondió en "
@@ -559,7 +560,7 @@ class OpenSkyService:
                         attempt=attempt,
                     )
                     if attempt < 3:
-                        await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))))
+                        await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))) * (0.5 + random.random()))
                         continue
                     raise OpenSkyError(
                         f"No se pudo contactar a OpenSky ({path}): {exc}", pool=pool
@@ -570,7 +571,7 @@ class OpenSkyService:
             # Reintentos ante errores transitorios del servidor (5xx): backoff
             # corto con jitter para no martillar a OpenSky ni bloquear tests.
             if status >= 500 and status < 600 and attempt < 3:
-                await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))))
+                await asyncio.sleep(min(1.0, 0.1 * (2 ** (attempt - 1))) * (0.5 + random.random()))
                 continue
 
             if status == 401:
@@ -615,6 +616,11 @@ class OpenSkyService:
                     endpoint=path, pool=pool, backoff_s=round(delay, 1),
                     credits_remaining=remaining,
                 )
+                # Reintento sólo si la espera es corta; si no, se propaga
+                # el RateLimitedError con el Retry-After completo.
+                if attempt < 3 and delay <= 5.0:
+                    await asyncio.sleep(delay * (0.5 + random.random()))
+                    continue
                 raise RateLimitedError(
                     f"OpenSky alcanzó el límite de créditos en /{path}. "
                     f"Pausa de {delay:.0f}s.",
