@@ -930,6 +930,22 @@ def record_sample(
         return position
     except Exception as exc:
         db.rollback()
+        # Si la restricción de unicidad (cuando exista) disparó, tratarlo
+        # como duplicado y no como error de sesión.
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(exc, IntegrityError):
+            existing2 = (
+                db.query(AircraftPosition)
+                .filter(
+                    AircraftPosition.session_id == session.id,
+                    AircraftPosition.timestamp == ts,
+                    AircraftPosition.latitude == lat,
+                    AircraftPosition.longitude == lon,
+                )
+                .first()
+            )
+            if existing2 is not None:
+                return existing2
         try:
             session.status = SESSION_ERROR
             session.error = f"record_sample failed: {exc}"

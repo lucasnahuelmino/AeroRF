@@ -23,7 +23,7 @@ import websockets
 #: rather than the application in-process. Point elsewhere with
 #: ``AERORF_WS_URL`` if the backend is not on the default port.
 DEFAULT_WS = "ws://127.0.0.1:8010/ws/flights"
-_BASE = "http://127.0.0.1:8010/api/v1"
+_BASE = os.getenv("AERORF_BASE", "http://127.0.0.1:8010/api/v1")
 
 
 def _ws_url() -> str:

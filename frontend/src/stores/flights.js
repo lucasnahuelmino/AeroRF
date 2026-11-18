@@ -529,6 +529,13 @@ export const useFlightsStore = defineStore('flights', () => {
     try {
       const data = await flightsApi.sessions()
       sessions.value = data.sessions || []
+      if (Object.keys(activeSessions.value).length === 0) {
+        const next = {}
+        for (const sess of sessions.value) {
+          if (sess.status === 'recording' && sess.icao24) next[sess.icao24] = sess.id
+        }
+        activeSessions.value = next
+      }
       return sessions.value
     } catch (e) {
       error.value = describeError(e)
