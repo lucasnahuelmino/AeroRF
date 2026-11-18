@@ -78,13 +78,13 @@
 
 ## 10. SHA de commits
 
-- `ea73511` — feat: AeroRF 2.7.2 campaign (retry, RF association, dedup, SESSION_ERROR, Alembic scaffold)
-- `07b9b46` — docs: fix final SHA in cierre tecnico report (campaña integral anterior)
+- `55dbed9` — feat+docs: AeroRF 2.7.2 campaign (final) (retry, RF association, dedup, SESSION_ERROR, Alembic scaffold)
+- `07b9b46` — docs: fix final SHA (campaña integral anterior) in cierre tecnico report (campaña integral anterior)
 
 ## 11. Estado de `main` y sincronización con `origin/main`
 
 - Rama: `main`.
-- `HEAD == origin/main == ea73511` (tras este commit).
+- `HEAD == origin/main == 55dbed9` (tras este commit).
 - Árbol limpio salvo los dos archivos locales preservados
   (`AERORF_2.6_ESTABILIZACION.md`, `docs/archive/implementacion.md`).
 
