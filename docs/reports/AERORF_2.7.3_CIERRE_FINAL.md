@@ -88,13 +88,13 @@ validación visual documentada. Frontend y backend verdes, build y lint limpios.
 
 ## 13. Commits generados
 
-- `caa54ea` — feat: AeroRF 2.7.3 (session recovery, dedup, Alembic migration, WS integration)
+- `d84c066` — feat+docs: AeroRF 2.7.3 (session recovery, dedup, Alembic migration, WS integration)
 - `16794e3` — docs: fix final SHA in 2.7.2 closure report (campaña anterior)
 
 ## 14. Estado final de sincronización con GitHub
 
 - Rama: `main`.
-- `HEAD == origin/main == 16794e3` (tras este commit).
+- `HEAD == origin/main == d84c066` (tras este commit).
 - Árbol limpio salvo los dos archivos locales preservados.
 
 ## 15. Confirmación de preservación de datos
